@@ -576,44 +576,6 @@ if not validation_results['overall_valid']:
     report = validator.generate_validation_report(validation_results)
     print("\\nDetailed Validation Report:")
     print(report)
-
-    # Write report to file
-    with open("validation_report.txt", "w") as f:
-        f.write(report)
-else:
-    print("All constraints satisfied!")
-
-'''
-
-
-def generate_example_constraint_checker() -> str:
-    """
-    Generate a code template for constraint checking that can be adapted for specific use.
-    """
-    return '''
-# Example of how to use the validator with actual data
-validator = LeadershipSurveyConstraintValidator()
-
-# Load your datasets
-datasets = {
-    'T1': pd.read_excel('T1_cleaned.xlsx'),
-    'T2': pd.read_excel('T2_cleaned.xlsx'),
-    'T3_leader': pd.read_excel('T3_leader_cleaned.xlsx'),
-    'T3_follower': pd.read_excel('T3_follower_cleaned.xlsx'),
-    'final_merged': pd.read_excel('final_merged_analysis_data.xlsx')
-}
-
-# Run validation
-validation_results = validator.run_complete_validation(datasets)
-
-print("Validation Results:")
-for category, result in validation_results['individual_results'].items():
-    print(f"{category}: {result}")
-
-print(f"Overall Valid: {validation_results['overall_valid']}")
-
-if not validation_results['overall_valid']:
-    print("Some constraints were violated. Please review the data.")
 else:
     print("All constraints satisfied!")
 '''
