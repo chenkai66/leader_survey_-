@@ -1,292 +1,238 @@
-# R Script for Leadership Survey Data Analysis
-# Implements the statistical requirements specified in the project
+# ============================================================
+# Study 3: Leadership Styles, Envy, and Subordinate Outcomes
+# Complete Analysis Code
+# ============================================================
 
-# Load required libraries
-library(lme4)
-library(semTools)
-library(lavaan)
-library(dplyr)
-library(tidyr)
+# --- Load Libraries ---
+library(lme4)       # Multilevel modeling
+library(lmerTest)   # p-values for lmer
+library(lavaan)     # CFA (single-level)
+library(readxl)     # Read Excel files
+library(dplyr)      # Data manipulation
+library(psych)      # Descriptive stats, reliability
+library(performance) # ICC computation
+library(boot)       # Bootstrapping
 
-# Function to calculate ICC for null models
-calculate_null_model_icc <- function(data, dv, group_var) {
-  # Fit null model (intercept only with random effects)
-  null_model <- lmer(as.formula(paste(dv, "~ 1 + (1|", group_var, ")")), data = data)
+# --- Read Data ---
+final_data <- read_excel("final_merged_analysis_data.xlsx")
 
-  # Extract variance components
-  var_components <- as.data.frame(VarCorr(null_model))
-  between_var <- var_components$vcov[var_components$grp == group_var]
-  residual_var <- var_components$vcov[var_components$grp == "Residual"]
+cat("Data loaded:", nrow(final_data), "rows,",
+    length(unique(final_data$LeaderID)), "leaders\n")
 
-  # Calculate ICC
-  icc <- between_var / (between_var + residual_var)
+# ============================================================
+# 1. DESCRIPTIVE STATISTICS AND CORRELATIONS
+# ============================================================
 
-  return(list(
-    icc = icc,
-    between_variance = between_var,
-    within_variance = residual_var,
-    model = null_model
-  ))
+# Key variables for descriptives (non-centered)
+desc_vars <- c("Autocratic", "Empowering", "BenignEnvy", "MaliciousEnvy",
+               "T1_Thriving", "T3_Thriving", "OCBS_Leader", "CWBS_Leader",
+               "Narcissism", "PowerDistance", "FollowerAge", "TenureWithLeader",
+               "InteractionFreq")
+
+# Filter to existing columns
+desc_vars_exist <- desc_vars[desc_vars %in% names(final_data)]
+
+# Descriptive statistics
+cat("\n=== Descriptive Statistics ===\n")
+describe(final_data[, desc_vars_exist])
+
+# Correlation matrix
+cat("\n=== Correlations ===\n")
+cor_matrix <- cor(final_data[, desc_vars_exist], use = "pairwise.complete.obs")
+round(cor_matrix, 3)
+
+# Reliability (Cronbach's alpha) for multi-item scales
+cat("\n=== Reliability (Cronbach's Alpha) ===\n")
+
+# Autocratic Leadership
+aut_items <- paste0("AUT", 1:6)
+if (all(aut_items %in% names(final_data))) {
+  cat("Autocratic:", psych::alpha(final_data[, aut_items])$total$raw_alpha, "\n")
 }
 
-# Function to perform centering as specified
-perform_centering <- function(data, variables_to_center, type = "grand_mean") {
-  centered_data <- data
+# Benign Envy
+ben_items <- paste0("BEN", 1:5)
+if (all(ben_items %in% names(final_data))) {
+  cat("Benign Envy:", psych::alpha(final_data[, ben_items])$total$raw_alpha, "\n")
+}
 
-  for (var in variables_to_center) {
-    if (var %in% colnames(data)) {
-      if (type == "grand_mean") {
-        centered_data[[var]] <- data[[var]] - mean(data[[var]], na.rm = TRUE)
-      } else if (type == "group_mean") {
-        # Group mean centering would require grouping variable specification
-        stop("Group mean centering requires specification of grouping variable")
-      }
-    }
+# Malicious Envy
+mal_items <- paste0("MAL", 1:5)
+if (all(mal_items %in% names(final_data))) {
+  cat("Malicious Envy:", psych::alpha(final_data[, mal_items])$total$raw_alpha, "\n")
+}
+
+# ============================================================
+# 2. ICC COMPUTATION (NULL MODELS)
+# ============================================================
+
+cat("\n=== ICC from Null Models ===\n")
+
+icc_vars <- c("Autocratic", "Empowering", "BenignEnvy", "MaliciousEnvy",
+              "T1_Thriving", "T3_Thriving", "OCBS_Leader", "CWBS_Leader",
+              "Narcissism", "PowerDistance")
+
+for (v in icc_vars) {
+  if (v %in% names(final_data)) {
+    formula_str <- paste0(v, " ~ 1 + (1|LeaderID)")
+    null_model <- lmer(as.formula(formula_str), data = final_data, REML = TRUE)
+    vc <- as.data.frame(VarCorr(null_model))
+    between_var <- vc$vcov[1]
+    within_var <- vc$vcov[2]
+    icc_val <- between_var / (between_var + within_var)
+    cat(sprintf("  %s: ICC(1) = %.3f\n", v, icc_val))
   }
-
-  return(centered_data)
 }
 
-# Function to create composite parcels according to theory
-create_theoretical_parcels <- function(data) {
-  # Example for Empowering Leadership parcels
-  # EMPP1 = mean(EMP1, EMP2, EMP3)
-  # EMPP2 = mean(EMP4, EMP5, EMP6)
-  # EMPP3 = mean(EMP7, EMP8, EMP9)
-  # EMPP4 = mean(EMP10, EMP11, EMP12)
+# ============================================================
+# 3. MODEL 1: Main Model (with controls)
+# ============================================================
 
-  if(all(c("EMP1", "EMP2", "EMP3") %in% colnames(data))) {
-    data$EMPP1 <- rowMeans(data[, c("EMP1", "EMP2", "EMP3")], na.rm = TRUE)
-  }
+cat("\n=== Model 1: Main Analysis (Two-Level Path Model) ===\n")
 
-  if(all(c("EMP4", "EMP5", "EMP6") %in% colnames(data))) {
-    data$EMPP2 <- rowMeans(data[, c("EMP4", "EMP5", "EMP6")], na.rm = TRUE)
-  }
+# Step 1: Autocratic/Empowering -> Benign Envy
+model1_ben <- lmer(BenignEnvy ~ Autocratic_C + Empowering_C +
+                     FollowerAge_C + TenureWithLeader_C + InteractionFreq_C +
+                     Gender_Female + Narcissism_C + PowerDistance_C +
+                     (1|LeaderID),
+                   data = final_data, REML = FALSE)
+summary(model1_ben)
 
-  if(all(c("EMP7", "EMP8", "EMP9") %in% colnames(data))) {
-    data$EMPP3 <- rowMeans(data[, c("EMP7", "EMP8", "EMP9")], na.rm = TRUE)
-  }
+# Step 2: Autocratic/Empowering -> Malicious Envy
+model1_mal <- lmer(MaliciousEnvy ~ Autocratic_C + Empowering_C +
+                     FollowerAge_C + TenureWithLeader_C + InteractionFreq_C +
+                     Gender_Female + Narcissism_C + PowerDistance_C +
+                     (1|LeaderID),
+                   data = final_data, REML = FALSE)
+summary(model1_mal)
 
-  if(all(c("EMP10", "EMP11", "EMP12") %in% colnames(data))) {
-    data$EMPP4 <- rowMeans(data[, c("EMP10", "EMP11", "EMP12")], na.rm = TRUE)
-  }
-
-  # Example for Thriving parcels
-  # THRP1 = mean(THR1, THR3, R_THR5)
-  # THRP2 = mean(THR2, THR4)
-  # THRP3 = mean(THR6, THR8, R_THR10)
-  # THRP4 = mean(THR7, THR9)
-
-  if(all(c("THR1", "THR3", "R_THR5") %in% colnames(data))) {
-    data$THRP1 <- rowMeans(data[, c("THR1", "THR3", "R_THR5")], na.rm = TRUE)
-  }
-
-  if(all(c("THR2", "THR4") %in% colnames(data))) {
-    data$THRP2 <- rowMeans(data[, c("THR2", "THR4")], na.rm = TRUE)
-  }
-
-  if(all(c("THR6", "THR8", "R_THR10") %in% colnames(data))) {
-    data$THRP3 <- rowMeans(data[, c("THR6", "THR8", "R_THR10")], na.rm = TRUE)
-  }
-
-  if(all(c("THR7", "THR9") %in% colnames(data))) {
-    data$THRP4 <- rowMeans(data[, c("THR7", "THR9")], na.rm = TRUE)
-  }
-
-  return(data)
+# Step 3: Envy -> T3 Thriving (controlling T1 thriving)
+if ("T1_Thriving_C" %in% names(final_data) & "T3_Thriving" %in% names(final_data)) {
+  model1_thr <- lmer(T3_Thriving ~ BenignEnvy + MaliciousEnvy +
+                       T1_Thriving_C + FollowerAge_C + TenureWithLeader_C +
+                       InteractionFreq_C + Gender_Female +
+                       (1|LeaderID),
+                     data = final_data, REML = FALSE)
+  summary(model1_thr)
 }
 
-# Function to create dummy variables
-create_dummy_variables <- function(data, categorical_vars) {
-  for (var in categorical_vars) {
-    if (var %in% colnames(data)) {
-      # Assuming the variable has levels that need to be converted to dummies
-      # This is a simplified approach - actual implementation may vary based on variable nature
-      levels <- unique(data[[var]])
-      levels <- levels[!is.na(levels)]
+# Step 4: Envy -> OCBS (Leader-rated)
+model1_ocbs <- lmer(OCBS_Leader ~ BenignEnvy + MaliciousEnvy +
+                      FollowerAge_C + TenureWithLeader_C + InteractionFreq_C +
+                      Gender_Female +
+                      (1|LeaderID),
+                    data = final_data, REML = FALSE)
+summary(model1_ocbs)
 
-      # Create dummy variables for all levels except the first (baseline)
-      for (i in 2:length(levels)) {
-        dummy_name <- paste(var, "_", levels[i], sep="")
-        data[[dummy_name]] <- ifelse(data[[var]] == levels[i], 1, 0)
-      }
-    }
-  }
-  return(data)
+# Step 5: Envy -> CWBS (Leader-rated)
+model1_cwbs <- lmer(CWBS_Leader ~ BenignEnvy + MaliciousEnvy +
+                      FollowerAge_C + TenureWithLeader_C + InteractionFreq_C +
+                      Gender_Female +
+                      (1|LeaderID),
+                    data = final_data, REML = FALSE)
+summary(model1_cwbs)
+
+# Step 6: Moderation by Narcissism
+model1_mod_narc <- lmer(MaliciousEnvy ~ Autocratic_C * Narcissism_C +
+                          Empowering_C + FollowerAge_C + TenureWithLeader_C +
+                          InteractionFreq_C + Gender_Female + PowerDistance_C +
+                          (1|LeaderID),
+                        data = final_data, REML = FALSE)
+summary(model1_mod_narc)
+
+# Step 7: Moderation by Power Distance
+model1_mod_pd <- lmer(BenignEnvy ~ Empowering_C * PowerDistance_C +
+                        Autocratic_C + FollowerAge_C + TenureWithLeader_C +
+                        InteractionFreq_C + Gender_Female + Narcissism_C +
+                        (1|LeaderID),
+                      data = final_data, REML = FALSE)
+summary(model1_mod_pd)
+
+# ============================================================
+# 4. MODEL 2: No Controls
+# ============================================================
+
+cat("\n=== Model 2: No Controls (Robustness) ===\n")
+
+model2_ben <- lmer(BenignEnvy ~ Autocratic_C + Empowering_C + (1|LeaderID),
+                   data = final_data, REML = FALSE)
+model2_mal <- lmer(MaliciousEnvy ~ Autocratic_C + Empowering_C + (1|LeaderID),
+                   data = final_data, REML = FALSE)
+summary(model2_ben)
+summary(model2_mal)
+
+# ============================================================
+# 5. MODEL 3: Alternative Outcome Source (Follower-rated OCBS/CWBS)
+# ============================================================
+
+cat("\n=== Model 3: Follower-Rated Outcomes (Robustness) ===\n")
+
+if ("OCBS_Follower" %in% names(final_data)) {
+  model3_ocbs <- lmer(OCBS_Follower ~ BenignEnvy + MaliciousEnvy +
+                        FollowerAge_C + TenureWithLeader_C + InteractionFreq_C +
+                        Gender_Female +
+                        (1|LeaderID),
+                      data = final_data, REML = FALSE)
+  summary(model3_ocbs)
 }
 
-# Function for Multilevel CFA (MCFA) - using a simplified approach
-# Note: Full MCFA requires special packages like lavaan with multilevel capabilities
-run_mcfa <- function(data, model_syntax, cluster_var) {
-  # Convert to long format if needed for multilevel analysis
-  # This is a simplified example - full MCFA in R has limitations
-  # compared to Mplus for complex multilevel models
-
-  # lavaan multilevel model syntax
-  fit <- sem(model_syntax,
-             data = data,
-             cluster = cluster_var,
-             se = "robust",
-             estimator = "MLR")
-
-  return(fit)
+if ("CWBS_Follower" %in% names(final_data)) {
+  model3_cwbs <- lmer(CWBS_Follower ~ BenignEnvy + MaliciousEnvy +
+                        FollowerAge_C + TenureWithLeader_C + InteractionFreq_C +
+                        Gender_Female +
+                        (1|LeaderID),
+                      data = final_data, REML = FALSE)
+  summary(model3_cwbs)
 }
 
-# Model 1: Main analysis with controls
-fit_model1 <- function(data) {
-  # This is a placeholder - actual model specification would depend on variables
-  model1_syntax <- '
-    # Within-level factors
-    Autocratic_W =~ aut1_w + aut2_w + aut3_w
-    Empowering_W =~ emp1_w + emp2_w + emp3_w
-    Envy_W =~ ben1_w + ben2_w + mal1_w + mal2_w
-    Thriving_W =~ thr1_w + thr2_w + thr3_w
+# ============================================================
+# 6. MONTE CARLO CI FOR INDIRECT EFFECTS (20,000 reps)
+# ============================================================
 
-    # Between-level factors
-    Autocratic_B =~ aut1_b + aut2_b + aut3_b
-    Empowering_B =~ emp1_b + emp2_b + emp3_b
-    Envy_B =~ ben1_b + ben2_b + mal1_b + mal2_b
-    Thriving_B =~ thr1_b + thr2_b + thr3_b
+cat("\n=== Monte Carlo Confidence Intervals (Indirect Effects) ===\n")
 
-    # Path relationships
-    Envy_W ~ Autocratic_W + Empowering_W
-    Thriving_W ~ Envy_W + Autocratic_W + Empowering_W
-
-    Envy_B ~ Autocratic_B + Empowering_B
-    Thriving_B ~ Envy_B + Autocratic_B + Empowering_B
-  '
-
-  # This assumes you have prepared the data appropriately for multilevel analysis
-  # Actual implementation would need to address the clustering structure
-  return(model1_syntax)
+# Function to compute Monte Carlo CI for indirect effect
+monte_carlo_ci <- function(a, se_a, b, se_b, reps = 20000, ci = 0.95) {
+  # Draw from sampling distributions
+  a_sim <- rnorm(reps, mean = a, sd = se_a)
+  b_sim <- rnorm(reps, mean = b, sd = se_b)
+  # Compute product (indirect effect)
+  ab_sim <- a_sim * b_sim
+  # Get CI
+  lower <- (1 - ci) / 2
+  upper <- 1 - lower
+  ci_bounds <- quantile(ab_sim, probs = c(lower, upper))
+  point_est <- a * b
+  return(list(estimate = point_est, lower = ci_bounds[1], upper = ci_bounds[2]))
 }
 
-# Model 2: No-controls version
-fit_model2 <- function(data) {
-  # Similar to Model 1 but without control variables
-  model2_syntax <- '
-    # Same as Model 1 but excluding control paths
-    # This would be adjusted based on the specific model requirements
-  '
+# Example: Autocratic -> Malicious Envy -> CWBS
+a_path <- fixef(model1_mal)["Autocratic_C"]
+se_a <- summary(model1_mal)$coefficients["Autocratic_C", "Std. Error"]
+b_path <- fixef(model1_cwbs)["MaliciousEnvy"]
+se_b <- summary(model1_cwbs)$coefficients["MaliciousEnvy", "Std. Error"]
 
-  return(model2_syntax)
-}
+mc_result <- monte_carlo_ci(a_path, se_a, b_path, se_b, reps = 20000)
+cat(sprintf("  Autocratic -> Mal Envy -> CWBS: %.3f [%.3f, %.3f]\n",
+            mc_result$estimate, mc_result$lower, mc_result$upper))
 
-# Model 3: Robustness check with follower-rated outcomes
-fit_model3 <- function(data) {
-  # Replace leader-rated OCBS/CWBS with follower-rated versions
-  model3_syntax <- '
-    # Modified model using follower-rated outcomes
-    # Specific adjustments would depend on variable availability
-  '
+# Example: Empowering -> Benign Envy -> Thriving
+a_path2 <- fixef(model1_ben)["Empowering_C"]
+se_a2 <- summary(model1_ben)$coefficients["Empowering_C", "Std. Error"]
+b_path2 <- fixef(model1_thr)["BenignEnvy"]
+se_b2 <- summary(model1_thr)$coefficients["BenignEnvy", "Std. Error"]
 
-  return(model3_syntax)
-}
+mc_result2 <- monte_carlo_ci(a_path2, se_a2, b_path2, se_b2, reps = 20000)
+cat(sprintf("  Empowering -> Ben Envy -> Thriving: %.3f [%.3f, %.3f]\n",
+            mc_result2$estimate, mc_result2$lower, mc_result2$upper))
 
-# Function to run Monte Carlo simulation for confidence intervals
-monte_carlo_ci <- function(model_fit, n_replications = 20000) {
-  # This would implement Monte Carlo simulation for indirect effects
-  # The actual implementation would depend on the specific model structure
+cat("\nNote: MCFA must be conducted in Mplus (see mcfa_mplus_syntax.inp)\n")
+cat("R's lavaan does not properly support multilevel CFA for this data structure.\n")
 
-  # For demonstration:
-  cat("Running Monte Carlo simulation with", n_replications, "replications\n")
-  # In practice, this would involve generating bootstrap samples,
-  # fitting models to each sample, and calculating confidence intervals
-  # for indirect effects
+# ============================================================
+# 7. SAVE RESULTS
+# ============================================================
 
-  # Placeholder return
-  return(list(
-    lower_ci = NA,
-    upper_ci = NA,
-    replications = n_replications
-  ))
-}
-
-# Function to generate sample attrition table
-generate_attrition_table <- function(original_n, cleaned_datasets, attention_check_failures,
-                                   id_matching_failures, final_n) {
-  attrition_df <- data.frame(
-    Stage = c("Initial Contacted", "After Cleaning", "Attention Check Failures Removed",
-              "ID Matching Failures Removed", "Final Analytic Sample"),
-    Count = c(original_n, cleaned_datasets, cleaned_datasets - attention_check_failures,
-              cleaned_datasets - attention_check_failures - id_matching_failures, final_n),
-    Percentage = c(100,
-                   round((cleaned_datasets/original_n)*100, 2),
-                   round(((cleaned_datasets - attention_check_failures)/original_n)*100, 2),
-                   round(((cleaned_datasets - attention_check_failures - id_matching_failures)/original_n)*100, 2),
-                   round((final_n/original_n)*100, 2))
-  )
-
-  return(attrition_df)
-}
-
-# Main execution function
-main_analysis_pipeline <- function() {
-  cat("Starting leadership survey data analysis pipeline...\n")
-
-  # Load data files
-  # Note: File paths would need to be updated based on actual file locations
-  # t1_data <- read.csv("T1_cleaned.csv")
-  # t2_data <- read.csv("T2_cleaned.csv")
-  # t3_leader_data <- read.csv("T3_leader_cleaned.csv")
-  # t3_follower_data <- read.csv("T3_follower_cleaned.csv")
-  # final_data <- read.csv("final_merged_analysis_data.csv")
-
-  # Example of how to calculate ICC for null models
-  # icc_results <- calculate_null_model_icc(final_data, "thriving_score", "leader_id")
-  # cat("Null model ICC:", icc_results$icc, "\n")
-
-  # Perform centering for specified variables
-  # variables_to_center <- c("autocratic_leadership", "empowering_leadership",
-  #                         "narcissism", "power_distance", "follower_age",
-  #                         "tenure_with_leader", "interaction_freq", "T1_thriving")
-  # centered_data <- perform_centering(final_data, variables_to_center)
-
-  # Create theoretical parcels
-  # data_with_parcels <- create_theoretical_parcels(centered_data)
-
-  # Create dummy variables for categorical predictors
-  # categorical_vars <- c("gender", "education_level", "position_type")  # Example
-  # final_data_for_analysis <- create_dummy_variables(data_with_parcels, categorical_vars)
-
-  # Fit models
-  # model1 <- fit_model1(final_data_for_analysis)
-  # model2 <- fit_model2(final_data_for_analysis)
-  # model3 <- fit_model3(final_data_for_analysis)
-
-  # Calculate Monte Carlo confidence intervals for indirect effects
-  # mc_results <- monte_carlo_ci(model1, n_replications = 20000)
-
-  # Generate sample attrition table
-  # attrition_table <- generate_attrition_table(original_n = 1000, cleaned_datasets = 850,
-  #                                          attention_check_failures = 20,
-  #                                          id_matching_failures = 15, final_n = 790)
-  # print(attrition_table)
-
-  cat("Analysis pipeline completed.\n")
-}
-
-# Uncomment to run the main pipeline
-# main_analysis_pipeline()
-
-# Helper function to check if data meets requirements
-validate_data_requirements <- function(data_list) {
-  requirements_met <- list(
-    has_t1 = !is.null(data_list$t1),
-    has_t2 = !is.null(data_list$t2),
-    has_t3_leader = !is.null(data_list$t3_leader),
-    has_t3_follower = !is.null(data_list$t3_follower),
-    has_final_merged = !is.null(data_list$final_merged),
-    leader_education_range = if(!is.null(data_list$final_merged) && "LeaderEducation" %in% names(data_list$final_merged)) {
-      edu_range_ok <- min(data_list$final_merged$LeaderEducation, na.rm = TRUE) >= 2 &&
-                     max(data_list$final_merged$LeaderEducation, na.rm = TRUE) <= 5
-    } else FALSE,
-    each_leader_has_min_subordinates = if(!is.null(data_list$final_merged) &&
-                                         "leader_id" %in% names(data_list$final_merged)) {
-      min_subs <- min(table(data_list$final_merged$leader_id))
-      min_subs >= 3
-    } else FALSE
-  )
-
-  return(requirements_met)
-}
+cat("\n=== Analysis Complete ===\n")
+cat("Key output files expected from Mplus: MCFA fit indices\n")
+cat("All R-based results printed above.\n")

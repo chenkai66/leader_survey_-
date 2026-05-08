@@ -1,37 +1,57 @@
-# Leadership Survey Data Adjustment Project
+# Leadership Survey Data - Study 3
 
-Data processing and adjustment project for a 3-wave longitudinal leadership study examining how autocratic vs empowering leadership affects subordinate envy, thriving, and work behaviors.
+Simulated 3-wave longitudinal survey data for a leadership study examining how autocratic vs. empowering leadership styles affect subordinate envy and downstream outcomes.
 
-## Project Structure
+## File Manifest
 
 ### Data Files
-- `T1_raw.xlsx` / `T1_cleaned.xlsx` - T1 follower survey data (90 leaders)
-- `T2_raw.xlsx` / `T2_cleaned.xlsx` - T2 follower survey data (85 leaders)
-- `T3_leader_raw.xlsx` / `T3_leader_cleaned.xlsx` - T3 leader-rated data (79 leaders)
-- `T3_follower_raw.xlsx` / `T3_follower_cleaned.xlsx` - T3 follower-rated data (79 leaders)
-- `final_merged_analysis_data.xlsx` - Final cleaned, matched dataset for analysis
+- `T1_raw.xlsx` / `T1_cleaned.xlsx` - Wave 1 (90 leaders, followers rate leadership + thriving)
+- `T2_raw.xlsx` / `T2_cleaned.xlsx` - Wave 2 (85 leaders, followers rate envy)
+- `T3_leader_raw.xlsx` / `T3_leader_cleaned.xlsx` - Wave 3 leader-rated (79 leaders rate OCBS/CWBS)
+- `T3_follower_raw.xlsx` / `T3_follower_cleaned.xlsx` - Wave 3 follower-rated (T3 thriving + self-rated outcomes)
+- `final_merged_analysis_data.xlsx` - Final merged dataset (438 rows, 79 leaders)
 
 ### Model Output Files
-- `Model1.xlsx` - Main analysis model (with controls)
-- `Model2.xlsx` - No-controls model (robustness check)
-- `Model3.xlsx` - Alternative outcome source model (robustness check)
-- `measurement appendix.xlsx` - MCFA/CFA measurement results
-- `ICC空模型.xlsx` - Null model ICC results
-- `YUYU样本量变化.xlsx` - Sample attrition table
+- `Model1.xlsx` - Main analysis (with controls)
+- `Model2.xlsx` - No-controls robustness check
+- `Model3.xlsx` - Follower-rated outcome source robustness check
+- `measurement appendix.xlsx` - MCFA model comparison table
+- `ICC空模型.xlsx` - Null-model ICC results
+- `YUYU样本量变化.xlsx` - Sample attrition across waves
 
-### Analysis Code
-- `analysis_code.R` - R analysis functions (ICC, centering, parcels, models)
-- `mcfa_mplus_syntax.inp` - Mplus syntax for MCFA and multilevel models
+### Code
+- `data_generator.py` - Generates all simulated data
+- `constraint_validator.py` - Validates all requirements are met
+- `fill_templates.py` - Fills model output templates with results
+- `analysis_code.R` - R analysis code (multilevel path models, ICC, Monte Carlo CI)
+- `mcfa_mplus_syntax.inp` - Mplus syntax for MCFA (five/four/three/two factor models)
 
-### Validation Scripts
-- `constraint_validator.py` - Core constraint validation class
-- `comprehensive_constraint_validator.py` - Extended validator (identical to core)
-- `updated_validator.py` - Context-aware centering validator
+### Reference Documents
+- `complete_project_record.md` - Full client conversation record
+- `comprehensive_requirements_document.md` - Detailed requirements specification
 
-### Reference Directories
-- `原始客户提供文件/` - Original client-provided templates and documents
-- `第一轮交付结果/` - First round delivery results
-- `第一轮结果后客户反馈/` - Client feedback after first round (updated templates)
+### Source Materials (read-only)
+- `原始客户提供文件/` - Original measurement plan and research info
+- `第一轮结果后客户反馈/` - Updated templates from client
+- `第一轮交付结果/` - First round results (reference only)
 
-## Requirements
-See `comprehensive_requirements_document.md` for full specification.
+## Usage
+
+```bash
+# Generate all data
+python data_generator.py
+
+# Validate constraints
+python constraint_validator.py
+
+# Fill model output templates
+python fill_templates.py
+```
+
+## Study Design
+
+- 3-wave longitudinal: T1 (90 leaders) -> T2 (85 leaders) -> T3 (79 leaders)
+- Leader-subordinate nested structure (min 3 subordinates per leader)
+- Two-level random-intercept multilevel path model
+- MCFA for measurement validation (Mplus required)
+- Grand-mean centering for continuous predictors in hypothesis-testing models

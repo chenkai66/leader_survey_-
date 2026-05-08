@@ -1,586 +1,365 @@
 """
-Comprehensive Data Constraint Validation Script for Leadership Survey Study
-
-This script validates that the generated data meets all the requirements specified
-in the comprehensive requirements document for the leadership survey study.
-The validation includes all aspects from data structure to statistical properties.
+Constraint Validator for Leadership Survey Data
+Checks ALL requirements from the project specification.
 """
 
 import pandas as pd
 import numpy as np
-from typing import Dict, List, Tuple, Optional
-import warnings
-import os
-import math
+from pathlib import Path
+
+DATA_DIR = Path(__file__).parent
+
+PASS = "PASS"
+FAIL = "FAIL"
 
 
-class LeadershipSurveyConstraintValidator:
-    """
-    Comprehensive validator that checks all requirements for the leadership survey study.
-    """
+def check(name, condition, detail=""):
+    """Print pass/fail for a check."""
+    status = PASS if condition else FAIL
+    msg = f"  [{status}] {name}"
+    if detail:
+        msg += f" -- {detail}"
+    print(msg)
+    return condition
 
-    def __init__(self):
-        self.constraints = {
-            'sample_size': {
-                'T1_initial': 90,
-                'T2_remaining': 85,
-                'T3_final': 79,
-                'final_analysis': 79  # confirmed as final target
-            },
-            'min_subordinates_per_leader': 3,
-            'attention_check_items': {
-                'T1': ['empowering_leadership_item_9'],
-                'T2': ['malicious_envy_item_6'],
-                'T3_follower': ['OCBS_item_7'],
-                'T3_leader': ['CWBS_item_6']
-            },
-            'centering_variables': [
-                'autocratic_leadership',
-                'empowering_leadership',
-                'narcissism',
-                'power_distance',
-                'follower_age',
-                'tenure_with_current_leader',
-                'interaction_frequency_with_leader',
-                'T1_thriving'  # only when predicting T3 thriving
-            ],
-            'new_variables': {
-                'LeaderEducation': {'min': 2, 'max': 5}
-            },
-            'model_types': ['Model1', 'Model2', 'Model3', 'MCFA', 'ICC'],
-            'deliverables': [
-                'Model1.xlsx', 'Model2.xlsx', 'Model3.xlsx',
-                'measurement appendix.xlsx', 'ICC空模型.xlsx',
-                'YUYU样本量变化.xlsx',
-                'T1_raw.xlsx', 'T1_cleaned.xlsx', 'T2_raw.xlsx', 'T2_cleaned.xlsx',
-                'T3_leader_raw.xlsx', 'T3_leader_cleaned.xlsx',
-                'T3_follower_raw.xlsx', 'T3_follower_cleaned.xlsx',
-                'final_merged_analysis_data.xlsx'
-            ],
-            'statistical_requirements': {
-                'monte_carlo_replications': 20000,
-                'icc_calculation_required': True,
-                'mcfa_required': True
-            }
-        }
 
-    def validate_sample_sizes(self, datasets: Dict[str, pd.DataFrame]) -> Dict[str, bool]:
-        """
-        Validate sample sizes across different waves.
-        Note: For actual validation, we need to count unique leaders, not total responses
-        since each leader may have multiple subordinates.
-        """
-        results = {}
+def validate_all():
+    """Run all constraint checks."""
+    print("=" * 60)
+    print("CONSTRAINT VALIDATOR")
+    print("=" * 60)
 
-        # Check if we have the necessary datasets
-        for wave_key in ['T1', 'T2', 'T3_leader']:
-            if wave_key in datasets:
-                df = datasets[wave_key]
+    results = []
 
-                # Determine which column represents leader IDs
-                leader_id_col = None
-                for col in df.columns:
-                    if 'leader' in col.lower() and ('id' in col.lower() or 'lid' in col.lower()):
-                        leader_id_col = col
-                        break
+    # Load all files
+    print("\nLoading data files...")
+    try:
+        t1_raw = pd.read_excel(DATA_DIR / 'T1_raw.xlsx')
+        t1_clean = pd.read_excel(DATA_DIR / 'T1_cleaned.xlsx')
+        t2_raw = pd.read_excel(DATA_DIR / 'T2_raw.xlsx')
+        t2_clean = pd.read_excel(DATA_DIR / 'T2_cleaned.xlsx')
+        t3_leader_raw = pd.read_excel(DATA_DIR / 'T3_leader_raw.xlsx')
+        t3_leader_clean = pd.read_excel(DATA_DIR / 'T3_leader_cleaned.xlsx')
+        t3_follower_raw = pd.read_excel(DATA_DIR / 'T3_follower_raw.xlsx')
+        t3_follower_clean = pd.read_excel(DATA_DIR / 'T3_follower_cleaned.xlsx')
+        final = pd.read_excel(DATA_DIR / 'final_merged_analysis_data.xlsx')
+    except FileNotFoundError as e:
+        print(f"  ERROR: {e}")
+        print("  Run data_generator.py first!")
+        return False
 
-                if leader_id_col:
-                    unique_leaders = df[leader_id_col].nunique()
-                    if wave_key == 'T1':
-                        results['T1'] = unique_leaders >= self.constraints['sample_size']['T1_initial']
-                    elif wave_key == 'T2':
-                        results['T2'] = unique_leaders >= self.constraints['sample_size']['T2_remaining']
-                    elif wave_key == 'T3_leader':
-                        results['T3'] = unique_leaders >= self.constraints['sample_size']['T3_final']
-                else:
-                    # If no specific leader ID column found, use row count as fallback
-                    results[wave_key] = len(df) >= self.constraints['sample_size'][wave_key.lower()]
+    print("  All files loaded successfully.\n")
 
-        # Also check the final merged dataset
-        if 'final_merged' in datasets:
-            final_df = datasets['final_merged']
-            leader_id_col = None
-            for col in final_df.columns:
-                if 'leader' in col.lower() and ('id' in col.lower() or 'lid' in col.lower()):
-                    leader_id_col = col
-                    break
+    # --- SECTION 1: Sample Sizes ---
+    print("-" * 40)
+    print("SECTION 1: Sample Sizes")
+    print("-" * 40)
 
-            if leader_id_col:
-                unique_leaders = final_df[leader_id_col].nunique()
-                results['final_analysis'] = unique_leaders >= self.constraints['sample_size']['final_analysis']
-            else:
-                # Default to the number of rows as a rough check
-                results['final_analysis'] = len(final_df) >= self.constraints['sample_size']['final_analysis']
+    results.append(check("T1 cleaned rows == 449",
+                         len(t1_clean) == 449,
+                         f"got {len(t1_clean)}"))
 
-        return results
+    results.append(check("T1 leaders == 90",
+                         t1_clean['LeaderID'].nunique() == 90,
+                         f"got {t1_clean['LeaderID'].nunique()}"))
 
-    def validate_min_subordinates_per_leader(self, data: pd.DataFrame) -> bool:
-        """
-        Validate that each leader has at least 3 subordinates in the final dataset.
-        """
-        if data.empty:
-            warnings.warn("Empty dataframe provided, skipping subordinate count validation")
-            return True
+    results.append(check("T2 cleaned rows == 444",
+                         len(t2_clean) == 444,
+                         f"got {len(t2_clean)}"))
 
-        # Look for leader and subordinate ID columns
-        leader_id_col = None
-        subordinate_id_col = None
+    results.append(check("T2 leaders == 85",
+                         t2_clean['LeaderID'].nunique() == 85,
+                         f"got {t2_clean['LeaderID'].nunique()}"))
 
-        for col in data.columns:
-            if 'leader' in col.lower() and ('id' in col.lower() or 'lid' in col.lower()):
-                leader_id_col = col
-            elif 'follower' in col.lower() or 'subordinate' in col.lower() or ('id' in col.lower() and 'leader' not in col.lower()):
-                subordinate_id_col = col
+    results.append(check("T3 leader cleaned rows == 79",
+                         len(t3_leader_clean) == 79,
+                         f"got {len(t3_leader_clean)}"))
 
-        if not leader_id_col:
-            warnings.warn("No leader_id column found, skipping subordinate count validation")
-            return True
+    results.append(check("T3 follower cleaned rows == 438",
+                         len(t3_follower_clean) == 438,
+                         f"got {len(t3_follower_clean)}"))
 
-        # Count subordinates per leader
-        subordinate_counts = data.groupby(leader_id_col).size()
-        min_count = subordinate_counts.min()
+    results.append(check("T3 follower leaders == 79",
+                         t3_follower_clean['LeaderID'].nunique() == 79,
+                         f"got {t3_follower_clean['LeaderID'].nunique()}"))
 
-        return min_count >= self.constraints['min_subordinates_per_leader']
+    results.append(check("Final merged rows == 438",
+                         len(final) == 438,
+                         f"got {len(final)}"))
 
-    def validate_attention_checks(self, datasets: Dict[str, pd.DataFrame]) -> Dict[str, bool]:
-        """
-        Validate attention check items are properly handled.
-        """
-        results = {}
+    results.append(check("Final merged leaders == 79",
+                         final['LeaderID'].nunique() == 79,
+                         f"got {final['LeaderID'].nunique()}"))
 
-        for wave, df in datasets.items():
-            if df.empty:
-                results[wave] = True
-                continue
+    # --- SECTION 2: Raw > Cleaned ---
+    print("\n" + "-" * 40)
+    print("SECTION 2: Raw has MORE rows than Cleaned")
+    print("-" * 40)
 
-            if wave == 'T1':
-                # Look for attention check item 9 in empowering leadership
-                attention_cols = [col for col in df.columns if ('empowering' in col.lower() and '9' in col) or
-                                 ('attention' in col.lower() and 'check' in col.lower()) or
-                                 ('emp' in col.lower() and 'item' in col.lower() and '9' in col)]
-                results[wave] = len(attention_cols) > 0
+    results.append(check("T1 raw > T1 cleaned",
+                         len(t1_raw) > len(t1_clean),
+                         f"{len(t1_raw)} > {len(t1_clean)}"))
 
-            elif wave == 'T2':
-                # Look for attention check item 6 in malicious envy
-                attention_cols = [col for col in df.columns if ('malicious' in col.lower() and 'envy' in col.lower() and '6' in col) or
-                                 ('attention' in col.lower() and 'check' in col.lower()) or
-                                 ('mal' in col.lower() and 'item' in col.lower() and '6' in col)]
-                results[wave] = len(attention_cols) > 0
+    results.append(check("T2 raw > T2 cleaned",
+                         len(t2_raw) > len(t2_clean),
+                         f"{len(t2_raw)} > {len(t2_clean)}"))
 
-            elif 'follower' in wave.lower():
-                # T3 follower side - look for OCBS item 7
-                attention_cols = [col for col in df.columns if ('ocbs' in col.lower() and '7' in col) or
-                                 ('attention' in col.lower() and 'check' in col.lower())]
-                results[wave] = len(attention_cols) > 0
+    results.append(check("T3 leader raw > T3 leader cleaned",
+                         len(t3_leader_raw) > len(t3_leader_clean),
+                         f"{len(t3_leader_raw)} > {len(t3_leader_clean)}"))
 
-            elif 'leader' in wave.lower():
-                # T3 leader side - look for CWBS item 6
-                attention_cols = [col for col in df.columns if ('cwbs' in col.lower() and '6' in col) or
-                                 ('attention' in col.lower() and 'check' in col.lower())]
-                results[wave] = len(attention_cols) > 0
-            else:
-                # General attention check validation
-                attention_cols = [col for col in df.columns if 'attention' in col.lower() and 'check' in col.lower()]
-                results[wave] = len(attention_cols) > 0
+    results.append(check("T3 follower raw > T3 follower cleaned",
+                         len(t3_follower_raw) > len(t3_follower_clean),
+                         f"{len(t3_follower_raw)} > {len(t3_follower_clean)}"))
 
-        return results
+    # --- SECTION 3: Min 3 subordinates per leader ---
+    print("\n" + "-" * 40)
+    print("SECTION 3: Minimum 3 subordinates per leader")
+    print("-" * 40)
 
-    def validate_centering_rules(self, datasets: Dict[str, pd.DataFrame]) -> Dict[str, bool]:
-        """
-        Validate that centering rules are properly applied in hypothesis-testing models.
-        This is complex as it depends on the context where variables are used.
-        """
-        results = {}
+    for name, df in [("T1 cleaned", t1_clean), ("T2 cleaned", t2_clean),
+                     ("T3 follower cleaned", t3_follower_clean), ("Final merged", final)]:
+        min_subs = df.groupby('LeaderID').size().min()
+        results.append(check(f"{name}: min subs >= 3",
+                             min_subs >= 3,
+                             f"min={min_subs}"))
 
-        # For each dataset, check if centering variables exist
-        for wave, df in datasets.items():
-            if df.empty:
-                results[f'{wave}_centering'] = True
-                continue
+    # --- SECTION 4: Attention Check Items ---
+    print("\n" + "-" * 40)
+    print("SECTION 4: Attention Check Items Present")
+    print("-" * 40)
 
-            # Identify which variables should be centered
-            centered_vars_found = 0
-            total_centering_vars = len(self.constraints['centering_variables'])
+    results.append(check("T1 has EMP9_AttCheck",
+                         'EMP9_AttCheck' in t1_clean.columns))
 
-            for var in self.constraints['centering_variables']:
-                # Look for variations of the variable name with 'C' suffix indicating centering
-                var_found = False
-                for col in df.columns:
-                    if var.replace('_', '').lower() in col.replace('_', '').lower():
-                        # Check if it's centered by looking at mean (should be close to 0 for grand-mean centering)
-                        if not df[col].dtype in ['object', 'bool']:
-                            try:
-                                mean_val = df[col].mean()
-                                # For centered variables, the mean should be approximately 0
-                                if abs(mean_val) < 0.5:  # Allow some tolerance
-                                    centered_vars_found += 1
-                                    var_found = True
-                                    break
-                            except:
-                                # Skip if calculation fails
-                                continue
+    results.append(check("T2 has MAL6_AttCheck",
+                         'MAL6_AttCheck' in t2_clean.columns))
 
-                # Also check for common centering suffixes
-                if not var_found:
-                    for col in df.columns:
-                        # Look for common centering indicators
-                        if ((var.replace('_', '').lower() in col.replace('_', '').lower() or
-                             var.split('_')[0].lower() in col.lower()) and
-                            ('_c' in col.lower() or '_centered' in col.lower() or
-                             'center' in col.lower())):
-                            centered_vars_found += 1
-                            var_found = True
-                            break
+    results.append(check("T3 follower has OCBS7_AttCheck",
+                         'OCBS7_AttCheck' in t3_follower_clean.columns))
 
-            # Calculate ratio of centered variables found
-            if total_centering_vars > 0:
-                results[f'{wave}_centering'] = (centered_vars_found / total_centering_vars) >= 0.7  # At least 70% of centering vars should be found
-            else:
-                results[f'{wave}_centering'] = True
+    results.append(check("T3 leader has CWBS6_AttCheck",
+                         'CWBS6_AttCheck' in t3_leader_clean.columns))
 
-        return results
+    # --- SECTION 5: CLID ---
+    print("\n" + "-" * 40)
+    print("SECTION 5: CLID (Numeric Cluster ID)")
+    print("-" * 40)
 
-    def validate_missing_data_simulation(self, datasets: Dict[str, pd.DataFrame], wave: str) -> bool:
-        """
-        Validate that missing data is appropriately simulated according to requirements.
-        """
-        df = datasets.get(wave)
-        if df is None or df.empty:
-            return True
+    results.append(check("CLID exists in final",
+                         'CLID' in final.columns))
 
-        # Determine which variables are core vs non-core (this is complex without domain knowledge)
-        # For now, we'll just check that missing data is present where expected
-        total_cells = df.size
-        missing_count = df.isnull().sum().sum()
+    if 'CLID' in final.columns:
+        results.append(check("CLID is numeric",
+                             pd.api.types.is_numeric_dtype(final['CLID'])))
 
-        if wave == 'T1':
-            # Should have ~10 missing values in non-core vars
-            return missing_count >= 0  # At least some missing values in non-core vars
-        elif wave == 'T2':
-            # Should have 3 missing in non-core vars (and zero in core vars)
-            return missing_count >= 0
-        elif wave == 'T3_leader':
-            # Should have ~3 missing in non-core vars
-            return missing_count >= 0
+        results.append(check("CLID range: 1 to 79",
+                             final['CLID'].min() == 1 and final['CLID'].max() == 79,
+                             f"range [{final['CLID'].min()}, {final['CLID'].max()}]"))
 
-        # If wave is not one of the expected types, return True
-        return True
+        # 1:1 mapping
+        mapping = final[['LeaderID', 'CLID']].drop_duplicates()
+        results.append(check("CLID 1:1 with LeaderID",
+                             len(mapping) == final['LeaderID'].nunique(),
+                             f"unique mappings={len(mapping)}, unique leaders={final['LeaderID'].nunique()}"))
 
-    def validate_new_variables(self, data: pd.DataFrame) -> Dict[str, bool]:
-        """
-        Validate new variables like LeaderEducation.
-        """
-        results = {}
+    # --- SECTION 6: LeaderEducation ---
+    print("\n" + "-" * 40)
+    print("SECTION 6: LeaderEducation")
+    print("-" * 40)
 
-        # Check LeaderEducation range
-        if 'LeaderEducation' in data.columns:
-            edu_values = data['LeaderEducation'].dropna()
-            if not edu_values.empty:
-                range_ok = (edu_values.min() >= self.constraints['new_variables']['LeaderEducation']['min'] and
-                           edu_values.max() <= self.constraints['new_variables']['LeaderEducation']['max'])
-                results['LeaderEducation_range'] = range_ok
-                results['LeaderEducation_exists'] = True
-            else:
-                results['LeaderEducation_range'] = True  # No values to check, so OK
-                results['LeaderEducation_exists'] = False
+    le_col = None
+    for col_name in ['LeaderEducation']:
+        if col_name in final.columns:
+            le_col = col_name
+            break
+
+    if le_col:
+        le_min = final[le_col].min()
+        le_max = final[le_col].max()
+        results.append(check("LeaderEducation range [2, 5]",
+                             le_min >= 2 and le_max <= 5,
+                             f"range [{le_min}, {le_max}]"))
+    else:
+        # Check in T1 cleaned
+        if 'LeaderEducation' in t1_clean.columns:
+            le_min = t1_clean['LeaderEducation'].min()
+            le_max = t1_clean['LeaderEducation'].max()
+            results.append(check("LeaderEducation range [2, 5] (in T1)",
+                                 le_min >= 2 and le_max <= 5,
+                                 f"range [{le_min}, {le_max}]"))
         else:
-            results['LeaderEducation_range'] = True  # Variable doesn't exist, but that's OK if it's not required in this dataset
-            results['LeaderEducation_exists'] = False
+            results.append(check("LeaderEducation exists", False, "not found"))
 
-        return results
+    # --- SECTION 7: Centering ---
+    print("\n" + "-" * 40)
+    print("SECTION 7: Grand-Mean Centering")
+    print("-" * 40)
 
-    def validate_cluster_ids(self, data: pd.DataFrame) -> bool:
-        """
-        Validate that cluster IDs (CLID) are properly mapped from LeaderID and are numeric.
-        """
-        if data.empty:
-            return True
+    centered_vars = [col for col in final.columns if col.endswith('_C')]
+    results.append(check("Centered variables exist (_C suffix)",
+                         len(centered_vars) > 0,
+                         f"found {len(centered_vars)}: {centered_vars[:5]}..."))
 
-        # Check if LeaderID exists and if CLID exists
-        leader_id_col = None
-        clid_col = None
+    # Mean of centered vars should be ~0
+    for cv in centered_vars:
+        mean_val = final[cv].mean()
+        results.append(check(f"  {cv} mean ~ 0",
+                             abs(mean_val) < 0.001,
+                             f"mean={mean_val:.6f}"))
 
-        for col in data.columns:
-            if 'leader' in col.lower() and ('id' in col.lower() or 'lid' in col.lower()):
-                leader_id_col = col
-            if 'clid' in col.lower() or (col.lower() == 'cl' and len([c for c in data.columns if 'clid' in c.lower()]) == 0):
-                clid_col = col
+    # Dummy variables should NOT be centered
+    dummy_cols = [col for col in final.columns if 'Gender_' in col or 'Edu_' in col]
+    if dummy_cols:
+        centered_dummies = [col for col in dummy_cols if col.endswith('_C')]
+        results.append(check("Dummy variables NOT centered",
+                             len(centered_dummies) == 0,
+                             f"centered dummies: {centered_dummies}" if centered_dummies else "correct"))
 
-        # If we have both, check that CLID is numeric and maps consistently to LeaderID
-        if leader_id_col and clid_col:
-            try:
-                # Try to convert CLID to numeric
-                pd.to_numeric(data[clid_col])
-                is_numeric = True
-            except (ValueError, TypeError):
-                is_numeric = False
+    # --- SECTION 8: Duplicate IDs in Raw ---
+    print("\n" + "-" * 40)
+    print("SECTION 8: Duplicate IDs in Raw Data")
+    print("-" * 40)
 
-            # Check if there's a consistent 1:1 mapping between LeaderID and CLID
-            unique_pairs = data[[leader_id_col, clid_col]].drop_duplicates()
-            unique_leaders = data[leader_id_col].nunique()
-            unique_clid_mappings = unique_pairs[leader_id_col].nunique()
+    # T1 raw duplicates
+    if 'FollowerID' in t1_raw.columns:
+        t1_dupes = t1_raw['FollowerID'].duplicated().sum()
+        results.append(check("T1 raw has duplicate IDs (<=10)",
+                             0 < t1_dupes <= 10,
+                             f"found {t1_dupes} duplicates"))
 
-            # If the number of unique mappings equals the number of unique leader IDs, the mapping is consistent
-            consistent_mapping = (unique_leaders == unique_clid_mappings)
+    # T2 raw duplicates
+    if 'FollowerID' in t2_raw.columns:
+        t2_dupes = t2_raw['FollowerID'].duplicated().sum()
+        results.append(check("T2 raw has duplicate IDs (<=5)",
+                             0 < t2_dupes <= 5,
+                             f"found {t2_dupes} duplicates"))
 
-            return is_numeric and consistent_mapping
+    # T3 leader raw duplicates
+    if 'LeaderID' in t3_leader_raw.columns:
+        t3l_dupes = t3_leader_raw['LeaderID'].duplicated().sum()
+        results.append(check("T3 leader raw has duplicate IDs (<=1)",
+                             0 < t3l_dupes <= 1,
+                             f"found {t3l_dupes} duplicates"))
 
-        # If only CLID exists, check if it's numeric
-        elif clid_col:
-            try:
-                pd.to_numeric(data[clid_col])
-                return True
-            except (ValueError, TypeError):
-                return False
+    # --- SECTION 9: ID Mismatches in Raw ---
+    print("\n" + "-" * 40)
+    print("SECTION 9: ID Mismatches in Raw Data")
+    print("-" * 40)
 
-        # If neither exists, it might be fine depending on the dataset
-        else:
-            return True  # No CLID required in this dataset
+    # T2 should have 3 mismatched IDs
+    if 'FollowerID' in t2_raw.columns:
+        t1_fids = set(t1_clean['FollowerID'].unique())
+        t2_raw_fids = set(t2_raw['FollowerID'].unique())
+        mismatches_t2 = t2_raw_fids - t1_fids
+        results.append(check("T2 raw has 3 ID mismatches",
+                             len(mismatches_t2) >= 3,
+                             f"found {len(mismatches_t2)} mismatched IDs"))
 
-    def validate_composite_generation(self, data: pd.DataFrame) -> bool:
-        """
-        Validate that composites are generated according to theoretical dimensions (not random).
-        Look for theoretical parcel patterns.
-        """
-        if data.empty:
-            return True
+    # T3 leader should have 1 mismatch
+    if 'LeaderID' in t3_leader_raw.columns:
+        t2_lids = set(t2_clean['LeaderID'].unique())
+        t3l_raw_lids = set(t3_leader_raw['LeaderID'].unique())
+        mismatches_t3l = t3l_raw_lids - t2_lids
+        results.append(check("T3 leader raw has 1 ID mismatch",
+                             len(mismatches_t3l) >= 1,
+                             f"found {len(mismatches_t3l)} mismatched IDs"))
 
-        # Check for theoretical composite patterns
-        # Empowering Leadership parcels (EMPP1, EMPP2, EMPP3, EMPP4)
-        emp_parcel_cols = [col for col in data.columns if col.startswith('EMPP') or col.startswith('EmpP')]
+    # --- SECTION 10: Missing Data ---
+    print("\n" + "-" * 40)
+    print("SECTION 10: Missing Data Simulation")
+    print("-" * 40)
 
-        # Thriving parcels (THRP1, THRP2, THRP3, THRP4)
-        thrive_parcel_cols = [col for col in data.columns if col.startswith('THRP') or col.startswith('ThrP')]
+    # T1 raw: ~10 missing in non-core
+    t1_missing = t1_raw.isnull().sum().sum()
+    results.append(check("T1 raw has ~10 missing values",
+                         5 <= t1_missing <= 15,
+                         f"found {t1_missing} total missing"))
 
-        # Other theoretical parcel patterns
-        other_parcel_cols = [col for col in data.columns if
-                            ('PARC' in col.upper() or
-                             'SC_' in col.upper() or
-                             '_SC' in col.upper() or
-                             'COMP' in col.upper() or
-                             'IND_' in col.upper() or
-                             '_IND' in col.upper()) and
-                            not col.startswith('CLID')]
+    # T2 raw: 0 missing in core (BEN, MAL items), 3 in non-core
+    t2_core_cols = [c for c in t2_raw.columns if c.startswith('BEN') or c.startswith('MAL')]
+    t2_core_missing = t2_raw[t2_core_cols].isnull().sum().sum()
+    results.append(check("T2 raw: 0 missing in core vars",
+                         t2_core_missing == 0,
+                         f"found {t2_core_missing} missing in core"))
 
-        total_theoretical_comps = len(emp_parcel_cols) + len(thrive_parcel_cols) + len(other_parcel_cols)
+    t2_total_missing = t2_raw.isnull().sum().sum()
+    results.append(check("T2 raw: ~3 missing in non-core",
+                         1 <= t2_total_missing <= 5,
+                         f"found {t2_total_missing} total missing"))
 
-        # Check if composites look like averages of items rather than individual items
-        composite_indicators = 0
+    # T3 leader raw: ~3 missing in non-core
+    t3l_missing = t3_leader_raw.isnull().sum().sum()
+    results.append(check("T3 leader raw: ~3 missing in non-core",
+                         1 <= t3l_missing <= 5,
+                         f"found {t3l_missing} total missing"))
 
-        for col in data.columns:
-            # Look for columns that might be composites based on naming
-            if any(keyword in col.lower() for keyword in ['_parc', 'parc_', '_comp', 'comp_', '_sc', 'sc_', '_scale', 'scale_']):
-                # If the column is likely a composite (contains items that were averaged)
-                composite_indicators += 1
+    # --- SECTION 11: Required Columns ---
+    print("\n" + "-" * 40)
+    print("SECTION 11: Required Columns Exist")
+    print("-" * 40)
 
-        # A dataset should have at least some theoretical composites to be valid
-        return total_theoretical_comps > 0 or composite_indicators > 0
+    # T1 must have AUT, EMP, THR, NARC, PD items
+    t1_required = ['AUT1', 'AUT6', 'EMP1', 'EMP12', 'THR1', 'R_THR5', 'R_THR10',
+                   'NARC1', 'PD1', 'LeaderID', 'FollowerID']
+    for col in t1_required:
+        results.append(check(f"T1 has {col}", col in t1_clean.columns))
 
-    def validate_dummy_coding(self, data: pd.DataFrame) -> Dict[str, bool]:
-        """
-        Validate dummy variables are properly coded (0/1).
-        """
-        results = {}
+    # T2 must have BEN, MAL items
+    t2_required = ['BEN1', 'BEN5', 'MAL1', 'MAL5', 'LeaderID', 'FollowerID']
+    for col in t2_required:
+        results.append(check(f"T2 has {col}", col in t2_clean.columns))
 
-        # Find potential dummy variables (binary columns with 0/1 or NaN values)
-        potential_dummies = []
-        for col in data.select_dtypes(include=[np.number]).columns:
-            unique_vals = data[col].dropna().unique()
-            # Check if it's a binary variable (values are only 0 and 1, or 0, 1, and NaN)
-            if len(unique_vals) <= 3 and set(unique_vals).issubset({0, 1, np.nan, -1}):
-                # Also check if the proportion of values makes sense for a dummy
-                if len(unique_vals) >= 2:  # At least 2 distinct values
-                    potential_dummies.append(col)
+    # Final must have parcels, scale scores, CLID
+    final_required = ['EMPP1', 'EMPP4', 'THRP1', 'THRP4', 'CLID',
+                      'Autocratic', 'Empowering', 'LeaderID', 'FollowerID']
+    for col in final_required:
+        results.append(check(f"Final has {col}", col in final.columns))
 
-        results['dummy_variables_found'] = len(potential_dummies) > 0
-        results['num_dummy_candidates'] = len(potential_dummies)
+    # --- SECTION 12: Parcel Computation ---
+    print("\n" + "-" * 40)
+    print("SECTION 12: Parcel Computation Correctness")
+    print("-" * 40)
 
-        return results
+    # Spot-check EMPP1 = mean(EMP1, EMP2, EMP3)
+    if all(c in t1_clean.columns for c in ['EMP1', 'EMP2', 'EMP3', 'EMPP1']):
+        expected_empp1 = t1_clean[['EMP1', 'EMP2', 'EMP3']].mean(axis=1)
+        diff = (t1_clean['EMPP1'] - expected_empp1).abs().max()
+        results.append(check("EMPP1 = mean(EMP1, EMP2, EMP3)",
+                             diff < 0.001,
+                             f"max diff = {diff:.6f}"))
 
-    def validate_dataset_integrity(self, datasets: Dict[str, pd.DataFrame]) -> Dict[str, bool]:
-        """
-        Validate general integrity of datasets.
-        """
-        results = {}
+    # Spot-check THRP1 = mean(THR1, THR3, R_THR5)
+    if all(c in t1_clean.columns for c in ['THR1', 'THR3', 'R_THR5', 'THRP1']):
+        expected_thrp1 = t1_clean[['THR1', 'THR3', 'R_THR5']].mean(axis=1)
+        diff = (t1_clean['THRP1'] - expected_thrp1).abs().max()
+        results.append(check("THRP1 = mean(THR1, THR3, R_THR5)",
+                             diff < 0.001,
+                             f"max diff = {diff:.6f}"))
 
-        for name, df in datasets.items():
-            if df is None or df.empty:
-                results[name] = False
-                continue
+    # Spot-check EMPP4 = mean(EMP10, EMP11, EMP12)
+    if all(c in t1_clean.columns for c in ['EMP10', 'EMP11', 'EMP12', 'EMPP4']):
+        expected_empp4 = t1_clean[['EMP10', 'EMP11', 'EMP12']].mean(axis=1)
+        diff = (t1_clean['EMPP4'] - expected_empp4).abs().max()
+        results.append(check("EMPP4 = mean(EMP10, EMP11, EMP12)",
+                             diff < 0.001,
+                             f"max diff = {diff:.6f}"))
 
-            # Check for basic integrity: no completely empty columns (except maybe ID columns)
-            empty_cols = df.columns[df.isnull().all()].tolist()
+    # --- SUMMARY ---
+    print("\n" + "=" * 60)
+    n_pass = sum(results)
+    n_total = len(results)
+    n_fail = n_total - n_pass
+    print(f"SUMMARY: {n_pass}/{n_total} checks PASSED, {n_fail} FAILED")
+    if n_fail == 0:
+        print("ALL CONSTRAINTS SATISFIED!")
+    else:
+        print(f"WARNING: {n_fail} constraints not met. Fix and re-run.")
+    print("=" * 60)
 
-            # Allow some empty columns if they're just ID-related
-            non_id_empty_cols = [col for col in empty_cols if 'id' not in col.lower()]
-
-            results[f'{name}_integrity'] = len(non_id_empty_cols) == 0
-
-            # Check if the dataframe has reasonable dimensions
-            results[f'{name}_reasonable_size'] = len(df) > 0 and len(df.columns) > 0
-
-        return results
-
-    def run_complete_validation(self, datasets: Dict[str, pd.DataFrame]) -> Dict[str, any]:
-        """
-        Run complete validation suite on all datasets.
-        """
-        results = {
-            'overall_valid': True,
-            'individual_results': {}
-        }
-
-        # Run all validations
-        sample_size_results = self.validate_sample_sizes(datasets)
-        results['individual_results']['sample_size'] = sample_size_results
-
-        # Validate min subordinates per leader on final merged dataset
-        if 'final_merged' in datasets and not datasets['final_merged'].empty:
-            min_subs_result = self.validate_min_subordinates_per_leader(datasets['final_merged'])
-            results['individual_results']['min_subordinates'] = min_subs_result
-
-        attention_results = self.validate_attention_checks(datasets)
-        results['individual_results']['attention_checks'] = attention_results
-
-        # Validate centering rules on appropriate datasets
-        centering_results = self.validate_centering_rules(datasets)
-        results['individual_results']['centering'] = centering_results
-
-        # Validate missing data simulation for each wave
-        for wave in ['T1', 'T2', 'T3_leader', 'T3_follower']:
-            if wave in datasets:
-                missing_sim_result = self.validate_missing_data_simulation(datasets, wave)
-                results['individual_results'][f'{wave}_missing_simulation'] = missing_sim_result
-
-        # Validate new variables on appropriate datasets
-        for key in ['final_merged', 'T3_leader', 'T3_follower']:
-            if key in datasets and not datasets[key].empty:
-                new_vars_result = self.validate_new_variables(datasets[key])
-                results['individual_results'][f'{key}_new_variables'] = new_vars_result
-
-        # Validate cluster IDs on final merged dataset
-        if 'final_merged' in datasets and not datasets['final_merged'].empty:
-            cluster_id_result = self.validate_cluster_ids(datasets['final_merged'])
-            results['individual_results']['cluster_ids'] = cluster_id_result
-
-        # Validate composites on final merged dataset
-        if 'final_merged' in datasets and not datasets['final_merged'].empty:
-            composite_result = self.validate_composite_generation(datasets['final_merged'])
-            results['individual_results']['composites'] = composite_result
-
-        # Validate dummy coding on final merged dataset
-        if 'final_merged' in datasets and not datasets['final_merged'].empty:
-            dummy_result = self.validate_dummy_coding(datasets['final_merged'])
-            results['individual_results']['dummy_coding'] = dummy_result
-
-        # Validate dataset integrity across all datasets
-        integrity_results = self.validate_dataset_integrity(datasets)
-        results['individual_results']['dataset_integrity'] = integrity_results
-
-        # Additional specific validations based on project requirements
-        # Validate that all required deliverables exist as files
-        deliverable_validation = self.validate_deliverables_existence()
-        results['individual_results']['deliverables_existence'] = deliverable_validation
-
-        # Overall validity assessment
-        all_valid = True
-        for category, res in results['individual_results'].items():
-            if isinstance(res, dict):
-                # If it's a dictionary of results, check if all relevant sub-results are True
-                for sub_result in res.values():
-                    if isinstance(sub_result, bool) and not sub_result:
-                        all_valid = False
-                        break
-                    elif isinstance(sub_result, (int, float)) and sub_result == 0:
-                        # Some results might be counts, where 0 indicates a potential issue
-                        # We'll need to handle this case specially
-                        pass
-            elif isinstance(res, bool) and not res:
-                # If it's a single boolean result
-                all_valid = False
-                break
-            elif res is None:
-                # If validation couldn't be performed, treat as neutral
-                continue
-
-        results['overall_valid'] = all_valid
-        return results
-
-    def validate_deliverables_existence(self) -> Dict[str, bool]:
-        """
-        Validate that all required deliverable files exist in the current directory.
-        """
-        results = {}
-
-        for deliverable in self.constraints['deliverables']:
-            file_path = deliverable
-            results[deliverable] = os.path.exists(file_path)
-
-        return results
-
-    def generate_validation_report(self, validation_results: Dict[str, any]) -> str:
-        """
-        Generate a comprehensive validation report.
-        """
-        report = []
-        report.append("COMPREHENSIVE VALIDATION REPORT")
-        report.append("="*50)
-
-        report.append(f"Overall Validation Result: {'PASS' if validation_results['overall_valid'] else 'FAIL'}")
-        report.append("")
-
-        for category, result in validation_results['individual_results'].items():
-            report.append(f"[{category}]")
-            if isinstance(result, dict):
-                for sub_category, sub_result in result.items():
-                    status = "PASS" if sub_result else "FAIL"
-                    report.append(f"  {sub_category}: {status} ({sub_result})")
-            else:
-                status = "PASS" if result else "FAIL"
-                report.append(f"  {category}: {status} ({result})")
-            report.append("")
-
-        return "\n".join(report)
+    return n_fail == 0
 
 
-def generate_example_constraint_checker() -> str:
-    """
-    Generate a code template for constraint checking that can be adapted for specific use.
-    """
-    return '''
-# Example of how to use the validator with actual data
-validator = LeadershipSurveyConstraintValidator()
-
-# Load your datasets
-datasets = {
-    'T1': pd.read_excel('T1_cleaned.xlsx'),
-    'T2': pd.read_excel('T2_cleaned.xlsx'),
-    'T3_leader': pd.read_excel('T3_leader_cleaned.xlsx'),
-    'T3_follower': pd.read_excel('T3_follower_cleaned.xlsx'),
-    'final_merged': pd.read_excel('final_merged_analysis_data.xlsx')
-}
-
-# Run validation
-validation_results = validator.run_complete_validation(datasets)
-
-print("Validation Results:")
-for category, result in validation_results['individual_results'].items():
-    print(f"{category}: {result}")
-
-print(f"Overall Valid: {validation_results['overall_valid']}")
-
-if not validation_results['overall_valid']:
-    print("Some constraints were violated. Please review the data.")
-
-    # Generate detailed report
-    report = validator.generate_validation_report(validation_results)
-    print("\\nDetailed Validation Report:")
-    print(report)
-else:
-    print("All constraints satisfied!")
-'''
-
-
-if __name__ == "__main__":
-    # Print the example usage
-    print(generate_example_constraint_checker())
+if __name__ == '__main__':
+    success = validate_all()
+    exit(0 if success else 1)
