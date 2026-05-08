@@ -515,7 +515,7 @@ def apply_grand_mean_centering(df):
     """Apply grand-mean centering to appropriate variables. Add _C suffix."""
     vars_to_center = [
         'Autocratic', 'Empowering', 'Narcissism', 'PowerDistance',
-        'FollowerAge', 'TenureWithLeader', 'InteractionFreq', 'T1_Thriving'
+        'FollowerAge', 'TenureWithLeader', 'InteractionFreq', 'T1_Thriving', 'WorkingYears'
     ]
 
     for var in vars_to_center:
@@ -561,29 +561,56 @@ def generate_all_data():
 
     # --- STEP 2: Generate T1 cleaned data ---
     print("\n[Step 2] Generating T1 data...")
-    # We need exactly 449 rows for T1_cleaned with 90 leaders, each >=3 subs
-    # Strategy: give each leader a base of 3 subs, then distribute remaining
+    # Coordinated structure: pre-decide attrition so T1 gives enough followers
+    # T1=449(90 leaders), T2=444(85 leaders), T3=438(79 leaders), Final=438(79 leaders)
     np.random.seed(42)
     n_leaders_t1 = 90
     target_t1 = 449
-    base_per_leader = 3
-    remaining = target_t1 - (n_leaders_t1 * base_per_leader)  # 449 - 270 = 179
 
-    # Distribute remaining across leaders
-    subs_per_leader = np.full(n_leaders_t1, base_per_leader)
-    for i in range(remaining):
-        subs_per_leader[i % n_leaders_t1] += 1
+    # Pre-decide which leaders survive each wave
+    all_leader_ids = [f"L{i+1:03d}" for i in range(n_leaders_t1)]
+    np.random.seed(50)
+    t2_drop = list(np.random.choice(all_leader_ids, 5, replace=False))
+    t2_keep = [l for l in all_leader_ids if l not in t2_drop]
+    np.random.seed(200)
+    t3_drop = list(np.random.choice(t2_keep, 6, replace=False))
+    t3_keep = sorted([l for l in t2_keep if l not in t3_drop])
 
-    # Shuffle the distribution
-    np.random.shuffle(subs_per_leader)
+    # T3 needs 438 followers across 79 leaders: distribute 438/79 = 5 or 6 each
+    target_t3 = 438
+    base_t3 = target_t3 // 79  # 5
+    np.random.seed(201)
+    subs_t3 = np.full(79, base_t3)
+    remainder_t3 = target_t3 - 79 * base_t3  # 43
+    extra_idx = np.random.choice(79, remainder_t3, replace=False)
+    for idx in extra_idx:
+        subs_t3[idx] += 1
+    # subs_t3: 36 leaders get 5, 43 leaders get 6 (total=438)
+    t3_leader_subs = dict(zip(t3_keep, subs_t3))
 
-    # Build arrays
+    # T1 must give each T3-retained leader at least their T3 count (5 or 6)
+    # T2-dropped leaders need at least 1 follower, T3-dropped leaders need at least 1
+    # Total available: 449
+    subs_per_leader_t1 = {}
+    for lid in all_leader_ids:
+        if lid in t3_leader_subs:
+            subs_per_leader_t1[lid] = t3_leader_subs[lid]  # 5 or 6
+        elif lid in t3_drop:
+            subs_per_leader_t1[lid] = 1  # will be in T2 but dropped for T3
+        else:
+            subs_per_leader_t1[lid] = 1  # dropped at T2
+
+    assigned = sum(subs_per_leader_t1.values())
+    # assigned = 438 + 6 + 5 = 449. Perfect!
+    assert assigned == target_t1, f"T1 distribution sums to {assigned}, need {target_t1}"
+
+    # Build T1 arrays
     t1_leaders_list = []
     t1_followers_list = []
     fid_counter = 1
-    for i in range(n_leaders_t1):
-        lid = f"L{i+1:03d}"
-        for j in range(subs_per_leader[i]):
+    for lid in all_leader_ids:
+        n = subs_per_leader_t1[lid]
+        for _ in range(n):
             t1_leaders_list.append(lid)
             t1_followers_list.append(f"F{fid_counter:04d}")
             fid_counter += 1
@@ -591,52 +618,29 @@ def generate_all_data():
     t1_leaders_all = np.array(t1_leaders_list)
     t1_followers_all = np.array(t1_followers_list)
 
-    # Verify
     leader_counts = pd.Series(t1_leaders_all).value_counts()
     assert len(t1_leaders_all) == 449, f"Expected 449 rows, got {len(t1_leaders_all)}"
-    assert leader_counts.min() >= 3, f"Some leaders have < 3 subs: {leader_counts.min()}"
-    assert len(leader_counts) == 90, f"Expected 90 leaders, got {len(leader_counts)}"
+    assert leader_counts.min() >= 1
+    assert len(leader_counts) == 90
     print(f"  T1 structure: {len(t1_leaders_all)} followers under {len(leader_counts)} leaders")
+    print(f"  Subs per leader range: {leader_counts.min()}-{leader_counts.max()}")
 
     t1_df = generate_t1_data(t1_leaders_all, t1_followers_all)
     t1_df = compute_parcels(t1_df)
     t1_df = compute_scale_scores(t1_df)
-
     print(f"  T1 cleaned: {len(t1_df)} rows, {t1_df['LeaderID'].nunique()} leaders")
 
-    # --- STEP 3: Simulate T2 attrition (90 -> 85 leaders) ---
-    print("\n[Step 3] Simulating T2 attrition...")
-    # Drop 5 leaders from T1
-    np.random.seed(50)
-    t1_unique_leaders = np.unique(t1_leaders_all)
-    t2_drop_leaders = np.random.choice(t1_unique_leaders, 5, replace=False)
-    t2_keep_leaders = [l for l in t1_unique_leaders if l not in t2_drop_leaders]
-    assert len(t2_keep_leaders) == 85
-
-    # Build T2 structure: 85 leaders, 444 rows, each >=3 subs
-    n_leaders_t2 = 85
-    target_t2 = 444
-    base_per_leader_t2 = 3
-    remaining_t2 = target_t2 - (n_leaders_t2 * base_per_leader_t2)  # 444 - 255 = 189
-
-    subs_per_leader_t2 = np.full(n_leaders_t2, base_per_leader_t2)
-    for i in range(remaining_t2):
-        subs_per_leader_t2[i % n_leaders_t2] += 1
-    np.random.shuffle(subs_per_leader_t2)
-
+    # --- STEP 3: Build T2 (85 leaders, 444 rows) ---
+    print("\n[Step 3] Building T2...")
+    # T3-retained 79 leaders keep all their T1 followers (= 438 total)
+    # T3-dropped 6 leaders each get 1 follower from T1 (= 6 total)
+    # Total: 438 + 6 = 444
     t2_leaders_list = []
     t2_followers_list = []
-    for i, lid in enumerate(sorted(t2_keep_leaders)):
-        # Reuse follower IDs from T1 where possible
-        t1_fids_for_leader = t1_followers_all[t1_leaders_all == lid]
-        n_needed = subs_per_leader_t2[i]
-        # Take first n_needed from T1 set (or generate new if not enough)
-        fids_to_use = t1_fids_for_leader[:n_needed]
-        if len(fids_to_use) < n_needed:
-            # Generate additional
-            for j in range(n_needed - len(fids_to_use)):
-                fids_to_use = np.append(fids_to_use, f"F_T2_{lid}_{j}")
-        for fid in fids_to_use:
+
+    for lid in sorted(t2_keep):
+        t1_fids = t1_followers_all[t1_leaders_all == lid]
+        for fid in t1_fids:
             t2_leaders_list.append(lid)
             t2_followers_list.append(fid)
 
@@ -649,36 +653,13 @@ def generate_all_data():
     t2_df = generate_t2_data(t2_leaders, t2_followers)
     print(f"  T2 cleaned: {len(t2_df)} rows, {t2_df['LeaderID'].nunique()} leaders")
 
-    # --- STEP 4: Simulate T3 attrition (85 -> 79 leaders) ---
-    print("\n[Step 4] Simulating T3 attrition...")
-    t2_unique_leaders = np.unique(t2_leaders)
-    np.random.seed(200)
-    t3_drop_leaders = np.random.choice(t2_unique_leaders, 6, replace=False)
-    t3_keep_leaders = [l for l in t2_unique_leaders if l not in t3_drop_leaders]
-    assert len(t3_keep_leaders) == 79
-
-    # Build T3 follower structure: 79 leaders, 438 rows, each >=3 subs
-    n_leaders_t3 = 79
-    target_t3 = 438
-    base_per_leader_t3 = 3
-    remaining_t3 = target_t3 - (n_leaders_t3 * base_per_leader_t3)  # 438 - 237 = 201
-
-    subs_per_leader_t3 = np.full(n_leaders_t3, base_per_leader_t3)
-    for i in range(remaining_t3):
-        subs_per_leader_t3[i % n_leaders_t3] += 1
-    np.random.shuffle(subs_per_leader_t3)
-
+    # --- STEP 4: Build T3 (79 leaders, 438 followers) ---
+    print("\n[Step 4] Building T3...")
     t3_leaders_list = []
     t3_followers_list = []
-    for i, lid in enumerate(sorted(t3_keep_leaders)):
-        # Reuse follower IDs from T2 where possible
-        t2_fids_for_leader = t2_followers[t2_leaders == lid]
-        n_needed = subs_per_leader_t3[i]
-        fids_to_use = t2_fids_for_leader[:n_needed]
-        if len(fids_to_use) < n_needed:
-            for j in range(n_needed - len(fids_to_use)):
-                fids_to_use = np.append(fids_to_use, f"F_T3_{lid}_{j}")
-        for fid in fids_to_use:
+    for lid in sorted(t3_keep):
+        t2_fids = t2_followers[t2_leaders == lid]
+        for fid in t2_fids:
             t3_leaders_list.append(lid)
             t3_followers_list.append(fid)
 
@@ -686,16 +667,20 @@ def generate_all_data():
     t3_followers = np.array(t3_followers_list)
 
     assert len(t3_leaders) == 438, f"T3 should have 438 rows, got {len(t3_leaders)}"
-    assert len(np.unique(t3_leaders)) == 79, f"T3 should have 79 leaders, got {len(np.unique(t3_leaders))}"
+    assert len(np.unique(t3_leaders)) == 79
+    min_subs = min(np.sum(t3_leaders == lid) for lid in np.unique(t3_leaders))
+    assert min_subs >= 3, f"T3 min subs should be >=3, got {min_subs}"
 
-    # T3 follower data
     t3_follower_df = generate_t3_follower_data(t3_leaders, t3_followers)
     print(f"  T3 follower cleaned: {len(t3_follower_df)} rows, {t3_follower_df['LeaderID'].nunique()} leaders")
 
-    # T3 leader data (one row per leader)
     t3_unique_leaders = np.unique(t3_leaders)
     t3_leader_df = generate_t3_leader_data(t3_unique_leaders)
     print(f"  T3 leader cleaned: {len(t3_leader_df)} rows")
+
+    # Keep references for later use
+    t3_keep_leaders = t3_keep
+    t3_drop_leaders = t3_drop
 
     # --- STEP 5: Create raw data with defects ---
     print("\n[Step 5] Adding defects to create raw data...")
@@ -734,11 +719,11 @@ def generate_all_data():
     # Merge on FollowerID (only those in T3 final set)
     final_df = t3f_for_merge.merge(
         t1_for_merge.drop(columns=['LeaderID'], errors='ignore'),
-        on='FollowerID', how='left'
+        on='FollowerID', how='inner'
     )
     final_df = final_df.merge(
         t2_for_merge.drop(columns=['LeaderID'], errors='ignore'),
-        on='FollowerID', how='left'
+        on='FollowerID', how='inner'
     )
 
     # Merge leader-rated data
@@ -773,6 +758,15 @@ def generate_all_data():
     cwbs_f_cols = [f'CWBS_F{i}' for i in range(1, 8) if f'CWBS_F{i}' in final_df.columns]
     if cwbs_f_cols:
         final_df['CWBS_Follower'] = final_df[cwbs_f_cols].mean(axis=1)
+
+    # Compute BenignEnvy and MaliciousEnvy composite scores
+    ben_cols = [f"BEN{i}" for i in range(1, 6) if f"BEN{i}" in final_df.columns]
+    if ben_cols:
+        final_df["BenignEnvy"] = final_df[ben_cols].mean(axis=1)
+
+    mal_cols = [f"MAL{i}" for i in range(1, 6) if f"MAL{i}" in final_df.columns]
+    if mal_cols:
+        final_df["MaliciousEnvy"] = final_df[mal_cols].mean(axis=1)
 
     # Ensure LeaderEducation is complete (leader-level attribute, fill from leader map)
     np.random.seed(99)

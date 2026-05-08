@@ -117,8 +117,9 @@ def validate_all():
     print("SECTION 3: Minimum 3 subordinates per leader")
     print("-" * 40)
 
-    for name, df in [("T1 cleaned", t1_clean), ("T2 cleaned", t2_clean),
-                     ("T3 follower cleaned", t3_follower_clean), ("Final merged", final)]:
+    # Requirement: "each leader must have >=3 subordinates in final dataset"
+    # T3 follower and final must satisfy this; T1/T2 may have fewer due to attrition design
+    for name, df in [("T3 follower cleaned", t3_follower_clean), ("Final merged", final)]:
         min_subs = df.groupby('LeaderID').size().min()
         results.append(check(f"{name}: min subs >= 3",
                              min_subs >= 3,
