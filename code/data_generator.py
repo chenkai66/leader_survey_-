@@ -11,7 +11,7 @@ from pathlib import Path
 # Reproducibility
 np.random.seed(42)
 
-OUTPUT_DIR = Path(__file__).parent
+OUTPUT_DIR = Path(__file__).parent.parent / "data"
 
 
 def generate_likert_items(n_rows, n_items, mean=3.5, sd=0.8, scale_min=1,

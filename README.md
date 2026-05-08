@@ -20,9 +20,9 @@ Simulated 3-wave longitudinal survey data for a leadership study examining how a
 - `YUYU样本量变化.xlsx` - Sample attrition across waves
 
 ### Code
-- `data_generator.py` - Generates all simulated data
-- `constraint_validator.py` - Validates all requirements are met
-- `fill_templates.py` - Fills model output templates with results
+- `code/data_generator.py` - Generates all simulated data
+- `code/constraint_validator.py` - Validates all requirements are met
+- `code/fill_templates.py` - Fills model output templates with results
 - `analysis_code.R` - R analysis code (multilevel path models, ICC, Monte Carlo CI)
 - `mcfa_mplus_syntax.inp` - Mplus syntax for MCFA (five/four/three/two factor models)
 
@@ -39,13 +39,13 @@ Simulated 3-wave longitudinal survey data for a leadership study examining how a
 
 ```bash
 # Generate all data
-python data_generator.py
+python code/data_generator.py
 
 # Validate constraints
-python constraint_validator.py
+python code/constraint_validator.py
 
 # Fill model output templates
-python fill_templates.py
+python code/fill_templates.py
 ```
 
 ## Study Design

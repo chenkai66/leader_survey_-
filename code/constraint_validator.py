@@ -7,7 +7,7 @@ import pandas as pd
 import numpy as np
 from pathlib import Path
 
-DATA_DIR = Path(__file__).parent
+DATA_DIR = Path(__file__).parent.parent / "data"
 
 PASS = "PASS"
 FAIL = "FAIL"

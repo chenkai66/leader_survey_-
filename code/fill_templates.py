@@ -9,9 +9,9 @@ from pathlib import Path
 from copy import copy
 import openpyxl
 
-PROJECT_DIR = Path(__file__).parent
+PROJECT_DIR = Path(__file__).parent.parent
 TEMPLATE_DIR = PROJECT_DIR / '第一轮结果后客户反馈'
-OUTPUT_DIR = PROJECT_DIR
+OUTPUT_DIR = PROJECT_DIR / "deliverables"
 
 
 def fill_model1():
