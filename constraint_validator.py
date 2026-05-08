@@ -180,6 +180,10 @@ def validate_all():
         results.append(check("LeaderEducation range [2, 5]",
                              le_min >= 2 and le_max <= 5,
                              f"range [{le_min}, {le_max}]"))
+        le_nan = final[le_col].isna().sum()
+        results.append(check("LeaderEducation no NaN",
+                             le_nan == 0,
+                             f"found {le_nan} NaN values"))
     else:
         # Check in T1 cleaned
         if 'LeaderEducation' in t1_clean.columns:
@@ -276,16 +280,10 @@ def validate_all():
                          5 <= t1_missing <= 15,
                          f"found {t1_missing} total missing"))
 
-    # T2 raw: 0 missing in core (BEN, MAL items), 3 in non-core
-    t2_core_cols = [c for c in t2_raw.columns if c.startswith('BEN') or c.startswith('MAL')]
-    t2_core_missing = t2_raw[t2_core_cols].isnull().sum().sum()
-    results.append(check("T2 raw: 0 missing in core vars",
-                         t2_core_missing == 0,
-                         f"found {t2_core_missing} missing in core"))
-
+    # T2 raw: ZERO missing values (requirement: "T2 设置为零缺失值")
     t2_total_missing = t2_raw.isnull().sum().sum()
-    results.append(check("T2 raw: ~3 missing in non-core",
-                         1 <= t2_total_missing <= 5,
+    results.append(check("T2 raw: ZERO missing values",
+                         t2_total_missing == 0,
                          f"found {t2_total_missing} total missing"))
 
     # T3 leader raw: ~3 missing in non-core

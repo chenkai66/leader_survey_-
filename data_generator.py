@@ -391,12 +391,7 @@ def add_raw_defects_t2(df_clean):
     mismatch_rows['LeaderID'] = [f'L_MISMATCH_{i}' for i in range(3)]
     df = pd.concat([df, mismatch_rows], ignore_index=True)
 
-    # Add 3 missing values in non-core only
-    non_core_cols = ['FollowerAge', 'FollowerGender']
-    for _ in range(3):
-        idx = np.random.randint(0, len(df))
-        col = np.random.choice(non_core_cols)
-        df.loc[df.index[idx], col] = np.nan
+    # T2 requirement: ZERO missing values (do not add any)
 
     # Shuffle
     df = df.sample(frac=1, random_state=43).reset_index(drop=True)
@@ -778,6 +773,18 @@ def generate_all_data():
     cwbs_f_cols = [f'CWBS_F{i}' for i in range(1, 8) if f'CWBS_F{i}' in final_df.columns]
     if cwbs_f_cols:
         final_df['CWBS_Follower'] = final_df[cwbs_f_cols].mean(axis=1)
+
+    # Ensure LeaderEducation is complete (leader-level attribute, fill from leader map)
+    np.random.seed(99)
+    unique_final_leaders = sorted(final_df['LeaderID'].unique())
+    leader_edu_map = {}
+    for lid in unique_final_leaders:
+        existing = final_df.loc[final_df['LeaderID'] == lid, 'LeaderEducation'].dropna()
+        if len(existing) > 0:
+            leader_edu_map[lid] = int(existing.iloc[0])
+        else:
+            leader_edu_map[lid] = int(np.random.choice([2, 3, 4, 5], p=[0.10, 0.35, 0.40, 0.15]))
+    final_df['LeaderEducation'] = final_df['LeaderID'].map(leader_edu_map)
 
     # Create CLID
     final_df = create_clid(final_df)
