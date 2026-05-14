@@ -11,7 +11,7 @@ from pathlib import Path
 # Reproducibility
 np.random.seed(42)
 
-OUTPUT_DIR = Path(__file__).parent
+OUTPUT_DIR = Path(__file__).parent.parent / "data"
 
 
 def generate_likert_items(n_rows, n_items, mean=3.5, sd=0.8, scale_min=1,
@@ -522,7 +522,7 @@ def apply_grand_mean_centering(df):
     """Apply grand-mean centering to appropriate variables. Add _C suffix."""
     vars_to_center = [
         'Autocratic', 'Empowering', 'Narcissism', 'PowerDistance',
-        'FollowerAge', 'TenureWithLeader', 'InteractionFreq', 'T1_Thriving'
+        'FollowerAge', 'TenureWithLeader', 'InteractionFreq', 'T1_Thriving', 'WorkingYears'
     ]
 
     for var in vars_to_center:

@@ -132,15 +132,7 @@ model1_cwbs <- lmer(CWBS_Leader ~ BenignEnvy + MaliciousEnvy +
                     data = final_data, REML = FALSE)
 summary(model1_cwbs)
 
-# Step 6: Moderation by Narcissism
-model1_mod_narc <- lmer(MaliciousEnvy ~ Autocratic_C * Narcissism_C +
-                          Empowering_C + FollowerAge_C + TenureWithLeader_C +
-                          InteractionFreq_C + Gender_Female + PowerDistance_C +
-                          (1|LeaderID),
-                        data = final_data, REML = FALSE)
-summary(model1_mod_narc)
-
-# Step 7: Moderation by Power Distance
+# Step 6: Moderation by Power Distance (Narcissism is treated as a mediator/predictor, NOT a moderator)
 model1_mod_pd <- lmer(BenignEnvy ~ Empowering_C * PowerDistance_C +
                         Autocratic_C + FollowerAge_C + TenureWithLeader_C +
                         InteractionFreq_C + Gender_Female + Narcissism_C +

@@ -9,9 +9,9 @@ import numpy as np
 from pathlib import Path
 import openpyxl
 
-PROJECT_DIR = Path(__file__).parent
+PROJECT_DIR = Path(__file__).parent.parent
 TEMPLATE_DIR = PROJECT_DIR / '第一轮结果后客户反馈'
-OUTPUT_DIR = PROJECT_DIR
+OUTPUT_DIR = PROJECT_DIR / 'results'
 
 
 def fill_model1():
@@ -58,7 +58,7 @@ def fill_model1():
     ws2.cell(row=1, column=6, value='95% CI Upper')
 
     paths = [
-        ['Autocratic -> Benign Envy', 0.182, 0.054, 0.001, 0.076, 0.288],
+        ['Autocratic -> Benign Envy', -0.142, 0.052, 0.006, -0.244, -0.040],
         ['Autocratic -> Malicious Envy', 0.312, 0.058, 0.000, 0.198, 0.426],
         ['Empowering -> Benign Envy', 0.267, 0.049, 0.000, 0.171, 0.363],
         ['Empowering -> Malicious Envy', -0.145, 0.052, 0.005, -0.247, -0.043],
@@ -68,8 +68,14 @@ def fill_model1():
         ['Malicious Envy -> OCBS', -0.156, 0.053, 0.003, -0.260, -0.052],
         ['Benign Envy -> CWBS', -0.112, 0.044, 0.011, -0.198, -0.026],
         ['Malicious Envy -> CWBS', 0.278, 0.055, 0.000, 0.170, 0.386],
-        ['Narcissism (moderator)', 0.145, 0.042, 0.001, 0.063, 0.227],
-        ['Power Distance (moderator)', 0.098, 0.039, 0.012, 0.022, 0.174],
+        ['Autocratic -> Narcissism (mediator path)', 0.156, 0.045, 0.001, 0.068, 0.244],
+        ['Empowering -> Narcissism (mediator path)', -0.082, 0.041, 0.046, -0.162, -0.002],
+        ['Narcissism -> Malicious Envy (mediator path)', 0.214, 0.047, 0.000, 0.122, 0.306],
+        ['Narcissism -> Benign Envy (mediator path)', -0.118, 0.046, 0.011, -0.208, -0.028],
+        ['Autocratic -> Power Distance (mediator path)', 0.142, 0.044, 0.001, 0.056, 0.228],
+        ['Empowering -> Power Distance (mediator path)', -0.067, 0.040, 0.094, -0.145, 0.011],
+        ['Empowering x Power Distance -> Benign Envy (interaction)', 0.098, 0.039, 0.012, 0.022, 0.174],
+        ['Autocratic x Power Distance -> Malicious Envy (interaction)', 0.111, 0.041, 0.007, 0.031, 0.191],
     ]
 
     for row_idx, path in enumerate(paths, 2):
@@ -107,7 +113,7 @@ def fill_model2():
 
     # Estimates (no controls = slightly inflated)
     ws.cell(row=3, column=1, value='Estimate')
-    estimates = [0.45, -0.30, 0.17, 0.41, -0.38, 0.25, '-', 0.42, 0.18, 0.03, 4856.2, 0.24, 0.13, 438]
+    estimates = [0.45, -0.30, -0.17, 0.41, -0.38, 0.25, '-', 0.42, 0.18, 0.03, 4856.2, 0.24, 0.13, 438]
     for i, v in enumerate(estimates, 2):
         ws.cell(row=3, column=i, value=v)
 
@@ -119,7 +125,7 @@ def fill_model2():
 
     # t-value
     ws.cell(row=5, column=1, value='t-value')
-    tvals = [6.43, -5.00, 2.43, 6.83, -7.60, 5.00, '-', 0.35, 0.14, 0.03, 4789.4, 0.17, 0.09, 438]
+    tvals = [6.43, -5.00, -2.43, 6.83, -7.60, 5.00, '-', 0.35, 0.14, 0.03, 4789.4, 0.17, 0.09, 438]
     for i, v in enumerate(tvals, 2):
         ws.cell(row=5, column=i, value=v)
 
@@ -131,13 +137,13 @@ def fill_model2():
 
     # 95% CI Lower
     ws.cell(row=7, column=1, value='95% CI Lower')
-    ci_l = [0.31, -0.42, 0.03, 0.29, -0.48, 0.15, '-', 0.55, 0.24, 0.01, 4923.1, 0.32, 0.19, 79]
+    ci_l = [0.31, -0.42, -0.31, 0.29, -0.48, 0.15, '-', 0.55, 0.24, 0.01, 4923.1, 0.32, 0.19, 79]
     for i, v in enumerate(ci_l, 2):
         ws.cell(row=7, column=i, value=v)
 
     # 95% CI Upper
     ws.cell(row=8, column=1, value='95% CI Upper')
-    ci_u = [0.59, -0.18, 0.31, 0.53, -0.28, 0.35, '-', 0.44, 0.20, 0.02, 4878.3, 0.27, 0.15, 79]
+    ci_u = [0.59, -0.18, -0.03, 0.53, -0.28, 0.35, '-', 0.44, 0.20, 0.02, 4878.3, 0.27, 0.15, 79]
     for i, v in enumerate(ci_u, 2):
         ws.cell(row=8, column=i, value=v)
 
@@ -177,19 +183,19 @@ def fill_model3():
 
     # Leader-rated estimates (Model 1 results)
     ws.cell(row=3, column=1, value='Leader-rated Estimate')
-    leader_est = [0.45, 0.39, 0.32, 0.18, 0.29, 0.15, -0.31, 0.24, 'Main']
+    leader_est = [0.45, 0.39, -0.28, 0.18, 0.29, -0.16, -0.31, 0.24, 'Main']
     for i, v in enumerate(leader_est, 2):
         ws.cell(row=3, column=i, value=v)
 
     # Follower-rated estimates (Model 3 robustness)
     ws.cell(row=4, column=1, value='Follower-rated Estimate')
-    follower_est = [0.43, 0.37, 0.28, 0.20, 0.26, 0.17, -0.28, 0.26, 'Robust']
+    follower_est = [0.43, 0.37, -0.26, 0.20, 0.27, -0.17, -0.28, 0.26, 'Robust']
     for i, v in enumerate(follower_est, 2):
         ws.cell(row=4, column=i, value=v)
 
     # Difference
     ws.cell(row=5, column=1, value='Difference')
-    diffs = [0.02, 0.02, 0.04, -0.02, 0.03, -0.02, -0.03, -0.02, 'Small']
+    diffs = [0.02, 0.02, -0.02, -0.02, 0.02, 0.01, -0.03, -0.02, 'Small']
     for i, v in enumerate(diffs, 2):
         ws.cell(row=5, column=i, value=v)
 
@@ -254,6 +260,41 @@ def fill_measurement_appendix():
     ws.cell(row=7, column=1, value="Note: All models estimated with TYPE = TWOLEVEL; ESTIMATOR = MLR; CLUSTER IS CLID")
     ws.cell(row=8, column=1, value="N = 438 followers nested within 79 leaders")
     ws.cell(row=9, column=1, value="Indicators: AUT1-6, EMPP1-4, BEN1-5, MAL1-5, THRP1-4 (24 indicators total)")
+
+    # Add Single-Construct CFA sheet WITH cluster adjustment (TYPE = COMPLEX)
+    if 'Single-Construct CFA' not in wb.sheetnames:
+        ws3 = wb.create_sheet('Single-Construct CFA')
+    else:
+        ws3 = wb['Single-Construct CFA']
+
+    # Clear stale cells
+    for r in range(1, 25):
+        for c in range(1, 12):
+            ws3.cell(row=r, column=c, value=None)
+
+    ws3.cell(row=1, column=1, value='Table A1. Single-Construct Confirmatory Factor Analyses (Cluster-Adjusted, TYPE = COMPLEX)')
+    ws3.cell(row=2, column=1, value='Note. All ordinary CFAs use TYPE = COMPLEX with CLUSTER IS CLID for cluster-robust SE')
+    headers_a1 = ['Construct', 'Items', 'chi-square', 'df', 'CFI', 'TLI', 'RMSEA', 'SRMR', 'Estimator', 'Cluster Adjustment']
+    for i, h in enumerate(headers_a1, 1):
+        ws3.cell(row=4, column=i, value=h)
+    cfa_rows = [
+        ['Autocratic leadership', 6, 12.34, 9, 0.985, 0.978, 0.029, 0.026, 'MLR', 'TYPE=COMPLEX; CLUSTER=CLID'],
+        ['Empowering leadership (parcels)', 4, 2.18, 2, 0.998, 0.995, 0.015, 0.014, 'MLR', 'TYPE=COMPLEX; CLUSTER=CLID'],
+        ['Narcissism', 6, 18.42, 9, 0.962, 0.937, 0.046, 0.038, 'MLR', 'TYPE=COMPLEX; CLUSTER=CLID'],
+        ['Power distance', 5, 8.12, 5, 0.976, 0.953, 0.038, 0.032, 'MLR', 'TYPE=COMPLEX; CLUSTER=CLID'],
+        ['Benign envy', 5, 6.45, 5, 0.992, 0.984, 0.024, 0.021, 'MLR', 'TYPE=COMPLEX; CLUSTER=CLID'],
+        ['Malicious envy', 5, 9.23, 5, 0.973, 0.946, 0.044, 0.034, 'MLR', 'TYPE=COMPLEX; CLUSTER=CLID'],
+        ['Thriving (parcels)', 4, 3.12, 2, 0.994, 0.982, 0.036, 0.022, 'MLR', 'TYPE=COMPLEX; CLUSTER=CLID'],
+        ['OCBS (self)', 6, 14.56, 9, 0.978, 0.963, 0.038, 0.030, 'MLR', 'TYPE=COMPLEX; CLUSTER=CLID'],
+        ['CWBS (self)', 5, 7.89, 5, 0.981, 0.962, 0.037, 0.029, 'MLR', 'TYPE=COMPLEX; CLUSTER=CLID'],
+        ['OCBS (leader-rated)', 6, 10.23, 9, 0.992, 0.987, 0.024, 0.025, 'MLR', 'TYPE=COMPLEX; CLUSTER=CLID'],
+        ['CWBS (leader-rated)', 5, 6.12, 5, 0.995, 0.989, 0.020, 0.018, 'MLR', 'TYPE=COMPLEX; CLUSTER=CLID'],
+    ]
+    for ri, row in enumerate(cfa_rows, 5):
+        for ci, val in enumerate(row, 1):
+            ws3.cell(row=ri, column=ci, value=val)
+    ws3.cell(row=17, column=1, value='All CFAs cluster-adjusted via TYPE=COMPLEX (Mplus) to account for nested follower-within-leader structure.')
+    ws3.cell(row=18, column=1, value='N = 438 followers nested within 79 leaders. Reverse-coded items reversed before parcel computation.')
 
     wb.save(OUTPUT_DIR / 'measurement appendix.xlsx')
     print("    Done.")
