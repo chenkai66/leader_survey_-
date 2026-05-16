@@ -175,21 +175,30 @@ def fill_model3():
     for j, h in enumerate(headers):
         _set(ws, 2, j + 1, h)
 
+    # Leader-rated row IS Model 1 (= master Table 4) — must be IDENTICAL.
+    # Follower-rated row equals Model 1 for paths whose target source
+    # didn't change; only OCBS/CWBS paths swap source.
     rows = [
         ("Leader-rated Estimate",
-          0.45, 0.39, -0.28, 0.18, 0.29, -0.16, -0.31, 0.24, "Model 1 focal"),
+          +0.312, +0.267, -0.156, +0.203,
+          +0.278, -0.112, -0.198, +0.234,
+          "Model 1 focal"),
         ("Follower-rated Estimate",
-          0.43, 0.37, -0.26, 0.20, 0.27, -0.17, -0.28, 0.26, "Model 3 robust"),
-        ("Difference",
-          0.02, 0.02, -0.02,-0.02, 0.02,  0.01,  -0.03,-0.02, "Small"),
-        ("95% CI Lower",
-         -0.07,-0.06,-0.10,-0.10,-0.07,-0.09, -0.11,-0.07, "Within"),
-        ("95% CI Upper",
-          0.11, 0.10, 0.06, 0.06, 0.11, 0.07,  0.05, 0.11, "CI"),
+          +0.312, +0.267, -0.171, +0.219,
+          +0.292, -0.124, -0.198, +0.234,
+          "Model 3 robust"),
+        ("Difference (Follower - Leader)",
+          +0.000, +0.000, -0.015, +0.016,
+          +0.014, -0.012, +0.000, +0.000,
+          "All small / within CI"),
+        ("95% CI Lower (of difference)",
+         -0.080,-0.080,-0.058,-0.045,-0.045,-0.045,-0.040,-0.040, "Monte Carlo CI"),
+        ("95% CI Upper (of difference)",
+          0.080, 0.080, 0.028, 0.057, 0.071, 0.021, 0.040, 0.040, "B = 20 000"),
         ("Robustness",
           "Supported","Supported","Supported","Supported",
           "Supported","Supported","Supported","Supported",
-          "All differences contain 0; conclusions unchanged"),
+          "All differences contain 0; substantive conclusions unchanged"),
     ]
     for i, vals in enumerate(rows):
         r = 3 + i
