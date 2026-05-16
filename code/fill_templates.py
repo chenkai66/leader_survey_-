@@ -19,6 +19,16 @@ TPL = ROOT / "第一轮结果后客户反馈"
 OUT = ROOT / "results"
 DATA = ROOT / "data"
 
+import json as _json
+_attr_path = DATA / "_attrition_summary.json"
+if _attr_path.exists():
+    _attr = _json.loads(_attr_path.read_text())
+    N_DYADS = _attr.get("Final_dyads", 360)
+    N_LEADERS = _attr.get("Final_leaders", 79)
+else:
+    N_DYADS, N_LEADERS = 360, 79
+
+
 
 def _set(ws, row, col, value):
     ws.cell(row=row, column=col, value=value)
@@ -64,7 +74,7 @@ def fill_model1():
     last = 3 + len(rows)
     _clear_row(ws, last, 11)
     _set(ws, last, 1,
-         "Note. N = 360 followers nested within 79 leaders. TYPE = TWOLEVEL; "
+         f"Note. N = {N_DYADS} followers nested within {N_LEADERS} leaders. TYPE = TWOLEVEL; "
          "ESTIMATOR = MLR; CLUSTER IS CLID. The hypothesized five-factor "
          "model fits best. Alternative model 1: BEN+MAL combined; "
          "Alternative 2: AUT+EMP, BEN+MAL; Alternative 3: AUT+EMP, BEN+MAL+THR; "
@@ -101,8 +111,8 @@ def fill_model2():
     for j, h in enumerate(headers):
         _set(ws, 2, j + 1, h)
 
-    n_followers = 360
-    n_leaders = 79
+    n_followers = N_DYADS
+    n_leaders = N_LEADERS
     rows = [
         ("Estimate",
           0.42, -0.28,  -0.15, 0.38,  -0.35, 0.22,
@@ -250,7 +260,7 @@ def fill_measurement_appendix():
     note_r = 3 + len(rows)
     _clear_row(ws, note_r, 14)
     _set(ws, note_r, 1,
-         "Note. N = 360 followers nested in 79 leaders. χ² = CMIN/DF × df. "
+         f"Note. N = {N_DYADS} followers nested in {N_LEADERS} leaders. χ² = CMIN/DF × df. "
          "TYPE = TWOLEVEL; ESTIMATOR = MLR; CLUSTER IS CLID. Δ values vs. "
          "the hypothesized five-factor reference. Indicators: AUT1-6, "
          "EMPP1-4, BEN1-5, MAL1-5, THRP1-4 (24 total).")
@@ -304,7 +314,7 @@ def fill_icc():
     note_r = 3 + len(rows)
     _set(ws, note_r, 1,
          "Note. ICC(1) computed from null (empty) random-intercept models. "
-         "N = 360 followers, J = 79 leaders. ICC(1) ≥ 0.05 indicates "
+         f"N = {N_DYADS} followers, J = {N_LEADERS} leaders. ICC(1) ≥ 0.05 indicates "
          "non-trivial between-leader variance and supports aggregation.")
     wb.save(dst)
     print(f"  -> {dst}")
