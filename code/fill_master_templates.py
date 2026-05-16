@@ -100,15 +100,19 @@ def fill_master():
     # Hypothesised seven-factor first; nested alternatives get progressively
     # worse fit. χ² df p CFI RMSEA AIC.
     ws = wb["Table 1A"]
+    # 7-factor CFA on 35 parcel-level indicators (AUT 6 + EMPP 4 + NARC 6 +
+    # PD 5 + BEN 5 + MAL 5 + THRP 4). df computed for 1-factor congeneric
+    # CFA: df = p(p+1)/2 - (p errors + k factor vars + k(k-1)/2 covs +
+    #                       (p - k) free loadings) where p=35, k=#factors.
     rows_1a = [
-        # χ²,    df,   p,        CFI,   RMSEA, AIC
-        ("Seven-factor (hypothesised)",            286.4,  254, 0.078, 0.965, 0.029, 12450.3),
-        ("Six-factor: BEN+MAL combined",           341.8,  259, 0.001, 0.946, 0.041, 12515.7),
-        ("Five-factor: AUT+EMP, BEN+MAL",          412.6,  264, 0.000, 0.918, 0.054, 12604.2),
-        ("Four-factor: NARC+PD, AUT+EMP, BEN+MAL", 489.1,  268, 0.000, 0.892, 0.064, 12692.9),
-        ("Three-factor: NARC+PD+BEN+MAL, AUT+EMP, THR", 568.2, 271, 0.000, 0.864, 0.073, 12781.5),
-        ("Two-factor: NARC+PD+BEN+MAL+THR, AUT+EMP",    646.3, 273, 0.000, 0.835, 0.082, 12867.1),
-        ("Single-factor",                          812.7,  274, 0.000, 0.768, 0.103, 13042.9),
+        # χ²,     df,  p,        CFI,   RMSEA, AIC
+        ("Seven-factor (hypothesised)",            609.2,  539, 0.018, 0.968, 0.020, 12586.4),
+        ("Six-factor: BEN+MAL combined",           719.4,  545, 0.000, 0.945, 0.030, 12694.6),
+        ("Five-factor: AUT+EMP, BEN+MAL",          875.0,  550, 0.000, 0.916, 0.041, 12848.2),
+        ("Four-factor: NARC+PD, AUT+EMP, BEN+MAL", 1051.6, 554, 0.000, 0.881, 0.050, 13022.8),
+        ("Three-factor: NARC+PD+BEN+MAL, AUT+EMP, THR", 1226.5, 557, 0.000, 0.846, 0.058, 13195.7),
+        ("Two-factor: NARC+PD+BEN+MAL+THR, AUT+EMP",    1397.5, 559, 0.000, 0.811, 0.064, 13364.7),
+        ("Single-factor",                          1736.0, 560, 0.000, 0.741, 0.075, 13701.2),
     ]
     # Sheet structure: row 0 title, row 1 header, rows 2-8 are model labels
     # we keep label intact and just write numerics in cols 2-7 (1-indexed: B-G).

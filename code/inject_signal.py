@@ -41,7 +41,7 @@ def zscale(x: pd.Series) -> pd.Series:
 
 
 def shift_clip(items: pd.DataFrame, signal: pd.Series, weight: float,
-               lo: int = 1, hi: int = 5) -> pd.DataFrame:
+               lo: int = 1, hi: int = 7) -> pd.DataFrame:
     """Add weight*signal to every item, then round + clip to [lo, hi]."""
     out = items.add(weight * signal, axis=0)
     out = out.round().clip(lo, hi).astype(int)
