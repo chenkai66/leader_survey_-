@@ -1,5 +1,5 @@
 """
-Comprehensive deliverable audit suite — 6 layers in one entry point.
+Comprehensive deliverable audit suite — 7 layers in one entry point.
 
 Run:  python3 code/audit.py
 Exit: 0 iff every check passes; non-zero otherwise.
@@ -350,17 +350,113 @@ def layer6():
     wb.close()
 
 
+
+# ── Layer 7 ─────────────────────────────────────────────────────────
+def layer7():
+    """Sub-headers preserved, ID consistency, CLID order,
+    no leftover ID-mismatch markers, master template label preservation."""
+    _hdr("Layer 7 — Sub-headers, ID consistency, CLID order, label preservation")
+    final = pd.read_excel(DATA / "final_merged_analysis_data.xlsx")
+    t1 = pd.read_excel(DATA / "T1_cleaned.xlsx")
+    t2 = pd.read_excel(DATA / "T2_cleaned.xlsx")
+    t3l = pd.read_excel(DATA / "T3_leader_cleaned.xlsx")
+    t3f = pd.read_excel(DATA / "T3_follower_cleaned.xlsx")
+
+    # Master Table 5 panel sub-headers (rows 2, 8, 14, 22, 30, 38 in 1-indexed)
+    wb = load_workbook(RES / "主模型结果填答表.xlsx")
+    ws = wb["Table 5. Moderation and Conditi"]
+    sub_headers = {
+        2:  "Panel A. Interactions Predicting Benign Envy",
+        8:  "Panel B. Interactions Predicting Malicious Envy",
+        14: "Panel C. Conditional Indirect Effects via Benign Envy",
+        22: "Panel D. Conditional Indirect Effects via Malicious Envy",
+        30: "Panel E. Conditional Indirect Effects via Benign Envy at Different Levels of Narcissism",
+        38: "Panel F. Conditional Indirect Effects via Malicious Envy at Different Levels of Narcissism",
+    }
+    for r, expected in sub_headers.items():
+        actual = ws.cell(r, 1).value
+        if actual != expected:
+            _fail("layer7", f"Table 5 row {r} sub-header changed")
+    print(f"  Table 5 sub-headers (6 panels) preserved")
+    wb.close()
+
+    # CompanyID consistency: leader/follower ID prefix matches CompanyID
+    bad = 0
+    for _, row in final.iterrows():
+        if not row["LeaderID"].startswith(row["CompanyID"] + "_"):
+            bad += 1
+        if not str(row["FollowerID"]).startswith(row["CompanyID"] + "_"):
+            bad += 1
+    if bad:
+        _fail("layer7", f"{bad} rows with CompanyID/ID-prefix mismatch")
+    else:
+        print(f"  CompanyID matches Leader/Follower ID prefix everywhere")
+
+    # CLID monotonic by sorted LeaderID
+    mapping = final[["LeaderID", "CLID"]].drop_duplicates().sort_values("CLID")
+    if mapping["LeaderID"].tolist() != sorted(final["LeaderID"].unique()):
+        _fail("layer7", "CLID not assigned in alphabetical LeaderID order")
+    else:
+        print(f"  CLID 1-79 assigned in alphabetical LeaderID order")
+
+    # No X_L99 mismatch leakage into cleaned data
+    leaks = []
+    for label, df, key in [("T1", t1, "FollowerID"), ("T2", t2, "FollowerID"),
+                            ("T3 leader", t3l, "LeaderID"),
+                            ("T3 follower", t3f, "FollowerID"),
+                            ("final", final, "LeaderID"),
+                            ("final", final, "FollowerID")]:
+        if df[key].astype(str).str.contains("X_L99").any():
+            leaks.append(f"{label}.{key}")
+    if leaks:
+        _fail("layer7", f"X_L99 mismatch leaked into cleaned: {leaks}")
+    else:
+        print(f"  X_L99 ID-mismatch injection properly removed from all cleaned data")
+
+    # Master Table 1B / A3 row labels verbatim from template
+    wb_o = load_workbook(RES / "主模型结果填答表.xlsx")
+    wb_t = load_workbook(TPL_M / "主模型结果填答表.xlsx")
+    for sheet, rows in [("Table 1B", [3, 4]), ("Table A3 区分多来源结果变量", [4, 5, 6, 7])]:
+        try:
+            wo = wb_o[sheet]; wt_ = wb_t[sheet]
+        except KeyError:
+            continue
+        for r in rows:
+            if wo.cell(r, 1).value != wt_.cell(r, 1).value:
+                _fail("layer7", f"{sheet} row {r} col 1 label changed")
+    wb_o.close(); wb_t.close()
+
+    wb_o = load_workbook(RES / "study3附录结果填答.xlsx")
+    wb_t = load_workbook(TPL_M / "study3附录结果填答.xlsx")
+    ws_o = wb_o["Table A3 区分多来源结果变量"]
+    ws_t = wb_t["Table A3 区分多来源结果变量"]
+    for r in range(4, 8):
+        if ws_o.cell(r, 1).value != ws_t.cell(r, 1).value:
+            _fail("layer7", f"A3 row {r} label changed")
+    wb_o.close(); wb_t.close()
+    print(f"  Table 1B + A3 row labels preserved verbatim")
+
+    # Master 总览 sheet preserved
+    wb = load_workbook(RES / "主模型结果填答表.xlsx")
+    v = wb["总览"].cell(1, 1).value
+    if not v or "Table 1A" not in v:
+        _fail("layer7", "总览 sheet content unexpected")
+    else:
+        print(f"  总览 sheet preserved")
+    wb.close()
+
+
 # ── Driver ──────────────────────────────────────────────────────────
 def main():
     print("=" * 70)
     print("DELIVERABLE AUDIT — 6 layers")
     print("=" * 70)
 
-    layer1(); layer2(); layer3(); layer4(); layer5(); layer6()
+    layer1(); layer2(); layer3(); layer4(); layer5(); layer6(); layer7()
 
     print("\n" + "=" * 70)
     if not ALL_FAILURES:
-        print("ALL 6 AUDIT LAYERS PASSED — deliverables clean.")
+        print("ALL 7 AUDIT LAYERS PASSED — deliverables clean.")
         print("=" * 70)
         return 0
     print(f"FOUND {len(ALL_FAILURES)} ISSUES across audit layers:")
