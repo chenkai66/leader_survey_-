@@ -239,6 +239,65 @@ OUTPUT:
   SAMPSTAT STANDARDIZED TECH1 TECH4;
 
 
+
+! ============================================================
+! MODEL 5: SINGLE-FACTOR MODEL
+! All 24 indicators load on one general factor
+! ============================================================
+
+TITLE: Study 3 MCFA - Single-Factor Model;
+
+DATA:
+  FILE IS study3_mcfa.dat;
+
+VARIABLE:
+  NAMES ARE
+    CLID
+    AUT1 AUT2 AUT3 AUT4 AUT5 AUT6
+    EMPP1 EMPP2 EMPP3 EMPP4
+    BEN1 BEN2 BEN3 BEN4 BEN5
+    MAL1 MAL2 MAL3 MAL4 MAL5
+    THRP1 THRP2 THRP3 THRP4;
+
+  USEVARIABLES ARE
+    AUT1 AUT2 AUT3 AUT4 AUT5 AUT6
+    EMPP1 EMPP2 EMPP3 EMPP4
+    BEN1 BEN2 BEN3 BEN4 BEN5
+    MAL1 MAL2 MAL3 MAL4 MAL5
+    THRP1 THRP2 THRP3 THRP4;
+
+  CLUSTER IS CLID;
+
+  MISSING ARE ALL (-999);
+
+ANALYSIS:
+  TYPE = TWOLEVEL;
+  ESTIMATOR = MLR;
+  ITERATIONS = 10000;
+  H1ITERATIONS = 10000;
+
+MODEL:
+
+  %WITHIN%
+
+    GENW BY AUT1 AUT2 AUT3 AUT4 AUT5 AUT6
+            EMPP1 EMPP2 EMPP3 EMPP4
+            BEN1 BEN2 BEN3 BEN4 BEN5
+            MAL1 MAL2 MAL3 MAL4 MAL5
+            THRP1 THRP2 THRP3 THRP4;
+
+  %BETWEEN%
+
+    GENB BY AUT1 AUT2 AUT3 AUT4 AUT5 AUT6
+            EMPP1 EMPP2 EMPP3 EMPP4
+            BEN1 BEN2 BEN3 BEN4 BEN5
+            MAL1 MAL2 MAL3 MAL4 MAL5
+            THRP1 THRP2 THRP3 THRP4;
+
+OUTPUT:
+  SAMPSTAT STANDARDIZED TECH1 TECH4;
+
+
 ! ============================================================
 ! DATA PREPARATION NOTES
 ! ============================================================
@@ -246,7 +305,7 @@ OUTPUT:
 ! 1. Export only CLID, AUT1-AUT6, EMPP1-EMPP4, BEN1-BEN5, MAL1-MAL5, THRP1-THRP4
 ! 2. Replace missing values with -999
 ! 3. Save as space-delimited .dat file
-! 4. N = 438 followers nested within 79 leaders (clusters)
+! 4. N = 361 followers nested within 79 leaders (clusters)
 !
 ! Parcel definitions (theoretical, NOT random):
 !   EMPP1 = mean(EMP1, EMP2, EMP3)

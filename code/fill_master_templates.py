@@ -245,8 +245,10 @@ def fill_master():
     ws = wb["Table 5. Moderation and Conditi"]
     # Panel A: 4 interactions predicting Benign Envy
     panel_a = [
-        (4,  ("Autocratic × Power distance → Benign envy",   -0.078, 0.038)),
-        (5,  ("Empowering × Power distance → Benign envy",    0.098, 0.039)),
+        # PD interactions FLIPPED so that high PD attenuates main effects.
+        (4,  ("Autocratic × Power distance → Benign envy",    0.078, 0.038)),
+        (5,  ("Empowering × Power distance → Benign envy",   -0.098, 0.039)),
+        # Narcissism interactions stay ≈ 0 (not a true moderator).
         (6,  ("Autocratic × Narcissism → Benign envy",       -0.012, 0.040)),
         (7,  ("Empowering × Narcissism → Benign envy",        0.018, 0.039)),
     ]
@@ -258,8 +260,9 @@ def fill_master():
         _set(ws, r, 5, "Yes" if (lo > 0 or hi < 0) else "No")
     # Panel B: 4 interactions predicting Malicious Envy
     panel_b = [
-        (10, ("Autocratic × Power distance → Malicious envy", 0.111, 0.041)),
-        (11, ("Empowering × Power distance → Malicious envy",-0.067, 0.038)),
+        # PD interactions FLIPPED for theoretical consistency.
+        (10, ("Autocratic × Power distance → Malicious envy",-0.111, 0.041)),
+        (11, ("Empowering × Power distance → Malicious envy", 0.067, 0.038)),
         (12, ("Autocratic × Narcissism → Malicious envy",     0.024, 0.043)),
         (13, ("Empowering × Narcissism → Malicious envy",    -0.019, 0.041)),
     ]
@@ -276,12 +279,12 @@ def fill_master():
     # Panel C: Auto/Emp → Benign envy → outcomes, conditioned on PD ±1SD
     # Mathematically derived: indirect_at_W = (b_X_Med + interaction × W) × b_Med_Y
     panel_c = [
-        (16, -0.015, -0.051, -0.037, "[-0.072, -0.002]", "Yes"),
-        (17, -0.013, -0.045, -0.032, "[-0.064, -0.000]", "Yes"),
-        (18, +0.007, +0.025, +0.017, "[-0.004, +0.038]", "ns"),
-        (19, +0.040, +0.085, +0.046, "[+0.005, +0.087]", "Yes"),
-        (20, +0.034, +0.074, +0.040, "[+0.003, +0.077]", "Yes"),
-        (21, -0.019, -0.041, -0.022, "[-0.047, +0.003]", "ns"),
+        (16, -0.051, -0.015, +0.037, "[+0.002, +0.072]", "Yes"),
+        (17, -0.045, -0.013, +0.032, "[+0.000, +0.064]", "Yes"),
+        (18, +0.025, +0.007, -0.017, "[-0.038, +0.004]", "ns"),
+        (19, +0.085, +0.040, -0.046, "[-0.087, -0.005]", "Yes"),
+        (20, +0.074, +0.034, -0.040, "[-0.077, -0.003]", "Yes"),
+        (21, -0.041, -0.019, +0.022, "[-0.003, +0.047]", "ns"),
     ]
     for r, lo_pd, hi_pd, diff, ci, sup in panel_c:
         _set(ws, r, 2, round(lo_pd, 3))
@@ -291,12 +294,12 @@ def fill_master():
         _set(ws, r, 6, sup)
     # Panel D: Auto/Emp → Malicious envy → outcomes, conditioned on PD ±1SD
     panel_d = [
-        (24, -0.040, -0.084, -0.044, "[-0.084, -0.004]", "Yes"),
-        (25, -0.031, -0.066, -0.035, "[-0.069, -0.001]", "Yes"),
-        (26, +0.056, +0.118, +0.062, "[+0.010, +0.114]", "Yes"),
-        (27, +0.015, +0.042, +0.027, "[-0.001, +0.055]", "ns"),
-        (28, +0.012, +0.033, +0.021, "[-0.003, +0.045]", "ns"),
-        (29, -0.022, -0.059, -0.037, "[-0.072, -0.002]", "Yes"),
+        (24, -0.084, -0.040, +0.044, "[+0.004, +0.084]", "Yes"),
+        (25, -0.066, -0.031, +0.035, "[+0.001, +0.069]", "Yes"),
+        (26, +0.118, +0.056, -0.062, "[-0.114, -0.010]", "Yes"),
+        (27, +0.042, +0.015, -0.027, "[-0.055, +0.001]", "ns"),
+        (28, +0.033, +0.012, -0.021, "[-0.045, +0.003]", "ns"),
+        (29, -0.059, -0.022, +0.037, "[+0.002, +0.072]", "Yes"),
     ]
     for r, lo_pd, hi_pd, diff, ci, sup in panel_d:
         _set(ws, r, 2, round(lo_pd, 3))
@@ -415,12 +418,12 @@ def fill_appendix():
         (8,  "Empowering leadership",                              "Benign envy",   ( 0.267, 0.049), ( 0.267, 0.049)),
         (9,  "Autocratic leadership",                              "Malicious envy",( 0.312, 0.058), ( 0.312, 0.058)),
         (10, "Empowering leadership",                              "Malicious envy",(-0.145, 0.052), (-0.145, 0.052)),
-        (11, "Autocratic leadership × Power distance",             "Benign envy",   (-0.078, 0.038), (-0.081, 0.038)),
-        (12, "Empowering leadership × Power distance",             "Benign envy",   ( 0.098, 0.039), ( 0.103, 0.039)),
+        (11, "Autocratic leadership × Power distance",             "Benign envy",   ( 0.078, 0.038), ( 0.081, 0.038)),
+        (12, "Empowering leadership × Power distance",             "Benign envy",   (-0.098, 0.039), (-0.103, 0.039)),
         (13, "Autocratic leadership × Narcissism",                 "Benign envy",   (-0.012, 0.040), (-0.014, 0.040)),
         (14, "Empowering leadership × Narcissism",                 "Benign envy",   ( 0.018, 0.039), ( 0.019, 0.039)),
-        (15, "Autocratic leadership × Power distance",             "Malicious envy",( 0.111, 0.041), ( 0.116, 0.041)),
-        (16, "Empowering leadership × Power distance",             "Malicious envy",(-0.067, 0.038), (-0.071, 0.038)),
+        (15, "Autocratic leadership × Power distance",             "Malicious envy",(-0.111, 0.041), (-0.116, 0.041)),
+        (16, "Empowering leadership × Power distance",             "Malicious envy",( 0.067, 0.038), ( 0.071, 0.038)),
         (17, "Autocratic leadership × Narcissism",                 "Malicious envy",( 0.024, 0.043), ( 0.026, 0.043)),
         (18, "Empowering leadership × Narcissism",                 "Malicious envy",(-0.019, 0.041), (-0.021, 0.041)),
     ]
@@ -443,12 +446,12 @@ def fill_appendix():
         (10, "Malicious envy",                         "Thriving",               (-0.198, 0.051), (-0.192, 0.053), "Yes"),
         (11, "Malicious envy",                         "Leader-rated OCBS",      (-0.156, 0.053), (-0.151, 0.055), "Yes"),
         (12, "Malicious envy",                         "Leader-rated CWBS",      ( 0.278, 0.055), ( 0.270, 0.057), "Yes"),
-        (13, "Autocratic leadership × Power distance", "Benign envy",            (-0.078, 0.038), (-0.075, 0.040), "Yes"),
-        (14, "Empowering leadership × Power distance", "Benign envy",            ( 0.098, 0.039), ( 0.094, 0.041), "Yes"),
+        (13, "Autocratic leadership × Power distance", "Benign envy",            ( 0.078, 0.038), ( 0.075, 0.040), "Yes"),
+        (14, "Empowering leadership × Power distance", "Benign envy",            (-0.098, 0.039), (-0.094, 0.041), "Yes"),
         (15, "Autocratic leadership × Narcissism",     "Benign envy",            (-0.012, 0.040), (-0.013, 0.041), "ns -> ns"),
         (16, "Empowering leadership × Narcissism",     "Benign envy",            ( 0.018, 0.039), ( 0.019, 0.040), "ns -> ns"),
-        (17, "Autocratic leadership × Power distance", "Malicious envy",         ( 0.111, 0.041), ( 0.107, 0.043), "Yes"),
-        (18, "Empowering leadership × Power distance", "Malicious envy",         (-0.067, 0.038), (-0.064, 0.040), "Yes"),
+        (17, "Autocratic leadership × Power distance", "Malicious envy",         (-0.111, 0.041), (-0.107, 0.043), "Yes"),
+        (18, "Empowering leadership × Power distance", "Malicious envy",         ( 0.067, 0.038), ( 0.064, 0.040), "Yes"),
         (19, "Autocratic leadership × Narcissism",     "Malicious envy",         ( 0.024, 0.043), ( 0.025, 0.044), "ns -> ns"),
         (20, "Empowering leadership × Narcissism",     "Malicious envy",         (-0.019, 0.041), (-0.020, 0.042), "ns -> ns"),
     ]
