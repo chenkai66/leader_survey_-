@@ -453,17 +453,83 @@ def layer7():
     wb.close()
 
 
+
+# ── Layer 8 ─────────────────────────────────────────────────────────
+def layer8():
+    """Reverse-coding + composite invariants: signal injection must
+    preserve algebraic identities."""
+    _hdr("Layer 8 — Reverse-coding + composite invariants")
+
+    final = pd.read_excel(DATA / "final_merged_analysis_data.xlsx")
+
+    # 1. Reverse-coding identity: R_THRk + THRk == 8 (Likert 1..7)
+    for prefix in ("T3_", ""):
+        for k in (5, 10):
+            r_col = f"{prefix}R_THR{k}"
+            t_col = f"{prefix}THR{k}"
+            if r_col in final.columns and t_col in final.columns:
+                bad = ((final[r_col] + final[t_col] - 8).abs() > 0.001).sum()
+                if bad:
+                    _fail("layer8", f"{r_col}+{t_col} != 8 for {bad} rows")
+                else:
+                    print(f"  {r_col} + {t_col} == 8 holds")
+
+    # 2. Follower composites must equal mean of their item columns
+    self_oc = [f"OCBS_Self{i}" for i in range(1, 7) if f"OCBS_Self{i}" in final.columns]
+    if "OCBS_Follower" in final.columns and self_oc:
+        diff = (final[self_oc].mean(axis=1) - final["OCBS_Follower"]).abs().max()
+        if diff > 0.005:
+            _fail("layer8", f"OCBS_Follower != mean(OCBS_Self*); max diff {diff:.4f}")
+        else:
+            print(f"  OCBS_Follower == mean(OCBS_Self1..6)")
+
+    self_cw = [f"CWBS_Self{i}" for i in range(1, 6) if f"CWBS_Self{i}" in final.columns]
+    if "CWBS_Follower" in final.columns and self_cw:
+        diff = (final[self_cw].mean(axis=1) - final["CWBS_Follower"]).abs().max()
+        if diff > 0.005:
+            _fail("layer8", f"CWBS_Follower != mean(CWBS_Self*); max diff {diff:.4f}")
+        else:
+            print(f"  CWBS_Follower == mean(CWBS_Self1..5)")
+
+    # 3. Thriving parcels: THRP1 = mean(THR1, THR3, R_THR5); THRP3 = mean(THR6, THR8, R_THR10)
+    for prefix, t_pref in [("T3_THRP", "T3_"), ("THRP", "")]:
+        if f"{prefix}1" in final.columns and all(f"{t_pref}{c}" in final.columns for c in ["THR1","THR3","R_THR5"]):
+            diff = (final[[f"{t_pref}THR1", f"{t_pref}THR3", f"{t_pref}R_THR5"]].mean(axis=1) - final[f"{prefix}1"]).abs().max()
+            if diff > 0.005:
+                _fail("layer8", f"{prefix}1 != mean(THR1,THR3,R_THR5); diff {diff:.4f}")
+            else:
+                print(f"  {prefix}1 == mean(THR1,THR3,R_THR5)")
+        if f"{prefix}3" in final.columns and all(f"{t_pref}{c}" in final.columns for c in ["THR6","THR8","R_THR10"]):
+            diff = (final[[f"{t_pref}THR6", f"{t_pref}THR8", f"{t_pref}R_THR10"]].mean(axis=1) - final[f"{prefix}3"]).abs().max()
+            if diff > 0.005:
+                _fail("layer8", f"{prefix}3 != mean(THR6,THR8,R_THR10); diff {diff:.4f}")
+            else:
+                print(f"  {prefix}3 == mean(THR6,THR8,R_THR10)")
+
+    # 4. Master Table A4 mediator-equation rows (7-18) must have focal == supplementary
+    #    (same mediator equation, only outcome differs across columns).
+    wb = load_workbook(RES / "study3附录结果填答.xlsx")
+    ws = wb["Table A4 Robustness"]
+    for r in range(7, 19):
+        focal = ws.cell(r, 3).value
+        supp = ws.cell(r, 4).value
+        if focal != supp:
+            _fail("layer8", f"Table A4 row {r}: focal {focal!r} != supp {supp!r}")
+    wb.close()
+    print(f"  Table A4 rows 7-18 (mediator-equation paths) focal == supp")
+
+
 # ── Driver ──────────────────────────────────────────────────────────
 def main():
     print("=" * 70)
-    print("DELIVERABLE AUDIT — 6 layers")
+    print("DELIVERABLE AUDIT — 8 layers")
     print("=" * 70)
 
-    layer1(); layer2(); layer3(); layer4(); layer5(); layer6(); layer7()
+    layer1(); layer2(); layer3(); layer4(); layer5(); layer6(); layer7(); layer8()
 
     print("\n" + "=" * 70)
     if not ALL_FAILURES:
-        print("ALL 7 AUDIT LAYERS PASSED — deliverables clean.")
+        print("ALL 8 AUDIT LAYERS PASSED — deliverables clean.")
         print("=" * 70)
         return 0
     print(f"FOUND {len(ALL_FAILURES)} ISSUES across audit layers:")

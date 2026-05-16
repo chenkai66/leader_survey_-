@@ -108,7 +108,10 @@ summary(model1_mal)
 
 # Step 3: Envy -> T3 Thriving (controlling T1 thriving)
 if ("T1_Thriving_C" %in% names(final_data) & "T3_Thriving" %in% names(final_data)) {
-  model1_thr <- lmer(T3_Thriving ~ BenignEnvy + MaliciousEnvy +
+  # Outcome eq includes leadership direct effects (Auto/Emp -> T3 thr)
+  # plus envy mediators + T1 thriving baseline + standard controls
+  model1_thr <- lmer(T3_Thriving ~ Autocratic_C + Empowering_C +
+                       BenignEnvy + MaliciousEnvy +
                        T1_Thriving_C + FollowerAge_C + TenureWithLeader_C +
                        InteractionFreq_C + Gender_Female +
                        (1|LeaderID),
@@ -117,7 +120,8 @@ if ("T1_Thriving_C" %in% names(final_data) & "T3_Thriving" %in% names(final_data
 }
 
 # Step 4: Envy -> OCBS (Leader-rated)
-model1_ocbs <- lmer(OCBS_Leader ~ BenignEnvy + MaliciousEnvy +
+model1_ocbs <- lmer(OCBS_Leader ~ Autocratic_C + Empowering_C +
+                      BenignEnvy + MaliciousEnvy +
                       FollowerAge_C + TenureWithLeader_C + InteractionFreq_C +
                       Gender_Female +
                       (1|LeaderID),
@@ -125,7 +129,8 @@ model1_ocbs <- lmer(OCBS_Leader ~ BenignEnvy + MaliciousEnvy +
 summary(model1_ocbs)
 
 # Step 5: Envy -> CWBS (Leader-rated)
-model1_cwbs <- lmer(CWBS_Leader ~ BenignEnvy + MaliciousEnvy +
+model1_cwbs <- lmer(CWBS_Leader ~ Autocratic_C + Empowering_C +
+                      BenignEnvy + MaliciousEnvy +
                       FollowerAge_C + TenureWithLeader_C + InteractionFreq_C +
                       Gender_Female +
                       (1|LeaderID),
@@ -161,7 +166,8 @@ cat("\n=== Model 3: Follower-Rated Outcomes (Robustness) ===\n")
 
 if ("OCBS_Follower" %in% names(final_data)) {
   # Model 3 controls = Model 1 + WorkingYears_C (working years only used in Model 3 per spec)
-  model3_ocbs <- lmer(OCBS_Follower ~ BenignEnvy + MaliciousEnvy +
+  model3_ocbs <- lmer(OCBS_Follower ~ Autocratic_C + Empowering_C +
+                        BenignEnvy + MaliciousEnvy +
                         FollowerAge_C + TenureWithLeader_C + InteractionFreq_C +
                         Gender_Female + WorkingYears_C +
                         (1|LeaderID),
@@ -170,7 +176,8 @@ if ("OCBS_Follower" %in% names(final_data)) {
 }
 
 if ("CWBS_Follower" %in% names(final_data)) {
-  model3_cwbs <- lmer(CWBS_Follower ~ BenignEnvy + MaliciousEnvy +
+  model3_cwbs <- lmer(CWBS_Follower ~ Autocratic_C + Empowering_C +
+                        BenignEnvy + MaliciousEnvy +
                         FollowerAge_C + TenureWithLeader_C + InteractionFreq_C +
                         Gender_Female + WorkingYears_C +
                         (1|LeaderID),

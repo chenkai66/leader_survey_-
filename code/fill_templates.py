@@ -40,6 +40,15 @@ else:
     N_DYADS, N_LEADERS = 360, 79
 
 
+
+
+def _clear_author_metadata(wb):
+    """Strip personal author metadata from workbook (privacy)."""
+    wb.properties.creator = ""
+    wb.properties.lastModifiedBy = ""
+    wb.properties.title = ""
+    wb.properties.description = ""
+
 def _set(ws, row, col, val):
     ws.cell(row=row, column=col, value=val)
 
@@ -69,6 +78,7 @@ def fill_model1():
         r = 3 + i
         for j, v in enumerate(vals):
             _set(ws, r, j + 2, v)  # cols 2..11
+    _clear_author_metadata(wb)
     wb.save(OUT / "Model1.xlsx")
 
 
@@ -110,6 +120,7 @@ def fill_model2():
         for j, v in enumerate(vals):
             _set(ws, r, j + 2, v)  # cols 2..15
     # Row 9 (Note) — preserved verbatim from template (do NOT touch).
+    _clear_author_metadata(wb)
     wb.save(OUT / "Model2.xlsx")
 
 
@@ -137,6 +148,7 @@ def fill_model3():
         for j, v in enumerate(vals):
             _set(ws, r, j + 2, v)  # cols 2..9
     # Row 8 (Robustness) preserved.
+    _clear_author_metadata(wb)
     wb.save(OUT / "Model3.xlsx")
 
 
@@ -163,6 +175,7 @@ def fill_measurement_appendix():
         for j, v in enumerate(vals):
             _set(ws, r, j + 2, v)
     # Row 8 (Notes | Values × 12) preserved.
+    _clear_author_metadata(wb)
     wb.save(OUT / "measurement appendix.xlsx")
 
 
@@ -192,6 +205,7 @@ def fill_icc():
         for j, v in enumerate(vals):
             _set(ws, r, j + 2, v)
     # Row 10 (Note) preserved verbatim.
+    _clear_author_metadata(wb)
     wb.save(OUT / "ICC空模型.xlsx")
 
 
@@ -238,6 +252,7 @@ def fill_yuyu():
     }
     for r, v in numbers.items():
         _set(ws, r, 3, v)
+    _clear_author_metadata(wb)
     wb.save(OUT / "YUYU样本量变化.xlsx")
 
 

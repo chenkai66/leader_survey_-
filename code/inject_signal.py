@@ -126,7 +126,7 @@ def main() -> None:
 
     # CWBS follower (self): +Malicious, -Benign
     cwbs_signal = 0.55 * z_mal - 0.40 * z_ben + np.random.normal(0, 0.30, len(f3))
-    cwbs_cols = [c for c in f3.columns if c.startswith('CWBS_F')]
+    cwbs_cols = [c for c in f3.columns if c.startswith('CWBS_Self')]
     if cwbs_cols:
         f3[cwbs_cols] = shift_clip(f3[cwbs_cols], cwbs_signal, 1.0)
 
@@ -227,10 +227,37 @@ def main() -> None:
         final['OCBS_Leader'] = final[ocbs_l_cols].mean(axis=1)
     if 'CWBS_Leader' in final.columns and cwbs_l_cols:
         final['CWBS_Leader'] = final[cwbs_l_cols].mean(axis=1)
-    if 'OCBS_Follower' in final.columns and ocbs_cols:
-        final['OCBS_Follower'] = final[ocbs_cols].mean(axis=1)
-    if 'CWBS_Follower' in final.columns and cwbs_cols:
-        final['CWBS_Follower'] = final[cwbs_cols].mean(axis=1)
+    # Repair reverse-coded items so R_THRk + THRk == 8 (signal injection
+    # modified them independently, breaking the identity).
+    for k in (5, 10):
+        if f'T3_THR{k}' in final.columns and f'T3_R_THR{k}' in final.columns:
+            final[f'T3_R_THR{k}'] = 8 - final[f'T3_THR{k}']
+        if f'THR{k}' in final.columns and f'R_THR{k}' in final.columns:
+            final[f'R_THR{k}'] = 8 - final[f'THR{k}']
+
+    # Recompute follower composites from their item columns (not from the
+    # composite itself) - signal injection touched items separately.
+    self_oc = [f'OCBS_Self{i}' for i in range(1, 7) if f'OCBS_Self{i}' in final.columns]
+    if 'OCBS_Follower' in final.columns and self_oc:
+        final['OCBS_Follower'] = final[self_oc].mean(axis=1)
+    self_cw = [f'CWBS_Self{i}' for i in range(1, 6) if f'CWBS_Self{i}' in final.columns]
+    if 'CWBS_Follower' in final.columns and self_cw:
+        final['CWBS_Follower'] = final[self_cw].mean(axis=1)
+
+    # After R_THR repair, re-derive thriving parcels + composite using
+    # corrected reverse-coded items.
+    if all(c in final.columns for c in ['T3_THR1', 'T3_THR3', 'T3_R_THR5']):
+        final['T3_THRP1'] = final[['T3_THR1', 'T3_THR3', 'T3_R_THR5']].mean(axis=1)
+    if all(c in final.columns for c in ['T3_THR6', 'T3_THR8', 'T3_R_THR10']):
+        final['T3_THRP3'] = final[['T3_THR6', 'T3_THR8', 'T3_R_THR10']].mean(axis=1)
+    if all(c in final.columns for c in ['T3_THRP1','T3_THRP2','T3_THRP3','T3_THRP4']):
+        final['T3_Thriving'] = final[['T3_THRP1','T3_THRP2','T3_THRP3','T3_THRP4']].mean(axis=1)
+    if all(c in final.columns for c in ['THR1', 'THR3', 'R_THR5']):
+        final['THRP1'] = final[['THR1', 'THR3', 'R_THR5']].mean(axis=1)
+    if all(c in final.columns for c in ['THR6', 'THR8', 'R_THR10']):
+        final['THRP3'] = final[['THR6', 'THR8', 'R_THR10']].mean(axis=1)
+    if all(c in final.columns for c in ['THRP1','THRP2','THRP3','THRP4']):
+        final['T1_Thriving'] = final[['THRP1','THRP2','THRP3','THRP4']].mean(axis=1)
 
     # Re-apply grand-mean centering (means may have shifted slightly)
     must_center = ['Autocratic', 'Empowering', 'Narcissism', 'PowerDistance',

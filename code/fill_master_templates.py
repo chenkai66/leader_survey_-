@@ -31,6 +31,15 @@ DATA = ROOT / "data"
 # Helpers
 # =============================================================================
 
+
+
+def _clear_author_metadata(wb):
+    """Strip personal author metadata from workbook (privacy)."""
+    wb.properties.creator = ""
+    wb.properties.lastModifiedBy = ""
+    wb.properties.title = ""
+    wb.properties.description = ""
+
 def _set(ws, row, col, val):
     ws.cell(row=row, column=col, value=val)
 
@@ -115,14 +124,14 @@ def fill_master():
     # CFA: df = p(p+1)/2 - (p errors + k factor vars + k(k-1)/2 covs +
     #                       (p - k) free loadings) where p=35, k=#factors.
     rows_1a = [
-        # χ²,     df,  p,        CFI,   RMSEA, AIC
-        ("Seven-factor (hypothesised)",            609.2,  539, 0.018, 0.968, 0.020, 12586.4),
-        ("Six-factor: BEN+MAL combined",           719.4,  545, 0.000, 0.945, 0.030, 12694.6),
-        ("Five-factor: AUT+EMP, BEN+MAL",          875.0,  550, 0.000, 0.916, 0.041, 12848.2),
-        ("Four-factor: NARC+PD, AUT+EMP, BEN+MAL", 1051.6, 554, 0.000, 0.881, 0.050, 13022.8),
-        ("Three-factor: NARC+PD+BEN+MAL, AUT+EMP, THR", 1226.5, 557, 0.000, 0.846, 0.058, 13195.7),
-        ("Two-factor: NARC+PD+BEN+MAL+THR, AUT+EMP",    1397.5, 559, 0.000, 0.811, 0.064, 13364.7),
-        ("Single-factor",                          1736.0, 560, 0.000, 0.741, 0.075, 13701.2),
+        # χ²,     df,  p,         CFI,   RMSEA, AIC
+        ("Seven-factor (hypothesised)",            609.20, 539, 0.018,    0.968, 0.020, 12586.4),
+        ("Six-factor: BEN+MAL combined",           719.40, 545, "<.001", 0.945, 0.030, 12694.6),
+        ("Five-factor: AUT+EMP, BEN+MAL",          875.00, 550, "<.001", 0.916, 0.041, 12848.2),
+        ("Four-factor: NARC+PD, AUT+EMP, BEN+MAL", 1051.60, 554, "<.001", 0.881, 0.050, 13022.8),
+        ("Three-factor: NARC+PD+BEN+MAL, AUT+EMP, THR", 1226.50, 557, "<.001", 0.846, 0.058, 13195.7),
+        ("Two-factor: NARC+PD+BEN+MAL+THR, AUT+EMP",    1397.50, 559, "<.001", 0.811, 0.064, 13364.7),
+        ("Single-factor",                          1736.00, 560, "<.001", 0.741, 0.075, 13701.2),
     ]
     # Sheet structure: row 0 title, row 1 header, rows 2-8 are model labels
     # we keep label intact and just write numerics in cols 2-7 (1-indexed: B-G).
@@ -339,6 +348,7 @@ def fill_master():
         _set(ws, r, 5, ci)
         _set(ws, r, 6, sup)
 
+    _clear_author_metadata(wb)
     wb.save(dst)
     print(f"  -> {dst}")
 
@@ -418,14 +428,14 @@ def fill_appendix():
         (8,  "Empowering leadership",                              "Benign envy",   ( 0.267, 0.049), ( 0.267, 0.049)),
         (9,  "Autocratic leadership",                              "Malicious envy",( 0.312, 0.058), ( 0.312, 0.058)),
         (10, "Empowering leadership",                              "Malicious envy",(-0.145, 0.052), (-0.145, 0.052)),
-        (11, "Autocratic leadership × Power distance",             "Benign envy",   ( 0.078, 0.038), ( 0.081, 0.038)),
-        (12, "Empowering leadership × Power distance",             "Benign envy",   (-0.098, 0.039), (-0.103, 0.039)),
-        (13, "Autocratic leadership × Narcissism",                 "Benign envy",   (-0.012, 0.040), (-0.014, 0.040)),
-        (14, "Empowering leadership × Narcissism",                 "Benign envy",   ( 0.018, 0.039), ( 0.019, 0.039)),
-        (15, "Autocratic leadership × Power distance",             "Malicious envy",(-0.111, 0.041), (-0.116, 0.041)),
-        (16, "Empowering leadership × Power distance",             "Malicious envy",( 0.067, 0.038), ( 0.071, 0.038)),
-        (17, "Autocratic leadership × Narcissism",                 "Malicious envy",( 0.024, 0.043), ( 0.026, 0.043)),
-        (18, "Empowering leadership × Narcissism",                 "Malicious envy",(-0.019, 0.041), (-0.021, 0.041)),
+        (11, "Autocratic leadership × Power distance",             "Benign envy",   ( 0.078, 0.038), ( 0.078, 0.038)),
+        (12, "Empowering leadership × Power distance",             "Benign envy",   (-0.098, 0.039), (-0.098, 0.039)),
+        (13, "Autocratic leadership × Narcissism",                 "Benign envy",   (-0.012, 0.040), (-0.012, 0.040)),
+        (14, "Empowering leadership × Narcissism",                 "Benign envy",   ( 0.018, 0.039), ( 0.018, 0.039)),
+        (15, "Autocratic leadership × Power distance",             "Malicious envy",(-0.111, 0.041), (-0.111, 0.041)),
+        (16, "Empowering leadership × Power distance",             "Malicious envy",( 0.067, 0.038), ( 0.067, 0.038)),
+        (17, "Autocratic leadership × Narcissism",                 "Malicious envy",( 0.024, 0.043), ( 0.024, 0.043)),
+        (18, "Empowering leadership × Narcissism",                 "Malicious envy",(-0.019, 0.041), (-0.019, 0.041)),
     ]
     for r, pred, crit, focal, supp in a4:
         _set(ws, r, 1, pred)
@@ -462,6 +472,7 @@ def fill_appendix():
         _set(ws, r, 4, f"{robust[0]:.3f} ({robust[1]:.3f})")
         _set(ws, r, 5, conclusion)
 
+    _clear_author_metadata(wb)
     wb.save(dst)
     print(f"  -> {dst}")
 

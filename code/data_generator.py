@@ -58,7 +58,7 @@ N_FOLLOWERS_PER_LEADER = (5,)               # start with 5 each, attrition reduc
 COMPANY_SPLIT = {"A": 30, "B": 30, "C": 30}  # sums to 90
 
 AC_PASS_VALUE = 6
-AC_FAIL_RATE = 0.03  # 4% per wave
+AC_FAIL_RATE = 0.03  # 3% per wave (within spec's 3-5% range)
 
 LIKERT_HI = 7  # 1-7 scale for Autocratic, Empowering, Narcissism, PD, BEN, MAL, Thriving, OCBS, CWBS
 
