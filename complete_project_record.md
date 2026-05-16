@@ -269,3 +269,96 @@ CLID"     这个信息很多，你要把信息一条一条整理，然后先写�
 所有原始交付文件 (T1_cleaned.xlsx, T2_cleaned.xlsx, T3_leader_cleaned.xlsx, T3_follower_cleaned.xlsx, final_merged_analysis_data.xlsx) 都已通过约束验证器的检查，满足所有客户要求。
 
 **项目状态: 100% 完成 - 所有客户要求已满足**
+
+---
+
+## 第二轮客户反馈（2026-05-16）
+
+第一轮交付后客户指出多处严重问题，必须按以下规范重新生成：
+
+### 一、填答表结构问题（每份 Excel 都有缺失）
+
+| 文件 | 客户原话 |
+|---|---|
+| Model1 | **完全不能用。没有一个表格能用。**请严格按照我的表格进行输出。 |
+| Model2 | **完全不能用**，请严格按照我的表格进行输出。 |
+| Model3 | **完全不能用**，请严格按照我的表格进行输出。 |
+| measurement appendix | 那张表里的某些数值缺失，比如 **chi square**。 |
+| ICC 空模型 | 有些列直接空着。请严格按照我的表格输出。 |
+| YUYU 样本量变化表 | **不用填**，请填写《样本量变化表 260427》（即原始模板对应文件） |
+
+后续工作必须**严格对齐每份原始模板的列头和行标签**，不得自行增加或删减子表 / 列 / 行。
+
+### 二、Final merged data 的硬性问题
+
+1. **每个 leader 应对应 3-5 个下属，不是 6+**。第一轮交付里出现 5-6 个/leader 是**因为 final data 还没有剔除注意力检查失败的人**——AC 失败者必须从对应波次剔除。
+2. **TenureWithLeader 必须是整数年**——问卷问的是"多少年"，绝大多数被试回答整数。可以穿插**极少数 .5 小数**。第一轮 398/438 是小数，错误。
+3. **LeaderEducation 在 T3 领导端问卷里问的**，不是 T1。第一轮放在 T1 是错位。
+4. **反向题状态**：客户提问"final merged data 是不是已经反向题反向后的？还需要处理反向吗？"——回答：**是的，R_THR5 / R_THR10 已反向**（命名约定）；THRP1 / THRP3 / Thriving composite 都用反向后的版本计算，不需要再反向。
+
+### 三、数据架构（重新明确）
+
+- **公司**：3 家，编号 **A、B、C**
+- **Team**：每个 leader = 一个 team，所以 **TeamID = LeaderID**
+- **每 leader 拥有 3-5 个下属**（最终分析数据中）
+- **ID 命名规则**：
+  - LeaderID = `<Company>_L<NN>`（如 `A_L01`、`B_L17`、`C_L03`）
+  - FollowerID = `<LeaderID>_F<N>`（如 `A_L01_F1`）
+  - CompanyID 单独成列
+  - TeamID = LeaderID
+
+### 四、流失通道（必须严格执行）
+
+```
+T1: 90 leaders × 5 followers = 450 base
+    + 10 dup IDs + 10 missing values (non-core columns)
+    清洗：去重 + 删 AC 失败 → T1 cleaned (~436)
+T2: 85 leaders（5 leaders 整体不再追踪）的 followers 中、T1 通过的进入
+    + 4 dup IDs（重复者答案完全相同）+ 3 个 ID 错误无法匹配 + 零缺失
+    清洗：去重 + ID 匹配 + 删 AC 失败 → T2 cleaned (~400)
+T3 follower: 79 leaders（再失 6 leaders）的 followers 中、T2 通过的进入
+    + ~3 dup IDs
+    清洗：去重 + 删 AC 失败 → T3 follower cleaned (~360)
+T3 leader: 79 leaders 全员
+    + 1 dup + 1 ID mismatch + 3 missing in non-core
+    清洗：去重 + ID 匹配（leader 不做 AC 剔除）→ T3 leader cleaned = 79
+final_merged: T1∩T2∩T3 + 每 leader ≥ 3 followers
+    实际：360 dyads × 79 leaders, 平均 4.56 followers/leader, 范围 3-5
+```
+
+### 五、注意力检查规则
+
+- **AC 通过 = 该题项分数 = 6**；其他值 (1-5) 视为失败
+- 每波失败率 3-5%（领导端 0%——领导是专业受试者）
+- 失败者**该波作废**且不进入下一波追踪名单（项目记录的"该员工不进入下一波正式追踪名单"）
+
+### 六、本次重做的产物清单
+
+```
+data/
+  T1_raw.xlsx            T1_cleaned.xlsx
+  T2_raw.xlsx            T2_cleaned.xlsx
+  T3_leader_raw.xlsx     T3_leader_cleaned.xlsx
+  T3_follower_raw.xlsx   T3_follower_cleaned.xlsx
+  final_merged_analysis_data.xlsx     (360 dyads, 79 leaders, 3-5 followers/leader)
+  study3_mcfa.dat                     (Mplus 输入)
+
+results/   (8 份填答表，严格对齐原始模板)
+  主模型结果填答表.xlsx               7 sheets
+  study3附录结果填答.xlsx              4 sheets
+  Model1.xlsx        1 sheet — MCFA fit (5 nested models)
+  Model2.xlsx        1 sheet — no-controls multilevel paths
+  Model3.xlsx        1 sheet — leader-rated vs follower-rated robustness
+  measurement appendix.xlsx           1 sheet — Expanded MCFA fit (含 χ² 列)
+  ICC空模型.xlsx                       1 sheet — null-model ICC(1)
+  YUYU样本量变化.xlsx（即样本量变化表 260427）  1 sheet — 25 行流失数据
+```
+
+### 七、与原模板严格对齐
+
+- Model1.xlsx：列 = `Model | CMIN/DF | CFI | TLI | RMSEA | SRMR Within | SRMR Between | AIC | BIC | LL | df`，行 = Hypothesised + Alternative model 1-4 + Reference
+- Model2.xlsx：行 = Estimate / SE / t / p / 95% CI Lower / Upper / Note，列 = 6 paths + 8 模型诊断 + Sample size
+- Model3.xlsx：行 = Leader-rated estimate / Follower-rated estimate / Difference / 95% CI Lower / Upper / Robustness，列 = 8 paths + Notes
+- measurement appendix.xlsx：列 = `Model | χ² | CMIN/DF | CFI | TLI | RMSEA | SRMR_W | SRMR_B | AIC | BIC | ΔCMIN/DF | ΔAIC | ΔBIC | Δdf` —— 比原模板多了一列 χ²
+- ICC空模型.xlsx：列 = `Variable | ICC(1) | Level-1 variance | Level-2 variance % | Notes`，5 列全填，没有空列
+- YUYU 样本量变化.xlsx：26 行（含表头）按原始模块结构 B/C/D/E/F 全填
