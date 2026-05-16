@@ -58,7 +58,7 @@ T3_VARS = [
     ("Age",                              "FollowerAge",           1),
     ("Male (1 = male, 0 = otherwise)",   None,                    1),  # invert Gender_Female
     ("Education",                        "FollowerEducation",     1),
-    ("Job level",                        None,                    0),  # placeholder, not in our data
+    ("Job level",                        "FollowerJobLevel",      1),
     ("Working years",                    "WorkingYears",          1),
     ("Tenure with current leader (years)", "TenureWithLeader",    1),
     ("Interaction frequency with leader", "InteractionFreq",      1),
@@ -80,11 +80,21 @@ for name, col, _ in T3_VARS:
     if col is None and name.startswith("Male"):
         mat[name] = 1 - final["Gender_Female"]
     elif col is None:
-        # Job level — synthesize from Education (1=junior ... 5=executive) so the
-        # column has variance and the correlation row isn't blank.
+        # Should not hit any more — Job level now has FollowerJobLevel
         mat[name] = final["FollowerEducation"]
     else:
         mat[name] = final[col]
+
+# For "(aggregated)" rows in Table 3, swap follower-level for
+# leader-level (each follower row gets that leader's mean) so that
+# the overall Mean/SD reflects the aggregate distribution as labelled.
+_lvl = final.groupby("LeaderID").agg(
+    Autocratic=("Autocratic", "mean"),
+    Empowering=("Empowering", "mean"))
+mat["Autocratic leadership (aggregated)"] = final["LeaderID"].map(
+    _lvl["Autocratic"].to_dict())
+mat["Empowering leadership (aggregated)"] = final["LeaderID"].map(
+    _lvl["Empowering"].to_dict())
 
 
 # =============================================================================

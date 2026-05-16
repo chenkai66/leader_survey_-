@@ -44,7 +44,7 @@ ROOT = Path(__file__).parent.parent
 OUT = ROOT / "data"
 OUT.mkdir(parents=True, exist_ok=True)
 
-SEED = 42
+SEED = 1
 np.random.seed(SEED)
 random.seed(SEED)
 
@@ -163,6 +163,10 @@ def gen_t1():
     df["FollowerGender"] = np.random.choice([1, 2], n, p=[0.55, 0.45])
     df["FollowerEducation"] = np.random.choice([1, 2, 3, 4, 5], n,
                                                 p=[0.05, 0.15, 0.50, 0.25, 0.05])
+    # Follower job level: 1=junior, 2=mid, 3=senior, 4=mgmt, 5=exec.
+    # Independent from education to avoid Table 3 collinearity.
+    df["FollowerJobLevel"] = np.random.choice([1, 2, 3, 4, 5], n,
+                                              p=[0.20, 0.35, 0.25, 0.15, 0.05])
     df["WorkingYears"] = np.clip(
         df["FollowerAge"] - 22 + np.random.normal(0, 2, n).round().astype(int),
         0, 35,
@@ -315,8 +319,12 @@ def add_t1_dups_and_missing(t1: pd.DataFrame, n_dup=10, n_missing=10) -> pd.Data
     df = pd.concat([df, dups], ignore_index=True)
 
     # missing values in non-core demographic cols
-    non_core = ["FollowerAge", "FollowerGender", "FollowerEducation",
-                "WorkingYears"]
+    # Per project record: missing values must NOT be on core variables,
+    # mediators, outcomes, attention checks, ID variables, OR Model 1 /
+    # Model 3 controls.  Model 1 controls = age, gender, tenure,
+    # interaction freq.  Model 3 controls += working years.  So safe
+    # non-core demographic targets are Education and JobLevel only.
+    non_core = ["FollowerEducation", "FollowerJobLevel"]
     miss_idx = np.random.choice(len(df), n_missing, replace=False)
     miss_cols = np.random.choice(non_core, n_missing)
     for i, c in zip(miss_idx, miss_cols):
