@@ -11,15 +11,15 @@
   "T2_id_mismatch": 3,
   "T2_usable_followers": 401,
   "T2_usable_leaders": 85,
-  "T3f_invited": 371,
-  "T3f_submitted": 374,
-  "T3f_ac_fail": 11,
-  "T3f_usable": 360,
+  "T3f_invited": 372,
+  "T3f_submitted": 375,
+  "T3f_ac_fail": 12,
+  "T3f_usable": 361,
   "T3l_invited": 79,
   "T3l_submitted": 81,
   "T3l_ac_fail": 0,
   "T3l_usable": 79,
-  "Final_dyads": 360,
+  "Final_dyads": 361,
   "Final_leaders": 79,
-  "Avg_followers_per_leader": 4.56
+  "Avg_followers_per_leader": 4.57
 }

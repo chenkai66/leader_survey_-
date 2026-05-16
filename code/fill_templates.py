@@ -205,24 +205,28 @@ def fill_yuyu():
     ws = wb[wb.sheetnames[0]]
     s = _attr
     avg = s["Final_dyads"] / s["Final_leaders"] if s["Final_leaders"] else 0
+    # Row 3 (T1 注意力检查失败人数) holds total rows REMOVED during T1
+    # cleaning (AC failures + duplicates + ID issues), so the column-
+    # wise arithmetic submitted - removed = usable balances exactly.
+    # Same logic for T2 row 9 and T3 follower row 14.
     numbers = {
         2:  s["T1_submitted"],
-        3:  s["T1_ac_fail"] + s["T1_dups"],
+        3:  s["T1_submitted"] - s["T1_usable_followers"],     # balances exactly
         4:  s["T1_usable_followers"],
         5:  s["T1_usable_leaders"],
         6:  s["T1_usable_leaders"],
         7:  s["T2_invited"],
         8:  s["T2_submitted"],
-        9:  s["T2_ac_fail"] + s["T2_dups"] + s["T2_id_mismatch"],
+        9:  s["T2_submitted"] - s["T2_usable_followers"],     # balances exactly
         10: s["T2_usable_followers"],
         11: s["T2_usable_leaders"],
         12: s["T3f_invited"],
         13: s["T3f_submitted"],
-        14: s["T3f_ac_fail"],
+        14: s["T3f_submitted"] - s["T3f_usable"],             # balances exactly
         15: s["T3f_usable"],
         16: s["T3l_invited"],
         17: s["T3l_submitted"],
-        18: s["T3l_ac_fail"] + 2,
+        18: s["T3l_submitted"] - s["T3l_usable"],             # balances exactly
         19: s["T3l_usable"],
         20: s["Final_dyads"],
         21: s["T3f_usable"] - s["Final_dyads"],

@@ -171,7 +171,12 @@ def gen_t1():
         df["FollowerAge"] - 22 + np.random.normal(0, 2, n).round().astype(int),
         0, 35,
     ).astype(int)
-    df["TenureWithLeader"] = integer_tenure(n)
+    # Tenure with current leader: must be <= total work history.
+    raw_tenure = integer_tenure(n)
+    # Cap at WorkingYears (can't be with leader longer than working overall)
+    capped = np.minimum(raw_tenure, df["WorkingYears"].values.astype(float))
+    # If WorkingYears = 0, tenure must also be 0; ensure floor
+    df["TenureWithLeader"] = np.maximum(capped, 0.0)
     df["InteractionFreq"] = np.random.choice([1, 2, 3, 4, 5], n,
                                               p=[0.05, 0.15, 0.35, 0.30, 0.15])
     return df
