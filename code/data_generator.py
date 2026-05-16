@@ -58,7 +58,7 @@ N_FOLLOWERS_PER_LEADER = (5,)               # start with 5 each, attrition reduc
 COMPANY_SPLIT = {"A": 30, "B": 30, "C": 30}  # sums to 90
 
 AC_PASS_VALUE = 6
-AC_FAIL_RATE = 0.03  # 3% per wave (within spec's 3-5% range)
+AC_FAIL_RATE = 0.035  # 3.5% per wave (centered in spec range, balances leader count)
 
 LIKERT_HI = 7  # 1-7 scale for Autocratic, Empowering, Narcissism, PD, BEN, MAL, Thriving, OCBS, CWBS
 
@@ -302,15 +302,35 @@ def gen_t3_leader(leader_ids_t3: list[str]):
 # ---------------------------------------------------------------------------
 
 def clean_wave(raw: pd.DataFrame, ac_col: str, id_col: str,
-               valid_ids: set | None = None) -> pd.DataFrame:
+               valid_ids: set | None = None,
+               cascade: dict | None = None,
+               wave: str | None = None) -> pd.DataFrame:
+    """Clean a wave's raw data and (optionally) record the per-step
+    removal counts into the supplied `cascade` dict under `wave` prefix
+    so the attrition summary JSON is strictly reconciling:
+        submitted - id_mismatch - dups - ac_fail = usable
+    where each removal count is from the cascade (post-prior-filter)."""
     df = raw.copy()
+    n_submit = len(df)
     # 1. drop ID mismatches (only if valid_ids provided)
     if valid_ids is not None:
+        n_before = len(df)
         df = df[df[id_col].isin(valid_ids)]
+        if cascade is not None and wave is not None:
+            cascade[f"{wave}_id_mismatch_cascade"] = n_before - len(df)
+    else:
+        if cascade is not None and wave is not None:
+            cascade[f"{wave}_id_mismatch_cascade"] = 0
     # 2. drop duplicate IDs (keep first)
+    n_before = len(df)
     df = df.drop_duplicates(subset=id_col, keep="first")
+    if cascade is not None and wave is not None:
+        cascade[f"{wave}_dups_cascade"] = n_before - len(df)
     # 3. drop attention-check failures (keep only AC == 6)
+    n_before = len(df)
     df = df[df[ac_col] == AC_PASS_VALUE]
+    if cascade is not None and wave is not None:
+        cascade[f"{wave}_ac_fail_cascade"] = n_before - len(df)
     return df.reset_index(drop=True)
 
 
@@ -497,7 +517,9 @@ def main():
     t1_base = gen_t1()
     t1_base = add_t1_derived(t1_base)
     t1_raw = add_t1_dups_and_missing(t1_base)
-    t1_clean = clean_wave(t1_raw, "EMP9_AttCheck", "FollowerID")
+    cascade = {}
+    t1_clean = clean_wave(t1_raw, "EMP9_AttCheck", "FollowerID",
+                          cascade=cascade, wave="T1")
     print(f"  T1 raw {len(t1_raw)} -> cleaned {len(t1_clean)}  "
           f"(leaders={t1_clean['LeaderID'].nunique()})")
 
@@ -509,6 +531,7 @@ def main():
     t2_base = gen_t2(t1_clean, leaders_t2)
     t2_raw = add_t2_dups_and_mismatches(t2_base, set(t1_clean["FollowerID"]))
     t2_clean = clean_wave(t2_raw, "MAL6_AttCheck", "FollowerID",
+                          cascade=cascade, wave="T2_x",
                           valid_ids=set(t1_clean["FollowerID"]))
     print(f"  T2 raw {len(t2_raw)} -> cleaned {len(t2_clean)}  "
           f"(leaders={t2_clean['LeaderID'].nunique()})")
@@ -521,6 +544,7 @@ def main():
     t3f_base = gen_t3_follower(t2_clean, leaders_t3)
     t3f_raw = add_t3f_dups(t3f_base)
     t3f_clean = clean_wave(t3f_raw, "OCBS7_AttCheck", "FollowerID",
+                          cascade=cascade, wave="T3f",
                            valid_ids=set(t2_clean["FollowerID"]))
     print(f"  T3 follower raw {len(t3f_raw)} -> cleaned {len(t3f_clean)}  "
           f"(leaders={t3f_clean['LeaderID'].nunique()})")
@@ -528,6 +552,7 @@ def main():
     t3l_base = gen_t3_leader(sorted(leaders_t3))
     t3l_raw = add_t3l_dups_and_mismatches(t3l_base, leaders_t3)
     t3l_clean = clean_wave(t3l_raw, "CWBS6_AttCheck", "LeaderID",
+                          cascade=cascade, wave="T3l",
                            valid_ids=leaders_t3)
     print(f"  T3 leader raw {len(t3l_raw)} -> cleaned {len(t3l_clean)}")
 
@@ -550,10 +575,15 @@ def main():
     write_mcfa_dat(final)
 
     # ---- Attrition summary (for YUYU table later) ----
+    # Strict cascade counts (each filter applied to data already
+    # filtered by prior steps) — guarantees JSON reconciles:
+    #   submitted - id_mismatch_cascade - dups_cascade - ac_fail_cascade = usable
     summary = {
         "T1_submitted":  len(t1_raw),
         "T1_dups":       int(t1_raw.duplicated(subset="FollowerID").sum()),
         "T1_ac_fail":    int((t1_raw["EMP9_AttCheck"] != AC_PASS_VALUE).sum()),
+        "T1_dups_cascade": cascade["T1_dups_cascade"],
+        "T1_ac_fail_cascade": cascade["T1_ac_fail_cascade"],
         "T1_usable_followers": len(t1_clean),
         "T1_usable_leaders": int(t1_clean["LeaderID"].nunique()),
         "T2_invited":    len(t2_base),
@@ -561,15 +591,24 @@ def main():
         "T2_ac_fail":    int((t2_raw["MAL6_AttCheck"] != AC_PASS_VALUE).sum()),
         "T2_dups":       int(t2_raw.duplicated(subset="FollowerID").sum()),
         "T2_id_mismatch": int((~t2_raw["FollowerID"].isin(set(t1_clean["FollowerID"]))).sum()),
+        "T2_id_mismatch_cascade": cascade["T2_x_id_mismatch_cascade"],
+        "T2_dups_cascade": cascade["T2_x_dups_cascade"],
+        "T2_ac_fail_cascade": cascade["T2_x_ac_fail_cascade"],
         "T2_usable_followers": len(t2_clean),
         "T2_usable_leaders": int(t2_clean["LeaderID"].nunique()),
         "T3f_invited":   len(t3f_base),
         "T3f_submitted": len(t3f_raw),
         "T3f_ac_fail":   int((t3f_raw["OCBS7_AttCheck"] != AC_PASS_VALUE).sum()),
+        "T3f_id_mismatch_cascade": cascade["T3f_id_mismatch_cascade"],
+        "T3f_dups_cascade": cascade["T3f_dups_cascade"],
+        "T3f_ac_fail_cascade": cascade["T3f_ac_fail_cascade"],
         "T3f_usable":    len(t3f_clean),
         "T3l_invited":   len(t3l_base),
         "T3l_submitted": len(t3l_raw),
         "T3l_ac_fail":   int((t3l_raw["CWBS6_AttCheck"] != AC_PASS_VALUE).sum()),
+        "T3l_id_mismatch_cascade": cascade["T3l_id_mismatch_cascade"],
+        "T3l_dups_cascade": cascade["T3l_dups_cascade"],
+        "T3l_ac_fail_cascade": cascade["T3l_ac_fail_cascade"],
         "T3l_usable":    len(t3l_clean),
         "Final_dyads":   len(final),
         "Final_leaders": int(final["LeaderID"].nunique()),

@@ -275,6 +275,27 @@ def layer5():
     print("  YUYU arithmetic balanced for all 4 wave segments")
     wb.close()
 
+    # JSON-level reconciling arithmetic using cascade counts.  Each
+    # filter is applied to the already-filtered data, so the cascade
+    # counts always reconcile strictly:
+    #   submitted - id_mismatch_cascade - dups_cascade - ac_fail_cascade = usable
+    import json as _json
+    attr = _json.loads((DATA / "_attrition_summary.json").read_text())
+    waves = [
+        ("T1",  "T1_submitted",  "T1_usable_followers"),
+        ("T2",  "T2_submitted",  "T2_usable_followers"),
+        ("T3f", "T3f_submitted", "T3f_usable"),
+        ("T3l", "T3l_submitted", "T3l_usable"),
+    ]
+    for w, sub_k, use_k in waves:
+        calc = (attr[sub_k]
+                - attr.get(f"{w}_id_mismatch_cascade", 0)
+                - attr.get(f"{w}_dups_cascade", 0)
+                - attr.get(f"{w}_ac_fail_cascade", 0))
+        if calc != attr[use_k]:
+            _fail("layer5", f"{w} JSON cascade arithmetic: {calc} != {attr[use_k]}")
+    print("  JSON cascade arithmetic reconciles for all 4 wave segments")
+
     wb = load_workbook(RES / "主模型结果填答表.xlsx")
     ws = wb["Table 1A"]
     chi = [ws.cell(r, 2).value for r in range(3, 10)]
