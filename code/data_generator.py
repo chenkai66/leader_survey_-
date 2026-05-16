@@ -243,8 +243,8 @@ def gen_t3_follower(t2_clean: pd.DataFrame, leaders_t3: set):
     n = len(df)
     lids = df["LeaderID"].values
     thr = likert_items(n, 10, mean=5.1, sd=0.9, leader_ids=lids, icc=0.13)
-    ocbs = likert_items(n, 8, mean=5.0, sd=1.0, leader_ids=lids, icc=0.12)
-    cwbs = likert_items(n, 7, mean=2.5, sd=1.0, leader_ids=lids, icc=0.14)
+    ocbs = likert_items(n, 6, mean=5.0, sd=1.0, leader_ids=lids, icc=0.12)
+    cwbs = likert_items(n, 5, mean=2.5, sd=1.0, leader_ids=lids, icc=0.14)
 
     for i in range(10):
         col = f"T3_THR{i+1}"
@@ -252,12 +252,13 @@ def gen_t3_follower(t2_clean: pd.DataFrame, leaders_t3: set):
     df["T3_R_THR5"]  = (LIKERT_HI + 1) - df["T3_THR5"]
     df["T3_R_THR10"] = (LIKERT_HI + 1) - df["T3_THR10"]
 
-    # OCBS_Self_1..8; one of them (#7) is the attention check stand-in
-    for i in range(8):
+    # OCBS substantive items are 1-6; OCBS7 in the survey is the AC check.
+    for i in range(6):
         df[f"OCBS_Self{i+1}"] = ocbs[:, i]
     df["OCBS7_AttCheck"] = ac_column(n)
 
-    for i in range(7):
+    # CWBS substantive items are 1-5; no follower-side AC for CWBS.
+    for i in range(5):
         df[f"CWBS_Self{i+1}"] = cwbs[:, i]
     return df
 
@@ -271,12 +272,14 @@ def gen_t3_leader(leader_ids_t3: list[str]):
     df = pd.DataFrame({"LeaderID": leader_ids_t3,
                        "TeamID": leader_ids_t3,
                        "CompanyID": [lid.split("_")[0] for lid in leader_ids_t3]})
-    cwbs = likert_items(n, 7, mean=2.4, sd=1.0,
+    cwbs = likert_items(n, 5, mean=2.4, sd=1.0,
                         leader_ids=df["LeaderID"].values, icc=0.17)
-    ocbs = likert_items(n, 8, mean=4.9, sd=1.0,
+    ocbs = likert_items(n, 6, mean=4.9, sd=1.0,
                         leader_ids=df["LeaderID"].values, icc=0.15)
-    for i in range(7):  df[f"CWBS{i+1}"] = cwbs[:, i]
-    for i in range(8):  df[f"OCBS_L{i+1}"] = ocbs[:, i]
+    # CWBS substantive items are 1-5; CWBS6 in the survey is the AC check.
+    for i in range(5):  df[f"CWBS{i+1}"] = cwbs[:, i]
+    # OCBS leader-rated has 6 items; no leader-side AC for OCBS.
+    for i in range(6):  df[f"OCBS_L{i+1}"] = ocbs[:, i]
     # Leaders: 0% AC failure rate by design (we want exactly 79 surviving)
     df["CWBS6_AttCheck"] = AC_PASS_VALUE
 
@@ -393,8 +396,8 @@ def derive_t3_follower_outcomes(t3f: pd.DataFrame) -> pd.DataFrame:
     df["T3_THRP3"] = df[["T3_THR6", "T3_THR8", "T3_R_THR10"]].mean(axis=1)
     df["T3_THRP4"] = df[["T3_THR7", "T3_THR9"]].mean(axis=1)
     df["T3_Thriving"] = df[[f"T3_THRP{i}" for i in range(1, 5)]].mean(axis=1)
-    df["OCBS_Follower"] = df[[f"OCBS_Self{i}" for i in range(1, 9)]].mean(axis=1)
-    df["CWBS_Follower"] = df[[f"CWBS_Self{i}" for i in range(1, 8)]].mean(axis=1)
+    df["OCBS_Follower"] = df[[f"OCBS_Self{i}" for i in range(1, 7)]].mean(axis=1)
+    df["CWBS_Follower"] = df[[f"CWBS_Self{i}" for i in range(1, 6)]].mean(axis=1)
     return df
 
 
@@ -431,8 +434,8 @@ def make_final(t1c, t2c, t3fc, t3lc) -> pd.DataFrame:
     t3l_keep = ["LeaderID"] + [c for c in t3lc.columns
                                if c not in {"CompanyID", "TeamID", "LeaderID"}]
     final = final.merge(t3lc[t3l_keep], on="LeaderID", how="left")
-    final["OCBS_Leader"] = final[[f"OCBS_L{i}" for i in range(1, 9)]].mean(axis=1)
-    final["CWBS_Leader"] = final[[f"CWBS{i}" for i in range(1, 8)]].mean(axis=1)
+    final["OCBS_Leader"] = final[[f"OCBS_L{i}" for i in range(1, 7)]].mean(axis=1)
+    final["CWBS_Leader"] = final[[f"CWBS{i}" for i in range(1, 6)]].mean(axis=1)
 
     # Filter leaders with >=3 surviving followers
     counts = final.groupby("LeaderID").size()
