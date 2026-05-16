@@ -298,6 +298,61 @@ OUTPUT:
   SAMPSTAT STANDARDIZED TECH1 TECH4;
 
 
+
+! ============================================================
+! APPENDIX: SINGLE-CONSTRUCT CFA WITH CLUSTER ADJUSTMENT
+! Used for master Table A1 / A2 (single-construct CFA): each
+! construct fit separately with TYPE = COMPLEX to obtain cluster-
+! robust SEs that account for follower-within-leader nesting (per
+! client spec: measurement appendix single-construct CFAs must
+! consider nested data / cluster adjustment).
+! Re-run for each construct by changing BY statement and
+! USEVARIABLES list to that construct items.
+! ============================================================
+
+TITLE: Study 3 Single-Construct CFA - Autocratic Leadership;
+
+DATA:
+  FILE IS study3_mcfa.dat;
+
+VARIABLE:
+  NAMES ARE
+    CLID
+    AUT1 AUT2 AUT3 AUT4 AUT5 AUT6
+    EMPP1 EMPP2 EMPP3 EMPP4
+    BEN1 BEN2 BEN3 BEN4 BEN5
+    MAL1 MAL2 MAL3 MAL4 MAL5
+    THRP1 THRP2 THRP3 THRP4;
+
+  USEVARIABLES ARE
+    AUT1 AUT2 AUT3 AUT4 AUT5 AUT6;
+
+  CLUSTER IS CLID;
+
+  MISSING ARE ALL (-999);
+
+ANALYSIS:
+  TYPE = COMPLEX;
+  ESTIMATOR = MLR;
+
+MODEL:
+  AUT BY AUT1 AUT2 AUT3 AUT4 AUT5 AUT6;
+
+OUTPUT:
+  SAMPSTAT STANDARDIZED TECH1;
+
+! ------------------------------------------------------------
+! For other single-construct CFAs (Empowering parcels /
+! Narcissism / Power Distance / Benign Envy / Malicious Envy /
+! Thriving parcels / Self-rated OCBS / Self-rated CWBS /
+! Leader-rated OCBS / Leader-rated CWBS), repeat the above block
+! changing:
+!   - TITLE
+!   - USEVARIABLES (the items for that construct)
+!   - The BY statement (factor name + same items)
+! All keep TYPE = COMPLEX with CLUSTER IS CLID for cluster-robust SE.
+! ============================================================
+
 ! ============================================================
 ! DATA PREPARATION NOTES
 ! ============================================================

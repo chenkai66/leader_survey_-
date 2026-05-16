@@ -316,6 +316,13 @@ def layer6():
     else:
         print(f"  Mplus CLUSTER in {n_cluster} blocks")
 
+    # TYPE=COMPLEX section for single-construct cluster-adjusted CFA
+    # (per client spec: appendix 普通 CFA must consider cluster adjustment)
+    if "TYPE = COMPLEX" not in mp:
+        _fail("layer6", "Mplus missing TYPE = COMPLEX block for appendix CFA")
+    else:
+        print(f"  Mplus has TYPE = COMPLEX section for cluster-adjusted CFA")
+
     for f in ["T3_follower_cleaned.xlsx", "T3_follower_raw.xlsx",
               "T3_leader_cleaned.xlsx", "T3_leader_raw.xlsx",
               "final_merged_analysis_data.xlsx"]:

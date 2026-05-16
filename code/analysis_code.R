@@ -160,9 +160,10 @@ summary(model2_mal)
 cat("\n=== Model 3: Follower-Rated Outcomes (Robustness) ===\n")
 
 if ("OCBS_Follower" %in% names(final_data)) {
+  # Model 3 controls = Model 1 + WorkingYears_C (working years only used in Model 3 per spec)
   model3_ocbs <- lmer(OCBS_Follower ~ BenignEnvy + MaliciousEnvy +
                         FollowerAge_C + TenureWithLeader_C + InteractionFreq_C +
-                        Gender_Female +
+                        Gender_Female + WorkingYears_C +
                         (1|LeaderID),
                       data = final_data, REML = FALSE)
   summary(model3_ocbs)
@@ -171,7 +172,7 @@ if ("OCBS_Follower" %in% names(final_data)) {
 if ("CWBS_Follower" %in% names(final_data)) {
   model3_cwbs <- lmer(CWBS_Follower ~ BenignEnvy + MaliciousEnvy +
                         FollowerAge_C + TenureWithLeader_C + InteractionFreq_C +
-                        Gender_Female +
+                        Gender_Female + WorkingYears_C +
                         (1|LeaderID),
                       data = final_data, REML = FALSE)
   summary(model3_cwbs)
