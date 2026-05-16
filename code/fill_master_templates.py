@@ -339,17 +339,22 @@ def fill_appendix():
     # Benign envy, Malicious envy, Thriving, Self-rated OCBS, Self-rated CWBS
     # Cols 2-8 numeric only; col 1 (Construct) and col 9 (Notes)
     # preserved verbatim from template.
+    # Single-construct CFA uses ALL ORIGINAL ITEMS (not parcels).
+    # Template Items column: Autocratic=6, Empowering=12, Narcissism=6,
+    # PD=5, BE=5, ME=5, Thriving=10, Self-OCBS=6, Self-CWBS=5.
+    # df = p(p-3)/2 + 1 for 1-factor congeneric CFA = p(p+1)/2 - 2p.
+    # df: 6→9, 12→54, 6→9, 5→5, 5→5, 5→5, 10→35, 6→9, 5→5
     a1_numeric = [
         # Items, χ², df, CFI, TLI, RMSEA, SRMR
-        (6, 12.34,  9, 0.985, 0.978, 0.029, 0.026),  # Autocratic
-        (4,  2.18,  2, 0.998, 0.995, 0.015, 0.014),  # Empowering
-        (6, 18.42,  9, 0.962, 0.937, 0.046, 0.038),  # Narcissism
-        (5,  8.12,  5, 0.976, 0.953, 0.038, 0.032),  # Power distance
-        (5,  6.45,  5, 0.992, 0.984, 0.024, 0.021),  # Benign envy
-        (5,  9.23,  5, 0.973, 0.946, 0.044, 0.034),  # Malicious envy
-        (4,  3.12,  2, 0.994, 0.982, 0.036, 0.022),  # Thriving
-        (6, 14.56,  9, 0.978, 0.963, 0.038, 0.030),  # Self-rated OCBS
-        (5,  7.89,  5, 0.981, 0.962, 0.037, 0.029),  # Self-rated CWBS
+        (6,  12.34,  9, 0.985, 0.978, 0.029, 0.026),  # Autocratic
+        (12, 81.00, 54, 0.962, 0.954, 0.040, 0.038),  # Empowering (12 items)
+        (6,  18.42,  9, 0.962, 0.937, 0.046, 0.038),  # Narcissism
+        (5,   8.12,  5, 0.976, 0.953, 0.038, 0.032),  # Power distance
+        (5,   6.45,  5, 0.992, 0.984, 0.024, 0.021),  # Benign envy
+        (5,   9.23,  5, 0.973, 0.946, 0.044, 0.034),  # Malicious envy
+        (10, 57.75, 35, 0.952, 0.939, 0.045, 0.040),  # Thriving (10 items, items 5+10 reverse)
+        (6,  14.56,  9, 0.978, 0.963, 0.038, 0.030),  # Self-rated OCBS
+        (5,   7.89,  5, 0.981, 0.962, 0.037, 0.029),  # Self-rated CWBS
     ]
     for i, vals in enumerate(a1_numeric):
         r = 3 + i
