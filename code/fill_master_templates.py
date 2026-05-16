@@ -124,21 +124,15 @@ def fill_master():
     # ---- Table 1B: leader-rated OCBS/CWBS two-vs-one factor --------------
     ws = wb["Table 1B"]
     # χ² df CFI TLI RMSEA SRMR Interpretation
+    # Cols 2-7 numeric only; col 8 (Interpretation) preserved verbatim
     rows_1b = [
-        (76.4,  76, 0.992, 0.989, 0.018, 0.041,
-         "Two-factor model retained: distinct OCBS / CWBS dimensions"),
-        (162.3, 77, 0.831, 0.794, 0.108, 0.093,
-         "Single-factor model rejected: substantially worse fit"),
+        (76.4,  76, 0.992, 0.989, 0.018, 0.041),
+        (162.3, 77, 0.831, 0.794, 0.108, 0.093),
     ]
-    for i, (chi, df, cfi, tli, rmsea, srmr, interp) in enumerate(rows_1b):
+    for i, vals in enumerate(rows_1b):
         r = 3 + i
-        _set(ws, r, 2, chi)
-        _set(ws, r, 3, df)
-        _set(ws, r, 4, cfi)
-        _set(ws, r, 5, tli)
-        _set(ws, r, 6, rmsea)
-        _set(ws, r, 7, srmr)
-        _set(ws, r, 8, interp)
+        for j, v in enumerate(vals):
+            _set(ws, r, j + 2, v)
 
     # ---- Table 2: aggregation ICCs ---------------------------------------
     ws = wb["Table 2. Aggregation Statistics"]
@@ -343,64 +337,48 @@ def fill_appendix():
     ws = wb["Table A12 单量表CFA"]
     # rows 3-11 (1-indexed) cover: Autocratic, Empowering, Narcissism, Power distance,
     # Benign envy, Malicious envy, Thriving, Self-rated OCBS, Self-rated CWBS
-    a1 = [
-        ("Autocratic leadership", 6, 12.34,  9, 0.985, 0.978, 0.029, 0.026, "MLR / TYPE=COMPLEX (CLUSTER=CLID)"),
-        ("Empowering leadership (parcels)", 4, 2.18, 2, 0.998, 0.995, 0.015, 0.014, "MLR / TYPE=COMPLEX"),
-        ("Narcissism",            6, 18.42,  9, 0.962, 0.937, 0.046, 0.038, "MLR / TYPE=COMPLEX"),
-        ("Power distance",        5,  8.12,  5, 0.976, 0.953, 0.038, 0.032, "MLR / TYPE=COMPLEX"),
-        ("Benign envy",           5,  6.45,  5, 0.992, 0.984, 0.024, 0.021, "MLR / TYPE=COMPLEX"),
-        ("Malicious envy",        5,  9.23,  5, 0.973, 0.946, 0.044, 0.034, "MLR / TYPE=COMPLEX"),
-        ("Thriving (parcels)",    4,  3.12,  2, 0.994, 0.982, 0.036, 0.022, "Items 5 and 10 reverse-coded; MLR / TYPE=COMPLEX"),
-        ("Self-rated OCBS",       6, 14.56,  9, 0.978, 0.963, 0.038, 0.030, "MLR / TYPE=COMPLEX"),
-        ("Self-rated CWBS",       5,  7.89,  5, 0.981, 0.962, 0.037, 0.029, "MLR / TYPE=COMPLEX"),
+    # Cols 2-8 numeric only; col 1 (Construct) and col 9 (Notes)
+    # preserved verbatim from template.
+    a1_numeric = [
+        # Items, χ², df, CFI, TLI, RMSEA, SRMR
+        (6, 12.34,  9, 0.985, 0.978, 0.029, 0.026),  # Autocratic
+        (4,  2.18,  2, 0.998, 0.995, 0.015, 0.014),  # Empowering
+        (6, 18.42,  9, 0.962, 0.937, 0.046, 0.038),  # Narcissism
+        (5,  8.12,  5, 0.976, 0.953, 0.038, 0.032),  # Power distance
+        (5,  6.45,  5, 0.992, 0.984, 0.024, 0.021),  # Benign envy
+        (5,  9.23,  5, 0.973, 0.946, 0.044, 0.034),  # Malicious envy
+        (4,  3.12,  2, 0.994, 0.982, 0.036, 0.022),  # Thriving
+        (6, 14.56,  9, 0.978, 0.963, 0.038, 0.030),  # Self-rated OCBS
+        (5,  7.89,  5, 0.981, 0.962, 0.037, 0.029),  # Self-rated CWBS
     ]
-    for i, (label, items, chi, df, cfi, tli, rmsea, srmr, notes) in enumerate(a1):
+    for i, vals in enumerate(a1_numeric):
         r = 3 + i
-        _set(ws, r, 1, label)
-        _set(ws, r, 2, items)
-        _set(ws, r, 3, chi)
-        _set(ws, r, 4, df)
-        _set(ws, r, 5, cfi)
-        _set(ws, r, 6, tli)
-        _set(ws, r, 7, rmsea)
-        _set(ws, r, 8, srmr)
-        _set(ws, r, 9, notes)
+        for j, v in enumerate(vals):
+            _set(ws, r, j + 2, v)
 
     # Table A2 (leader-rated): rows 16-17
-    a2 = [
-        ("Leader-rated OCBS", 6, 10.23, 9, 0.992, 0.987, 0.024, 0.025, "MLR / TYPE=COMPLEX"),
-        ("Leader-rated CWBS", 5,  6.12, 5, 0.995, 0.989, 0.020, 0.018, "MLR / TYPE=COMPLEX"),
+    a2_numeric = [
+        (6, 10.23, 9, 0.992, 0.987, 0.024, 0.025),  # Leader-rated OCBS
+        (5,  6.12, 5, 0.995, 0.989, 0.020, 0.018),  # Leader-rated CWBS
     ]
-    for i, (label, items, chi, df, cfi, tli, rmsea, srmr, notes) in enumerate(a2):
+    for i, vals in enumerate(a2_numeric):
         r = 16 + i
-        _set(ws, r, 1, label)
-        _set(ws, r, 2, items)
-        _set(ws, r, 3, chi)
-        _set(ws, r, 4, df)
-        _set(ws, r, 5, cfi)
-        _set(ws, r, 6, tli)
-        _set(ws, r, 7, rmsea)
-        _set(ws, r, 8, srmr)
-        _set(ws, r, 9, notes)
+        for j, v in enumerate(vals):
+            _set(ws, r, j + 2, v)
 
     # ---- Table A3: outcome-block CFAs by source ---------------------------
     ws = wb["Table A3 区分多来源结果变量"]
-    a3 = [
-        (4, "Two-factor: self-rated OCBS / CWBS",   42.3, 24, 0.977, 0.965, 0.038, 0.034, "Retained"),
-        (5, "One-factor: self-rated OCBS+CWBS",    134.7, 25, 0.802, 0.762, 0.117, 0.094, "Rejected"),
-        (6, "Two-factor: leader-rated OCBS / CWBS", 39.8, 24, 0.984, 0.974, 0.034, 0.031, "Retained"),
-        (7, "One-factor: leader-rated OCBS+CWBS",  142.6, 25, 0.793, 0.751, 0.122, 0.097, "Rejected"),
+    # Cols 2-8 numeric only; col 1 (Model) and col 8 (Interpretation)
+    # preserved verbatim from template.
+    a3_numeric = [
+        (4,  42.3, 24, 0.977, 0.965, 0.038, 0.034),
+        (5, 134.7, 25, 0.802, 0.762, 0.117, 0.094),
+        (6,  39.8, 24, 0.984, 0.974, 0.034, 0.031),
+        (7, 142.6, 25, 0.793, 0.751, 0.122, 0.097),
     ]
-    # Column header is row 3; data rows start at 4
-    for r, model, chi, df, cfi, tli, rmsea, srmr, interp in a3:
-        _set(ws, r, 1, model)
-        _set(ws, r, 2, chi)
-        _set(ws, r, 3, df)
-        _set(ws, r, 4, cfi)
-        _set(ws, r, 5, tli)
-        _set(ws, r, 6, rmsea)
-        _set(ws, r, 7, srmr)
-        _set(ws, r, 8, interp)
+    for r, *vals in a3_numeric:
+        for j, v in enumerate(vals):
+            _set(ws, r, j + 2, v)
 
     # ---- Table A4: leader-rated vs self-rated outcomes -------------------
     ws = wb["Table A4 Robustness"]

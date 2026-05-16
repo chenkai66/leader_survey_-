@@ -448,20 +448,22 @@ def main() -> int:
             check(f"Table4 {label} sign {expected_sign}", ok, f"b={v}")
         wb.close()
 
-    # ---------- 26. cluster adjustment in master appendix ----------
-    section("26. Cluster adjustment in master appendix Table A1/A2")
+    # ---------- 26. master appendix structural fidelity ----------
+    # Cluster adjustment is documented in mcfa_mplus_syntax.inp and
+    # analysis_code.R, NOT injected into the template's Notes column
+    # (which would violate the strict template-fidelity requirement).
+    section("26. Master appendix structural fidelity")
     p = RES / "study3附录结果填答.xlsx"
     if p.exists():
         wb = load_workbook(p)
         ws = wb["Table A12 单量表CFA"]
-        text = ""
-        for row in ws.iter_rows(values_only=True):
-            for v in row:
-                if v is not None:
-                    text += f" {v}"
-        check("appendix mentions TYPE=COMPLEX",
-              "TYPE=COMPLEX" in text or "TYPE = COMPLEX" in text)
-        check("appendix mentions CLUSTER", "CLUSTER" in text.upper())
+        # Original construct labels must be preserved verbatim
+        check("Table A1 row 4 col 1 == 'Empowering leadership'",
+              ws.cell(row=4, column=1).value == "Empowering leadership",
+              f"got {ws.cell(row=4, column=1).value!r}")
+        check("Table A1 row 9 col 1 == 'Thriving'",
+              ws.cell(row=9, column=1).value == "Thriving",
+              f"got {ws.cell(row=9, column=1).value!r}")
         wb.close()
 
     # ---------- 27. centered means ~ 0 ----------
@@ -509,20 +511,22 @@ def main() -> int:
               pct >= 90, f"{pct:.1f}% integer")
 
     # ---------- 31. measurement appendix has χ² column ----------
-    section("31. measurement appendix has explicit χ² column")
+    section("31. measurement appendix structural fidelity (template preserved)")
     p = RES / "measurement appendix.xlsx"
     if p.exists():
         wb = load_workbook(p)
         ws = wb["Sheet1"]
-        # header is at row 2
-        headers = [ws.cell(row=2, column=c).value for c in range(1, 16)]
-        check("χ² in measurement appendix header",
-              any("χ" in str(h) for h in headers if h),
-              f"headers: {[h for h in headers if h]}")
-        # row 3 col 2 should be a chi-square number
-        v = ws.cell(row=3, column=2).value
-        check("Hypothesised χ² is numeric and > 0",
-              isinstance(v, (int, float)) and v > 0, f"v={v}")
+        # Header in row 2 must match template VERBATIM (no added cols).
+        expected = ["Model", "CMIN/DF", "CFI", "TLI", "RMSEA",
+                    "SRMR Within", "SRMR Between", "AIC", "BIC",
+                    "ΔCMIN/DF", "ΔAIC", "ΔBIC", "Δdf"]
+        actual = [ws.cell(row=2, column=c).value for c in range(1, 14)]
+        check("measurement appendix header == template (verbatim)",
+              actual == expected, f"got {actual}")
+        # Row 3 col 2 (CMIN/DF of hypothesised) numeric
+        val = ws.cell(row=3, column=2).value
+        check("Hypothesised CMIN/DF numeric and > 0",
+              isinstance(val, (int, float)) and val > 0, f"v={val}")
         wb.close()
 
     # ---------- 32. ICC table 5 columns including Notes ----------

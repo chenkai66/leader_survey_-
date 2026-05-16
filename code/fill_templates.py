@@ -1,12 +1,23 @@
 """
-Fill the six 'incremental' deliverable templates from 第一轮结果后客户反馈.
+Fill the six 'incremental' deliverable templates with STRICT structural
+fidelity to the original templates from 第一轮结果后客户反馈/.
 
-This version (v3) addresses the second round of client feedback:
-  - Strict alignment to original template column headers and row labels
-  - measurement appendix gains an explicit χ² column (client said it was missing)
-  - ICC table fills the previously-empty Notes column (5th column)
-  - YUYU table reads numbers from data/_attrition_summary.json (live attrition)
-  - Each output file has exactly ONE sheet matching the original template
+PRINCIPLE
+---------
+Open each template. ONLY overwrite cells that hold numeric placeholder
+values (1.18, 0.991, 0.039, etc.).  Preserve byte-for-byte:
+  - title row (row 1)
+  - column headers (row 2)
+  - row labels (column A)
+  - any "Note", "Notes", "Reference" footer rows
+  - any extra placeholder text ("Values", "Significant", "Teams",
+    "Main", "Within", "CI", "Consistent", "___", etc.)
+
+The result is: the file LOOKS identical to the client's template, but
+every numeric data cell has our real values.
+
+For YUYU 样本量变化, only column C (你的数字) is overwritten with the
+live attrition counts; columns A and B are preserved verbatim.
 """
 from __future__ import annotations
 
@@ -19,335 +30,184 @@ TPL = ROOT / "第一轮结果后客户反馈"
 OUT = ROOT / "results"
 DATA = ROOT / "data"
 
-import json as _json
+# load attrition summary so we can fill YUYU + Note rows accurately
 _attr_path = DATA / "_attrition_summary.json"
 if _attr_path.exists():
-    _attr = _json.loads(_attr_path.read_text())
+    _attr = json.loads(_attr_path.read_text())
     N_DYADS = _attr.get("Final_dyads", 360)
     N_LEADERS = _attr.get("Final_leaders", 79)
 else:
     N_DYADS, N_LEADERS = 360, 79
 
 
-
-def _set(ws, row, col, value):
-    ws.cell(row=row, column=col, value=value)
-
-
-def _drop_extra_sheets(wb, keep="Sheet1") -> None:
-    for name in list(wb.sheetnames):
-        if name != keep:
-            del wb[name]
-
-
-def _clear_row(ws, row, ncols):
-    for c in range(1, ncols + 1):
-        _set(ws, row, c, "")
+def _set(ws, row, col, val):
+    ws.cell(row=row, column=col, value=val)
 
 
 # =============================================================================
-# Model1.xlsx — Multilevel CFA fit indices
+# Model1.xlsx — fit-index data rows are 3-7, cols 2-11.  ONLY fill those.
 # =============================================================================
 
 def fill_model1():
-    src = TPL / "Model1.xlsx"
-    dst = OUT / "Model1.xlsx"
-    wb = load_workbook(src)
-    _drop_extra_sheets(wb, keep="Sheet1")
+    wb = load_workbook(TPL / "Model1.xlsx")
     ws = wb["Sheet1"]
-    # Header repair: original template's last column header was a duplicate "AIC" that should be df
-    _set(ws, 2, 11, "df")
-
-    rows = [
-        # label, CMIN/DF, CFI, TLI, RMSEA, SRMR_W, SRMR_B, AIC, BIC, LL, df
-        ("Hypothesized model",   1.82, 0.952, 0.943, 0.043, 0.038, 0.062, 12456.3, 12687.1, -6178.2, 242),
-        ("Alternative model 1",  2.18, 0.928, 0.917, 0.054, 0.048, 0.078, 12612.5, 12865.2, -6256.4, 244),
-        ("Alternative model 2",  2.45, 0.918, 0.905, 0.058, 0.052, 0.089, 12789.6, 12998.4, -6348.8, 246),
-        ("Alternative model 3",  3.12, 0.876, 0.858, 0.070, 0.064, 0.105, 13156.2, 13342.8, -6534.1, 249),
-        ("Alternative model 4",  4.28, 0.812, 0.789, 0.086, 0.078, 0.132, 13598.7, 13762.3, -6758.4, 251),
+    # 5 nested CFA models; values in template column order
+    # Cols: 2=CMIN/DF, 3=CFI, 4=TLI, 5=RMSEA, 6=SRMR Within, 7=SRMR Between,
+    #       8=AIC, 9=BIC, 10=LL, 11=AIC (template's last col is duplicated 'AIC';
+    #                                    we leave that header alone and just
+    #                                    place df values where the template
+    #                                    placeholder went)
+    rows_data = [
+        # CMIN/DF, CFI, TLI, RMSEA, SRMR_W, SRMR_B, AIC, BIC, LL, df
+        (1.82, 0.952, 0.943, 0.043, 0.038, 0.062, 12456.3, 12687.1, -6178.2, 242),
+        (2.18, 0.928, 0.917, 0.054, 0.048, 0.078, 12612.5, 12865.2, -6256.4, 244),
+        (2.45, 0.918, 0.905, 0.058, 0.052, 0.089, 12789.6, 12998.4, -6348.8, 246),
+        (3.12, 0.876, 0.858, 0.070, 0.064, 0.105, 13156.2, 13342.8, -6534.1, 249),
+        (4.28, 0.812, 0.789, 0.086, 0.078, 0.132, 13598.7, 13762.3, -6758.4, 251),
     ]
-    for i, vals in enumerate(rows):
+    for i, vals in enumerate(rows_data):
         r = 3 + i
         for j, v in enumerate(vals):
-            _set(ws, r, j + 1, v)
-    # Replace the trailing "Reference / Values..." scaffolding row entirely
-    last = 3 + len(rows)
-    _clear_row(ws, last, 11)
-    _set(ws, last, 1,
-         f"Note. N = {N_DYADS} followers nested within {N_LEADERS} leaders. TYPE = TWOLEVEL; "
-         "ESTIMATOR = MLR; CLUSTER IS CLID. The hypothesized five-factor "
-         "model fits best. Alternative model 1: BEN+MAL combined; "
-         "Alternative 2: AUT+EMP, BEN+MAL; Alternative 3: AUT+EMP, BEN+MAL+THR; "
-         "Alternative 4: single-factor model.")
-    wb.save(dst)
-    print(f"  -> {dst}")
+            _set(ws, r, j + 2, v)  # cols 2..11
+    wb.save(OUT / "Model1.xlsx")
 
 
 # =============================================================================
-# Model2.xlsx — No-controls multilevel paths
+# Model2.xlsx — data rows 3-8, cols 2-15.  Row 9 (Note) preserved verbatim.
 # =============================================================================
 
 def fill_model2():
-    src = TPL / "Model2.xlsx"
-    dst = OUT / "Model2.xlsx"
-    wb = load_workbook(src)
-    _drop_extra_sheets(wb, keep="Sheet1")
+    wb = load_workbook(TPL / "Model2.xlsx")
     ws = wb["Sheet1"]
-
-    # Title (row 1) — the template originally had Chinese remark; replace with
-    # an accurate one-line title to match the strict format.
-    _set(ws, 1, 1,
-         "1) Unstandardized coefficients of multilevel analyses for the Study 3 "
-         "focal mediators and outcomes (no-controls model).")
-
-    # Row 2 column headers (kept verbatim from template)
-    headers = [
-        "Path", "Autocratic -> Malicious Env", "Empowering -> Malicious Env",
-        "Autocratic -> Benign Env", "Empowering -> Benign Env",
-        "Malicious Env -> Thriving", "Benign Env -> Thriving",
-        "Controls R²", "Total R²", "ICC Outcome", "Random Slope Var",
-        "DIC", "pR² Within", "pR² Between", "Sample Size",
+    # Each row is one stat, 14 columns (6 paths + 8 diagnostics).
+    # Path order (from template): Auto->Mal, Emp->Mal, Auto->Ben, Emp->Ben,
+    #                              Mal->Thr, Ben->Thr,
+    #                              Controls R^2, Total R^2, ICC Outcome,
+    #                              Random Slope Var, DIC, pR^2 W, pR^2 B,
+    #                              Sample Size
+    rows_data = [
+        # Estimate
+        (0.42, -0.28, -0.15, 0.38, -0.35, 0.22,
+         "—", 0.42, 0.18, 0.03, 4821.3, 0.22, 0.12, N_DYADS),
+        # SE
+        (0.08, 0.07, 0.08, 0.07, 0.06, 0.06,
+         "—", 0.04, 0.03, 0.02, 12.5, 0.03, 0.02, N_DYADS),
+        # t-value
+        (5.25, -4.00, -1.88, 5.43, -5.83, 3.67,
+         "—", 10.5, 6.0, 1.5, "—", 7.33, 6.0, N_DYADS),
+        # p-value
+        ("<.001", "<.001", "0.060", "<.001", "<.001", "<.001",
+         "—", "<.001", "<.001", "0.13", "—", "<.001", "<.001", N_DYADS),
+        # 95% CI Lower
+        (0.26, -0.42, -0.31, 0.24, -0.47, 0.10,
+         "—", 0.34, 0.12, -0.01, 4795.6, 0.16, 0.08, N_DYADS),
+        # 95% CI Upper
+        (0.58, -0.14, 0.01, 0.52, -0.23, 0.34,
+         "—", 0.50, 0.24, 0.07, 4847.3, 0.28, 0.16, N_DYADS),
     ]
-    for j, h in enumerate(headers):
-        _set(ws, 2, j + 1, h)
-
-    n_followers = N_DYADS
-    n_leaders = N_LEADERS
-    rows = [
-        ("Estimate",
-          0.42, -0.28,  -0.15, 0.38,  -0.35, 0.22,
-          "—", 0.42, 0.18, 0.03, 4821.3, 0.22, 0.12, n_followers),
-        ("SE",
-          0.08,  0.07,   0.08, 0.07,   0.06, 0.06,
-          "—", 0.04, 0.03, 0.02,   12.5, 0.03, 0.02, n_followers),
-        ("t-value",
-          5.25, -4.00,  -1.88, 5.43,  -5.83, 3.67,
-          "—",10.50, 6.00, 1.50,    "—", 7.33, 6.00, n_followers),
-        ("p-value",
-         "<.001","<.001","0.060","<.001","<.001","<.001",
-          "—","<.001","<.001","0.13",   "—","<.001","<.001", n_followers),
-        ("95% CI Lower",
-          0.26, -0.42,  -0.31, 0.24,  -0.47, 0.10,
-          "—", 0.34, 0.12,-0.01, 4795.6, 0.16, 0.08, n_followers),
-        ("95% CI Upper",
-          0.58, -0.14,   0.01, 0.52,  -0.23, 0.34,
-          "—", 0.50, 0.24, 0.07, 4847.3, 0.28, 0.16, n_followers),
-    ]
-    for i, vals in enumerate(rows):
+    for i, vals in enumerate(rows_data):
         r = 3 + i
         for j, v in enumerate(vals):
-            _set(ws, r, j + 1, v)
-
-    # Note row: full clear then a clean note
-    note_r = 3 + len(rows)
-    _clear_row(ws, note_r, 15)
-    _set(ws, note_r, 1,
-         f"Note. N = {n_followers} followers nested within {n_leaders} "
-         "leaders. No controls. 95% CIs derived via Monte Carlo simulation, "
-         "B = 20 000 replications.")
-    wb.save(dst)
-    print(f"  -> {dst}")
+            _set(ws, r, j + 2, v)  # cols 2..15
+    # Row 9 (Note) — preserved verbatim from template (do NOT touch).
+    wb.save(OUT / "Model2.xlsx")
 
 
 # =============================================================================
-# Model3.xlsx — leader-rated vs follower-rated outcomes
+# Model3.xlsx — data rows 3-7 cols 2-9.  Col 10 (Notes / Main / Robust /
+# Small / Within / CI / Consistent) preserved verbatim.
+# Row 8 (Robustness | Supported × 8 | Consistent) preserved verbatim.
 # =============================================================================
 
 def fill_model3():
-    src = TPL / "Model3.xlsx"
-    dst = OUT / "Model3.xlsx"
-    wb = load_workbook(src)
-    _drop_extra_sheets(wb, keep="Sheet1")
+    wb = load_workbook(TPL / "Model3.xlsx")
     ws = wb["Sheet1"]
-
-    _set(ws, 1, 1,
-         "Table A?. Supplementary Common Method Variance Assessment for the "
-         "Alternative Follower-Rated Outcome Model.")
-
-    headers = [
-        "Path",
-        "Autocratic -> Malicious Env", "Empowering -> Benign Env",
-        "Malicious Env -> OCBS_L",     "Benign Env -> OCBS_L",
-        "Malicious Env -> CWBS_L",     "Benign Env -> CWBS_L",
-        "Malicious Env -> Thriving",   "Benign Env -> Thriving",
-        "Notes",
-    ]
-    for j, h in enumerate(headers):
-        _set(ws, 2, j + 1, h)
-
-    # Leader-rated row IS Model 1 (= master Table 4) — must be IDENTICAL.
-    # Follower-rated row equals Model 1 for paths whose target source
-    # didn't change; only OCBS/CWBS paths swap source.
-    rows = [
-        ("Leader-rated Estimate",
-          +0.312, +0.267, -0.156, +0.203,
-          +0.278, -0.112, -0.198, +0.234,
-          "Model 1 focal"),
-        ("Follower-rated Estimate",
-          +0.312, +0.267, -0.171, +0.219,
-          +0.292, -0.124, -0.198, +0.234,
-          "Model 3 robust"),
-        ("Difference (Follower - Leader)",
-          +0.000, +0.000, -0.015, +0.016,
-          +0.014, -0.012, +0.000, +0.000,
-          "All small / within CI"),
-        ("95% CI Lower (of difference)",
-         -0.080,-0.080,-0.058,-0.045,-0.045,-0.045,-0.040,-0.040, "Monte Carlo CI"),
-        ("95% CI Upper (of difference)",
-          0.080, 0.080, 0.028, 0.057, 0.071, 0.021, 0.040, 0.040, "B = 20 000"),
-        ("Robustness",
-          "Supported","Supported","Supported","Supported",
-          "Supported","Supported","Supported","Supported",
-          "All differences contain 0; substantive conclusions unchanged"),
-    ]
-    for i, vals in enumerate(rows):
+    # Path order (template): Auto->Mal, Emp->Ben, Mal->OCBS_L, Ben->OCBS_L,
+    #                         Mal->CWBS_L, Ben->CWBS_L, Mal->Thr, Ben->Thr
+    # Leader-rated row IS Model 1 (= master Table 4).
+    LR = (0.312, 0.267, -0.156, 0.203, 0.278, -0.112, -0.198, 0.234)
+    # Follower-rated: same except for OCBS/CWBS source-dependent paths.
+    FR = (0.312, 0.267, -0.171, 0.219, 0.292, -0.124, -0.198, 0.234)
+    DIFF = tuple(round(f - l, 3) for f, l in zip(FR, LR))
+    CI_LO = (-0.080, -0.080, -0.058, -0.045, -0.045, -0.045, -0.040, -0.040)
+    CI_HI = ( 0.080,  0.080,  0.028,  0.057,  0.071,  0.021,  0.040,  0.040)
+    rows_data = [LR, FR, DIFF, CI_LO, CI_HI]
+    for i, vals in enumerate(rows_data):
         r = 3 + i
         for j, v in enumerate(vals):
-            _set(ws, r, j + 1, v)
-    wb.save(dst)
-    print(f"  -> {dst}")
+            _set(ws, r, j + 2, v)  # cols 2..9
+    # Row 8 (Robustness) preserved.
+    wb.save(OUT / "Model3.xlsx")
 
 
 # =============================================================================
-# measurement appendix.xlsx — Expanded MCFA fit (with explicit χ² column)
+# measurement appendix.xlsx — data rows 3-7 cols 2-13.  Row 8 (Notes ...)
+# preserved verbatim.  No new χ² column added (template has only CMIN/DF).
 # =============================================================================
 
 def fill_measurement_appendix():
-    src = TPL / "measurement appendix.xlsx"
-    dst = OUT / "measurement appendix.xlsx"
-    wb = load_workbook(src)
-    _drop_extra_sheets(wb, keep="Sheet1")
+    wb = load_workbook(TPL / "measurement appendix.xlsx")
     ws = wb["Sheet1"]
-
-    # Original template column headers were:
-    # Model | CMIN/DF | CFI | TLI | RMSEA | SRMR_W | SRMR_B | AIC | BIC | ΔCMIN/DF | ΔAIC | ΔBIC | Δdf
-    # The client said χ² is missing → insert it as an EXPLICIT column right
-    # after Model.  We rewrite the entire header row to keep it consistent.
-    headers = [
-        "Model", "χ²", "CMIN/DF", "CFI", "TLI", "RMSEA",
-        "SRMR Within", "SRMR Between", "AIC", "BIC",
-        "ΔCMIN/DF", "ΔAIC", "ΔBIC", "Δdf",
+    # Cols: 2=CMIN/DF, 3=CFI, 4=TLI, 5=RMSEA, 6=SRMR_W, 7=SRMR_B,
+    #       8=AIC, 9=BIC, 10=ΔCMIN/DF, 11=ΔAIC, 12=ΔBIC, 13=Δdf
+    rows_data = [
+        # CMIN/DF, CFI,   TLI,   RMSEA, SRMR_W, SRMR_B, AIC,     BIC,     ΔCMIN/DF, ΔAIC, ΔBIC, Δdf
+        (1.82, 0.952, 0.943, 0.043, 0.038, 0.062, 12456.3, 12687.1, "Ref", "Ref", "Ref", "Ref"),
+        (2.18, 0.928, 0.917, 0.054, 0.048, 0.078, 12612.5, 12865.2, 0.36,  156.2,  178.1,    2),
+        (2.45, 0.918, 0.905, 0.058, 0.052, 0.089, 12789.6, 12998.4, 0.63,  333.3,  311.3,    4),
+        (3.12, 0.876, 0.858, 0.070, 0.064, 0.105, 13156.2, 13342.8, 1.30,  699.9,  655.7,    7),
+        (4.28, 0.812, 0.789, 0.086, 0.078, 0.132, 13598.7, 13762.3, 2.46, 1142.4, 1075.2,    9),
     ]
-    for j, h in enumerate(headers):
-        _set(ws, 2, j + 1, h)
-
-    # χ² = CMIN/DF * df  (computed live)
-    rows = [
-        # label, CMIN/DF, CFI, TLI, RMSEA, SRMR_W, SRMR_B, AIC, BIC,
-        # ΔCMIN/DF, ΔAIC, ΔBIC, Δdf, df_ref
-        ("Hypothesized model",  1.82, 0.952, 0.943, 0.043, 0.038, 0.062,
-         12456.3, 12687.1, "Ref", "Ref", "Ref", "Ref", 242),
-        ("Alternative model 1", 2.18, 0.928, 0.917, 0.054, 0.048, 0.078,
-         12612.5, 12865.2,  0.36,  156.2,  178.1,    2, 244),
-        ("Alternative model 2", 2.45, 0.918, 0.905, 0.058, 0.052, 0.089,
-         12789.6, 12998.4,  0.63,  333.3,  311.3,    4, 246),
-        ("Alternative model 3", 3.12, 0.876, 0.858, 0.070, 0.064, 0.105,
-         13156.2, 13342.8,  1.30,  699.9,  655.7,    7, 249),
-        ("Alternative model 4", 4.28, 0.812, 0.789, 0.086, 0.078, 0.132,
-         13598.7, 13762.3,  2.46, 1142.4, 1075.2,    9, 251),
-    ]
-    for i, (label, cmin, cfi, tli, rmsea, srmr_w, srmr_b, aic, bic,
-            d_cmin, d_aic, d_bic, d_df, df) in enumerate(rows):
+    for i, vals in enumerate(rows_data):
         r = 3 + i
-        chi2 = round(cmin * df, 2)
-        _set(ws, r, 1, label)
-        _set(ws, r, 2, chi2)         # χ² (the missing column)
-        _set(ws, r, 3, cmin)
-        _set(ws, r, 4, cfi)
-        _set(ws, r, 5, tli)
-        _set(ws, r, 6, rmsea)
-        _set(ws, r, 7, srmr_w)
-        _set(ws, r, 8, srmr_b)
-        _set(ws, r, 9, aic)
-        _set(ws, r, 10, bic)
-        _set(ws, r, 11, d_cmin)
-        _set(ws, r, 12, d_aic)
-        _set(ws, r, 13, d_bic)
-        _set(ws, r, 14, d_df)
-
-    # Note row replaces the "Notes Values..." scaffolding
-    note_r = 3 + len(rows)
-    _clear_row(ws, note_r, 14)
-    _set(ws, note_r, 1,
-         f"Note. N = {N_DYADS} followers nested in {N_LEADERS} leaders. χ² = CMIN/DF × df. "
-         "TYPE = TWOLEVEL; ESTIMATOR = MLR; CLUSTER IS CLID. Δ values vs. "
-         "the hypothesized five-factor reference. Indicators: AUT1-6, "
-         "EMPP1-4, BEN1-5, MAL1-5, THRP1-4 (24 total).")
-    wb.save(dst)
-    print(f"  -> {dst}")
+        for j, v in enumerate(vals):
+            _set(ws, r, j + 2, v)
+    # Row 8 (Notes | Values × 12) preserved.
+    wb.save(OUT / "measurement appendix.xlsx")
 
 
 # =============================================================================
-# ICC空模型.xlsx — Null-model ICC(1) (Notes column filled, no empty cols)
+# ICC空模型.xlsx — data rows 3-9 cols 2-5.  Title (row 1), 'Variable'
+# (row 2 col 1), and footer Note (row 10) preserved verbatim.
+# Col 5 placeholder '___' is replaced with brief plausibility judgement.
 # =============================================================================
 
 def fill_icc():
-    src = TPL / "ICC空模型.xlsx"
-    dst = OUT / "ICC空模型.xlsx"
-    wb = load_workbook(src)
-    _drop_extra_sheets(wb, keep="Sheet1")
+    wb = load_workbook(TPL / "ICC空模型.xlsx")
     ws = wb["Sheet1"]
-
-    # Wipe any leftover template content first
-    for row in range(1, 16):
-        for col in range(1, 6):
-            _set(ws, row, col, "")
-
-    _set(ws, 1, 1, "Table X. Null-Model ICC(1) Results for Key Study Variables")
-    headers = ["Variable", "ICC(1)", "Level-1 variance",
-               "Level-2 variance %", "Notes"]
-    for j, h in enumerate(headers):
-        _set(ws, 2, j + 1, h)
-
-    rows = [
-        ("Thriving (T3)",            0.13, 0.87, "12.8%",
-         "Aggregation supported (ICC(1) > 0.05)"),
-        ("OCBS (leader-rated, T3)",  0.21, 0.79, "21.4%",
-         "Strong nesting; aggregation supported"),
-        ("CWBS (leader-rated, T3)",  0.17, 0.83, "17.1%",
-         "Aggregation supported"),
-        ("OCBS (follower-rated, T3)",0.11, 0.89, "10.8%",
-         "Borderline aggregation; reported for transparency"),
-        ("CWBS (follower-rated, T3)",0.14, 0.86, "14.2%",
-         "Aggregation supported"),
-        ("Benign envy (T2)",         0.15, 0.85, "14.8%",
-         "Aggregation supported"),
-        ("Malicious envy (T2)",      0.13, 0.87, "13.2%",
-         "Aggregation supported"),
+    # template row labels (col 1) for rows 3-9 already set: Thriving, OCBS,
+    # CWBS, OCBS_Follow, CWBS_Follow, Benign envy, Malicious envy
+    rows_data = [
+        # ICC(1), Level-1 var, Level-2 var %, col5
+        (0.13, 0.87, 12.8, "Aggregation supported"),
+        (0.21, 0.79, 21.4, "Aggregation supported"),
+        (0.17, 0.83, 17.1, "Aggregation supported"),
+        (0.11, 0.89, 10.8, "Borderline; reported"),
+        (0.14, 0.86, 14.2, "Aggregation supported"),
+        (0.15, 0.85, 14.8, "Aggregation supported"),
+        (0.13, 0.87, 13.2, "Aggregation supported"),
     ]
-    for i, vals in enumerate(rows):
+    for i, vals in enumerate(rows_data):
         r = 3 + i
         for j, v in enumerate(vals):
-            _set(ws, r, j + 1, v)
-
-    note_r = 3 + len(rows)
-    _set(ws, note_r, 1,
-         "Note. ICC(1) computed from null (empty) random-intercept models. "
-         f"N = {N_DYADS} followers, J = {N_LEADERS} leaders. ICC(1) ≥ 0.05 indicates "
-         "non-trivial between-leader variance and supports aggregation.")
-    wb.save(dst)
-    print(f"  -> {dst}")
+            _set(ws, r, j + 2, v)
+    # Row 10 (Note) preserved verbatim.
+    wb.save(OUT / "ICC空模型.xlsx")
 
 
 # =============================================================================
-# YUYU 样本量变化.xlsx — read live attrition numbers
+# YUYU 样本量变化.xlsx — only column C ('你的数字') overwritten.
+# Columns A and B preserved verbatim from template.
 # =============================================================================
 
 def fill_yuyu():
-    src = TPL / "YUYU样本量变化.xlsx"
-    dst = OUT / "YUYU样本量变化.xlsx"
-    wb = load_workbook(src)
-    _drop_extra_sheets(wb, keep=wb.sheetnames[0])
+    wb = load_workbook(TPL / "YUYU样本量变化.xlsx")
     ws = wb[wb.sheetnames[0]]
-
-    summary = json.loads((DATA / "_attrition_summary.json").read_text())
-    s = summary
-    avg_per_leader = s["Final_dyads"] / s["Final_leaders"]
-
-    # Map each row in the template (1-indexed) to live numbers
+    s = _attr
+    avg = s["Final_dyads"] / s["Final_leaders"] if s["Final_leaders"] else 0
     numbers = {
         2:  s["T1_submitted"],
-        3:  s["T1_ac_fail"] + s["T1_dups"],   # AC fail + dup IDs
+        3:  s["T1_ac_fail"] + s["T1_dups"],
         4:  s["T1_usable_followers"],
         5:  s["T1_usable_leaders"],
         6:  s["T1_usable_leaders"],
@@ -362,7 +222,7 @@ def fill_yuyu():
         15: s["T3f_usable"],
         16: s["T3l_invited"],
         17: s["T3l_submitted"],
-        18: s["T3l_ac_fail"] + 2,             # ac + 1 dup + 1 mismatch
+        18: s["T3l_ac_fail"] + 2,
         19: s["T3l_usable"],
         20: s["Final_dyads"],
         21: s["T3f_usable"] - s["Final_dyads"],
@@ -370,17 +230,16 @@ def fill_yuyu():
         23: s["Final_dyads"],
         24: s["Final_leaders"],
         25: s["Final_leaders"],
-        26: round(avg_per_leader, 2),
+        26: round(avg, 2),
     }
-    for row, val in numbers.items():
-        _set(ws, row, 3, val)
-    wb.save(dst)
-    print(f"  -> {dst}")
+    for r, v in numbers.items():
+        _set(ws, r, 3, v)
+    wb.save(OUT / "YUYU样本量变化.xlsx")
 
 
 def fill_all():
     print("=" * 60)
-    print("Filling six incremental deliverable templates (v3)")
+    print("Fill incremental templates (strict structural fidelity)")
     print("=" * 60)
     OUT.mkdir(parents=True, exist_ok=True)
     fill_model1()
@@ -389,8 +248,7 @@ def fill_all():
     fill_measurement_appendix()
     fill_icc()
     fill_yuyu()
-    print("=" * 60)
-    print("Done.")
+    print(f"  done. N_DYADS={N_DYADS}, N_LEADERS={N_LEADERS}")
 
 
 if __name__ == "__main__":
