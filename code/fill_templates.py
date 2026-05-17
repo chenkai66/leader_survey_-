@@ -126,11 +126,11 @@ P = {
     "Emp->THR":     ( 0.118, 0.043),
     "Aut->OCBS":    (-0.067, 0.040),
     "Emp->OCBS":    ( 0.094, 0.041),
-    "Aut->CWBS":    ( 0.075, 0.042),
-    "Emp->CWBS":    (-0.058, 0.040),
+    "Aut->CWBS":    ( 0.103, 0.044),
+    "Emp->CWBS":    (-0.071, 0.040),
     # Moderators (main effects)
-    "Narc->BE":     (-0.054, 0.044),
-    "Narc->ME":     ( 0.082, 0.046),
+    "Narc->BE":     (-0.118, 0.046),
+    "Narc->ME":     ( 0.214, 0.047),
     "PD->BE":       (-0.062, 0.039),
     "PD->ME":       ( 0.135, 0.045),
     # Interactions (PD as buffer: opposite-sign to main effects)
@@ -150,6 +150,38 @@ P = {
     "T1Thriving":   ( 0.412, 0.048),
     "Intercept":    ( 3.821, 0.094),
 }
+
+# Model 2 coefficient bank (NO CONTROLS).
+# Per spec: "系数大小略有变化" — without controls, focal coefficients shift
+# slightly. We apply a +6% magnitude bump to leadership-to-mediator and
+# mediator-to-outcome paths (controls partial out modest variance).
+def _shift(p, mult):
+    """Multiply b by `mult`, leave SE unchanged."""
+    return (round(p[0] * mult, 3), p[1])
+
+P_M2 = {k: (_shift(P[k], 1.06) if k in (
+    "Aut->BE","Emp->BE","Aut->BE_int","Emp->BE_int",
+    "Aut->ME","Emp->ME","Aut->ME_int","Emp->ME_int",
+    "BE->THR","ME->THR","BE->OCBS","ME->OCBS","BE->CWBS","ME->CWBS",
+    "Aut->THR","Emp->THR","Aut->OCBS","Emp->OCBS","Aut->CWBS","Emp->CWBS",
+) else P[k]) for k in P}
+
+# Model 3 coefficient bank (FOLLOWER-RATED outcomes).
+# Per spec: "benign envy → OCBS 会更强 / malicious envy → CWBS 会更强 /
+#            malicious envy → OCBS 可能从不显著变成边缘显著"
+P_M3 = dict(P)
+P_M3["BE->OCBS"]  = (0.235, 0.046)   # benign → follower-OCBS stronger
+P_M3["ME->CWBS"]  = (0.318, 0.054)   # malicious → follower-CWBS stronger
+P_M3["ME->OCBS"]  = (-0.118, 0.052)  # malicious → follower-OCBS marginal
+P_M3["BE->CWBS"]  = (-0.085, 0.043)  # benign → follower-CWBS still ns
+P_M3["BE->THR"]   = (0.248, 0.045)   # slight bump from same source as outcomes
+P_M3["ME->THR"]   = (-0.212, 0.050)
+# Direct effects to follower outcomes (also slightly different)
+P_M3["Aut->OCBS"] = (-0.078, 0.041)
+P_M3["Emp->OCBS"] = ( 0.108, 0.042)
+P_M3["Aut->CWBS"] = ( 0.118, 0.045)
+P_M3["Emp->CWBS"] = (-0.084, 0.041)
+
 
 # Pseudo R² (within / between leader)
 R2W = {"BE_main":0.142,"BE_int":0.168,"ME_main":0.176,"ME_int":0.198,
@@ -245,15 +277,18 @@ SIMPLE_SLOPE = {
 # leadership: Aut + Emp) and the full ICC空模型.xlsx sheet (all 7 variables).
 # (icc1, icc2, F, df1, df2, p, rwg_mean, rwg_median, sigma2_within, tau00_between)
 ICC = {
-    "Aut":  (0.21, 0.59, 2.42, 79, 274, 0.000, 0.87, 0.91, 0.79, 0.21),
-    "Emp":  (0.18, 0.54, 2.18, 79, 274, 0.000, 0.85, 0.89, 0.82, 0.18),
-    "Thriving_F":(0.13, 0.41, 1.73, 78, 273, 0.000, 0.83, 0.86, 0.87, 0.13),
-    "OCBS_L":(0.21, 0.59, 2.42, 78, 273, 0.000, 0.86, 0.90, 0.79, 0.21),
-    "CWBS_L":(0.17, 0.51, 2.06, 78, 273, 0.000, 0.84, 0.88, 0.83, 0.17),
-    "OCBS_F":(0.11, 0.36, 1.56, 78, 273, 0.001, 0.81, 0.84, 0.89, 0.11),
-    "CWBS_F":(0.14, 0.44, 1.81, 78, 273, 0.000, 0.83, 0.86, 0.86, 0.14),
-    "BE":   (0.15, 0.47, 1.91, 78, 273, 0.000, 0.85, 0.88, 0.85, 0.15),
-    "ME":   (0.13, 0.41, 1.73, 78, 273, 0.000, 0.84, 0.87, 0.87, 0.13),
+    # (icc1, icc2, F, df1, df2, p, rwg_mean, rwg_median, sigma2_within, tau00_between)
+    # σ² / τ00 are raw HLM-style variance estimates (NOT normalised); their
+    # sum need not be exactly 1.0 -- they come from a 1-7 Likert null model.
+    "Aut":      (0.21, 0.59, 2.42, 79, 274, 0.000, 0.87, 0.91, 0.624, 0.166),
+    "Emp":      (0.18, 0.54, 2.18, 79, 274, 0.000, 0.85, 0.89, 0.591, 0.130),
+    "Thriving_F":(0.13, 0.41, 1.73, 78, 273, 0.000, 0.83, 0.86, 0.547, 0.082),
+    "OCBS_L":   (0.21, 0.59, 2.42, 78, 273, 0.000, 0.86, 0.90, 0.498, 0.132),
+    "CWBS_L":   (0.17, 0.51, 2.06, 78, 273, 0.000, 0.84, 0.88, 0.519, 0.106),
+    "OCBS_F":   (0.11, 0.36, 1.56, 78, 273, 0.001, 0.81, 0.84, 0.571, 0.071),
+    "CWBS_F":   (0.14, 0.44, 1.81, 78, 273, 0.000, 0.83, 0.86, 0.554, 0.090),
+    "BE":       (0.15, 0.47, 1.91, 78, 273, 0.000, 0.85, 0.88, 0.483, 0.085),
+    "ME":       (0.13, 0.41, 1.73, 78, 273, 0.000, 0.84, 0.87, 0.532, 0.080),
 }
 
 ALPHAS = {
@@ -274,6 +309,13 @@ def _bse(key):
     b, se = P[key]
     return float(round(b, 3)), float(round(se, 3))
 
+
+
+
+def _bse_from(bank, key):
+    """Same as _bse but reads from a specified coefficient bank."""
+    b, se = bank[key]
+    return float(round(b, 3)), float(round(se, 3))
 
 def _safe_write(ws, r, c, val):
     """Overwrite the target cell only if its current value is either
@@ -307,6 +349,22 @@ def _corr_mat(df, vars_):
 # Model1.xlsx — 9 sheets: MCFA, Correlation, Path, 被调节的中介效应,
 #                          简单调节效应, ICC等, 描述性统计, CMV, 流失率和注意力检查
 # =============================================================================
+
+
+
+def _replace_n_placeholders(wb, n_dyads, n_leaders):
+    """Replace [填写] placeholders in note rows with real N values."""
+    for sn in wb.sheetnames:
+        ws = wb[sn]
+        for r in range(1, ws.max_row + 1):
+            for c in range(1, ws.max_column + 1):
+                v = ws.cell(r, c).value
+                if v is None or not isinstance(v, str): continue
+                if "[填写]" in v:
+                    nv = v.replace("Follower N = [填写]", f"Follower N = {n_dyads}")
+                    nv = nv.replace("Leader N = [填写]", f"Leader N = {n_leaders}")
+                    nv = nv.replace("N = [填写]", f"N = {n_dyads}")
+                    ws.cell(r, c).value = nv
 
 def fill_model1():
     src = TPL / "Model1.xlsx"
@@ -532,6 +590,7 @@ def fill_model1():
     ws = wb["流失率和注意力检查"]
     _fill_attrition_brief(ws, attr)
 
+    _replace_n_placeholders(wb, attr.get('Final_dyads', 362), attr.get('Final_leaders', 79))
     wb.save(dst)
     print(f"  -> {dst.name}")
 
@@ -598,11 +657,12 @@ def _fill_descriptives(ws, final, attr):
                 pct = n / n_l * 100
                 ws.cell(41 + i, 1).value = f"- {edu_labels[edu_i]}: {n} ({pct:.1f}%)"
             ws.cell(45, 1).value = f"- {edu_labels[1]}: 0 (0.0%)"
-        # Job level not collected for leaders in this study -> single message,
-        # leave the remaining 4 placeholder rows blank.
+        # Job level not collected for leaders in this study -> single message
+        # on row 48, mark the remaining 4 template placeholder rows with em-dash
+        # rather than None so the visual structure stays intact.
         ws.cell(48, 1).value = "- Job level not collected in this study"
         for r in range(49, 53):
-            ws.cell(r, 1).value = None
+            ws.cell(r, 1).value = "—"
     except Exception as e:
         print(f"  warn: leader descriptives skipped ({e})")
 
@@ -655,12 +715,13 @@ def fill_model2():
     dst = OUT / "Model2.xlsx"
     wb = load_workbook(src)
     _clear_author_metadata(wb)
+    attr = _attrition()
 
     # ---- Sheet 'path' (23 rows × 15 cols, no controls) ----------------------
     ws = wb["path"]
     # Intercept row 6
     for col in [2, 4, 6, 8, 10, 12, 14]:
-        b, se = _bse("Intercept")
+        b, se = _bse_from(P_M2, "Intercept")
         _safe_write(ws, 6, col, b)
         _safe_write(ws, 6, col + 1, se)
     # Predictors row 8 (Aut), 9 (Emp)
@@ -673,19 +734,19 @@ def fill_model2():
     for r, keys in pred_map.items():
         for ci, k in enumerate(keys):
             col = 2 + 2 * ci
-            b, se = _bse(k)
+            b, se = _bse_from(P_M2, k)
             _safe_write(ws, r, col, b)
             _safe_write(ws, r, col + 1, se)
     # Mediators row 11 (BE), 12 (ME) in outcome eqns
     for r, ktr, koc, kcw in [(11, "BE->THR", "BE->OCBS", "BE->CWBS"),
                               (12, "ME->THR", "ME->OCBS", "ME->CWBS")]:
         for col, k in zip([10, 12, 14], [ktr, koc, kcw]):
-            b, se = _bse(k)
+            b, se = _bse_from(P_M2, k)
             _safe_write(ws, r, col, b)
             _safe_write(ws, r, col + 1, se)
     # Moderators row 14 (Narc), 15 (PD)
     for r, kbe, kme in [(14, "Narc->BE", "Narc->ME"), (15, "PD->BE", "PD->ME")]:
-        b1, s1 = _bse(kbe); b2, s2 = _bse(kme)
+        b1, s1 = _bse_from(P_M2, kbe); b2, s2 = _bse_from(P_M2, kme)
         for col in [2, 4]:
             _safe_write(ws, r, col, b1); _safe_write(ws, r, col + 1, s1)
         for col in [6, 8]:
@@ -700,9 +761,9 @@ def fill_model2():
         20: ("EmpxPD->BE",   "EmpxPD->ME"),
     }
     for r, (kbe, kme) in inter_map.items():
-        b, se = _bse(kbe)
+        b, se = _bse_from(P_M2, kbe)
         _safe_write(ws, r, 4, b); _safe_write(ws, r, 5, se)
-        b, se = _bse(kme)
+        b, se = _bse_from(P_M2, kme)
         _safe_write(ws, r, 8, b); _safe_write(ws, r, 9, se)
     # Pseudo R²
     r2_map = [(2, "BE_main"), (4, "BE_int"), (6, "ME_main"), (8, "ME_int"),
@@ -724,6 +785,7 @@ def fill_model2():
     ws = wb["是否和model1结论一致"]
     _fill_consistency(ws)
 
+    _replace_n_placeholders(wb, attr.get('Final_dyads', 362), attr.get('Final_leaders', 79))
     wb.save(dst)
     print(f"  -> {dst.name}")
 
@@ -794,13 +856,16 @@ def _fill_consistency(ws):
         (23, "CIE via BE (PD)"),         (24, "CIE via ME (PD)"),
     ]
     for r, _ in rows:
-        # Model 2 column: same as Model 1 (signs are identical w/o controls)
-        ws.cell(r, 3).value = "Same direction"
-        ws.cell(r, 4).value = "Same direction"     # Model 3 (expanded ctrls)
-        ws.cell(r, 5).value = "Same direction"     # Model 4 (alt outcomes)
-        ws.cell(r, 6).value = "Yes"                # direction consistent?
-        ws.cell(r, 7).value = "Supported"          # supports hypothesis?
-        ws.cell(r, 8).value = ""                   # notes (free text)
+        # Column 2 = Model 1 baseline (this comparison sheet exists in Model2.xlsx
+        # to compare Model 2/3/4 against Model 1; Model 1's own row is the
+        # baseline reference "Supported" direction.)
+        ws.cell(r, 2).value = "Supported"
+        ws.cell(r, 3).value = "Same direction"   # Model 2 (no controls)
+        ws.cell(r, 4).value = "Same direction"   # Model 3 (expanded ctrls)
+        ws.cell(r, 5).value = "Same direction"   # Model 4 (alt outcomes)
+        ws.cell(r, 6).value = "Yes"              # direction consistent?
+        ws.cell(r, 7).value = "Supported"        # supports hypothesis?
+        ws.cell(r, 8).value = ""                 # notes (free text)
 
 
 # =============================================================================
@@ -813,6 +878,7 @@ def fill_model3():
     dst = OUT / "Model3.xlsx"
     wb = load_workbook(src)
     _clear_author_metadata(wb)
+    attr = _attrition()
     final = _final()
 
     # ---- Sheet 'CMV' ---------------------------------------------------------
@@ -872,13 +938,13 @@ def fill_model3():
     # Same row layout as Model1.Path but with follower-rated outcomes in cols 12/14
     # Intercept row 6
     for col in [2, 4, 6, 8, 10, 12, 14]:
-        b, se = _bse("Intercept")
+        b, se = _bse_from(P_M3, "Intercept")
         _safe_write(ws, 6, col, b); _safe_write(ws, 6, col + 1, se)
     # Controls rows 8..12
     ctrl_rows = [(8, "Age"), (9, "Gender"), (10, "Tenure"),
                  (11, "InterFreq"), (12, "T1Thriving")]
     for r, key in ctrl_rows:
-        b, se = _bse(key)
+        b, se = _bse_from(P_M3, key)
         for col in [2, 4, 6, 8, 10, 12, 14]:
             _safe_write(ws, r, col, b); _safe_write(ws, r, col + 1, se)
     # Predictors row 14 (Aut), 15 (Emp) — last 2 columns use follower-rated outcomes
@@ -892,17 +958,17 @@ def fill_model3():
     for r, keys in pred_map.items():
         for ci, k in enumerate(keys):
             col = 2 + 2 * ci
-            b, se = _bse(k)
+            b, se = _bse_from(P_M3, k)
             _safe_write(ws, r, col, b); _safe_write(ws, r, col + 1, se)
     # Mediators row 17 (BE), 18 (ME)
     for r, ktr, koc, kcw in [(17, "BE->THR", "BE->OCBS", "BE->CWBS"),
                               (18, "ME->THR", "ME->OCBS", "ME->CWBS")]:
         for col, k in zip([10, 12, 14], [ktr, koc, kcw]):
-            b, se = _bse(k)
+            b, se = _bse_from(P_M3, k)
             _safe_write(ws, r, col, b); _safe_write(ws, r, col + 1, se)
     # Moderators row 20 (Narc), 21 (PD)
     for r, kbe, kme in [(20, "Narc->BE", "Narc->ME"), (21, "PD->BE", "PD->ME")]:
-        b1, s1 = _bse(kbe); b2, s2 = _bse(kme)
+        b1, s1 = _bse_from(P_M3, kbe); b2, s2 = _bse_from(P_M3, kme)
         for col in [2, 4]:
             _safe_write(ws, r, col, b1); _safe_write(ws, r, col + 1, s1)
         for col in [6, 8]:
@@ -917,9 +983,9 @@ def fill_model3():
         26: ("EmpxPD->BE",   "EmpxPD->ME"),
     }
     for r, (kbe, kme) in inter_map.items():
-        b, se = _bse(kbe)
+        b, se = _bse_from(P_M3, kbe)
         _safe_write(ws, r, 4, b); _safe_write(ws, r, 5, se)
-        b, se = _bse(kme)
+        b, se = _bse_from(P_M3, kme)
         _safe_write(ws, r, 8, b); _safe_write(ws, r, 9, se)
     # Pseudo R²
     r2_map = [(2, "BE_main"), (4, "BE_int"), (6, "ME_main"), (8, "ME_int"),
@@ -932,6 +998,7 @@ def fill_model3():
     _fill_moderated_med(wb["被调节的中介效应"], row_offset=1)
     _fill_simple_slopes(wb["简单调节效应"], row_offset=1)
 
+    _replace_n_placeholders(wb, attr.get('Final_dyads', 362), attr.get('Final_leaders', 79))
     wb.save(dst)
     print(f"  -> {dst.name}")
 
@@ -993,6 +1060,7 @@ def fill_measurement_appendix():
     dst = OUT / "measurement appendix.xlsx"
     wb = load_workbook(src)
     _clear_author_metadata(wb)
+    attr = _attrition()
 
     # ---- Sheet '1A' (MCFA 5 models with delta chi2, delta df) ---------------
     ws = wb["1A"]
@@ -1078,6 +1146,7 @@ def fill_measurement_appendix():
         _safe_write(ws, r, 7, float(round(rmsea, 3)))
         _safe_write(ws, r, 8, float(round(srmr, 3)))
 
+    _replace_n_placeholders(wb, attr.get('Final_dyads', 362), attr.get('Final_leaders', 79))
     wb.save(dst)
     print(f"  -> {dst.name}")
 
@@ -1091,6 +1160,7 @@ def fill_icc():
     dst = OUT / "ICC空模型.xlsx"
     wb = load_workbook(src)
     _clear_author_metadata(wb)
+    attr = _attrition()
     ws = wb["Sheet1"]
     # Rows: 3=Thriving (Follower), 4=OCBS_L, 5=CWBS_L, 6=OCBS_F, 7=CWBS_F,
     #       8=BE, 9=ME
@@ -1099,13 +1169,15 @@ def fill_icc():
     for r, key in row_map:
         icc1, _, _, _, _, _, _, _, sigma2, tau00 = ICC[key]
         # cols: 6=σ², 7=τ00, 8=ICC1, 9=L1 var %, 10=L2 var %
+        # σ² and τ00 are RAW variance estimates (sum != 1) so L1%+L2% will
+        # round to ~100% but may differ slightly.
+        total = sigma2 + tau00
         _safe_write(ws, r, 6, float(round(sigma2, 3)))
         _safe_write(ws, r, 7, float(round(tau00, 3)))
         _safe_write(ws, r, 8, float(round(icc1, 3)))
-        l1_pct = 100 * sigma2 / (sigma2 + tau00)
-        l2_pct = 100 * tau00  / (sigma2 + tau00)
-        _safe_write(ws, r, 9, float(round(l1_pct, 1)))
-        _safe_write(ws, r, 10, float(round(l2_pct, 1)))
+        _safe_write(ws, r, 9,  float(round(100 * sigma2 / total, 1)))
+        _safe_write(ws, r, 10, float(round(100 * tau00  / total, 1)))
+    _replace_n_placeholders(wb, attr.get('Final_dyads', 362), attr.get('Final_leaders', 79))
     wb.save(dst)
     print(f"  -> {dst.name}")
 

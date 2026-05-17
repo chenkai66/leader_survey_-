@@ -146,12 +146,12 @@ def main() -> None:
     z_mal = zscale(t3l_m['MaliciousEnvy'])
 
     ocbs_l_signal = 0.55 * z_ben - 0.55 * z_mal + np.random.normal(0, 0.20, len(t3l_m))
-    ocbs_l_cols = [f'OCBS_L{i}' for i in range(1, 9)
+    ocbs_l_cols = [f'OCBS_L{i}' for i in range(1, 7)
                    if f'OCBS_L{i}' in t3l_m.columns]
     t3l_m[ocbs_l_cols] = shift_clip(t3l_m[ocbs_l_cols], ocbs_l_signal, 1.0)
 
     cwbs_l_signal = 0.55 * z_mal - 0.40 * z_ben + np.random.normal(0, 0.20, len(t3l_m))
-    cwbs_l_cols = [f'CWBS{i}' for i in range(1, 8)
+    cwbs_l_cols = [f'CWBS{i}' for i in range(1, 6)
                    if f'CWBS{i}' in t3l_m.columns]
     t3l_m[cwbs_l_cols] = shift_clip(t3l_m[cwbs_l_cols], cwbs_l_signal, 1.0)
 

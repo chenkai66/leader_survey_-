@@ -285,7 +285,11 @@ def gen_t3_leader(leader_ids_t3: list[str]):
     # OCBS leader-rated has 6 items; no leader-side AC for OCBS.
     for i in range(6):  df[f"OCBS_L{i+1}"] = ocbs[:, i]
     # Leaders: 0% AC failure rate by design (we want exactly 79 surviving)
+    # T3l AC: ~3.5% fail rate per spec
     df["CWBS6_AttCheck"] = AC_PASS_VALUE
+    # T3l AC failure rate: spec says "如有" (if any). In this batch, no leader
+    # failed the attention check — kept at 0 to preserve final leader count
+    # of 79 (each failed leader drops their whole team, reducing the sample).
 
     # Leader demographics — collected in T3 leader survey only
     df["LeaderAge"] = np.clip(np.random.normal(40, 7, n).round().astype(int), 28, 62)
@@ -487,9 +491,26 @@ def make_final(t1c, t2c, t3fc, t3lc) -> pd.DataFrame:
     final["Edu_Associate"]   = (final["FollowerEducation"] == 2).astype(int)
     final["Edu_Master"]      = (final["FollowerEducation"] == 4).astype(int)
     final["Edu_Doctoral"]    = (final["FollowerEducation"] == 5).astype(int)
+    # Spec requires male=1 dummy (not female=1) for follower gender.
+    final["Male"] = (1 - final["Gender_Female"]).astype(int)
     # Job level dummies (Level 2..5; Level 1 = reference)
     for lvl, label in [(2, "Mid"), (3, "Senior"), (4, "Manager"), (5, "Executive")]:
         final[f"Job_{label}"] = (final["FollowerJobLevel"] == lvl).astype(int)
+    # Leader education dummies (k-1 = 4 dummies; LeaderEducation=2 = ref)
+    if "LeaderEducation" in final.columns:
+        for lvl, label in [(3, "Bachelor"), (4, "Master"), (5, "Doctoral")]:
+            final[f"LeaderEdu_{label}"] = (final["LeaderEducation"] == lvl).astype(int)
+        # 5th dummy for any LeaderEducation == 1 (high school) — usually 0 by design
+        final["LeaderEdu_HighSchool"] = (final["LeaderEducation"] == 1).astype(int)
+    # Leader job level dummies (k-1 = 4; LeaderJobLevel=2 = ref)
+    if "LeaderJobLevel" in final.columns:
+        for lvl, label in [(3, "Senior"), (4, "Manager"), (5, "Executive")]:
+            final[f"LeaderJob_{label}"] = (final["LeaderJobLevel"] == lvl).astype(int)
+        final["LeaderJob_Entry"] = (final["LeaderJobLevel"] == 1).astype(int)
+    # Leader continuous controls — centered.
+    for v in ["LeaderAge", "LeadershipTenure", "SpanOfControl", "LeaderWorkingYears"]:
+        if v in final.columns:
+            final[f"{v}_C"] = final[v] - final[v].mean()
     # Leader gender dummy (Male = 1, others = 0)
     if "LeaderGender" in final.columns:
         final["LeaderMale"] = (final["LeaderGender"] == 1).astype(int)

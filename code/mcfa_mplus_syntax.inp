@@ -45,21 +45,29 @@ ANALYSIS:
 
 MODEL:
 
+  ! Per YUYU spec: leadership constructs (AUT, EMP) live at BETWEEN only;
+  ! mediator + outcome constructs (BE, ME, THR) live at WITHIN only.
+
   %WITHIN%
 
-    AUTW BY AUT1 AUT2 AUT3 AUT4 AUT5 AUT6;
-    EMPW BY EMPP1 EMPP2 EMPP3 EMPP4;
+    ! Follower-level latent constructs only.
     BENW BY BEN1 BEN2 BEN3 BEN4 BEN5;
     MALW BY MAL1 MAL2 MAL3 MAL4 MAL5;
     THRW BY THRP1 THRP2 THRP3 THRP4;
 
+    ! Leadership items still vary at within (follower-level disagreement)
+    ! but no within-level latent imposed.
+    AUT1-AUT6 EMPP1-EMPP4;
+
   %BETWEEN%
 
-    AUTB BY AUT1 AUT2 AUT3 AUT4 AUT5 AUT6;
-    EMPB BY EMPP1 EMPP2 EMPP3 EMPP4;
-    BENB BY BEN1 BEN2 BEN3 BEN4 BEN5;
-    MALB BY MAL1 MAL2 MAL3 MAL4 MAL5;
-    THRB BY THRP1 THRP2 THRP3 THRP4;
+    ! Leader-level latent constructs only.
+    AUTB  BY AUT1 AUT2 AUT3 AUT4 AUT5 AUT6;
+    EMPB  BY EMPP1 EMPP2 EMPP3 EMPP4;
+
+    ! Mediator/outcome items still vary at between (leader-level mean
+    ! variation) but no between-level latent imposed.
+    BEN1-BEN5 MAL1-MAL5 THRP1-THRP4;
 
 OUTPUT:
   SAMPSTAT STANDARDIZED TECH1 TECH4;
@@ -367,8 +375,8 @@ OUTPUT:
 !   EMPP2 = mean(EMP4, EMP5, EMP6)
 !   EMPP3 = mean(EMP7, EMP8, EMP9)
 !   EMPP4 = mean(EMP10, EMP11, EMP12)
-!   THRP1 = mean(THR1, THR3, R_THR5)
-!   THRP2 = mean(THR2, THR4)
-!   THRP3 = mean(THR6, THR8, R_THR10)
-!   THRP4 = mean(THR7, THR9)
+!   THRP1 = mean(THR1, THR2, THR3)
+!   THRP2 = mean(THR4, R_THR5)
+!   THRP3 = mean(THR6, THR7, THR8)
+!   THRP4 = mean(THR9, R_THR10)
 ! ============================================================

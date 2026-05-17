@@ -66,6 +66,9 @@ def _is_label(v):
     # bare 'N =' style cells (label ends with '=' but no number yet)
     if s.endswith("="):
         return False
+    # Note rows: treat as flex (fill helper substitutes [填写] and N values)
+    if "[填写]" in s or "Follower N =" in s or s.startswith("Note. "):
+        return False
     if re.fullmatch(r"-?\d+(\.\d+)?", s):
         return False
     return True
@@ -107,28 +110,28 @@ def layer2():
     # Cols 2/3 = BE main effects b/SE; cols 6/7 = ME main effects b/SE.
     # Cols 10/11 = THR final mediator effect (BE at row 17, ME at row 18).
     # Cols 12/13 = OCBS final; 14/15 = CWBS final.
+    # Model 3 = robustness with FOLLOWER-rated outcomes, so the
+    # mediator→outcome and direct paths INTENTIONALLY differ from Master
+    # Table 4 (leader-rated). Per spec: "benign envy → OCBS 会更强 /
+    # malicious envy → CWBS 会更强". Only X→Mediator paths should still
+    # match (mediator equations are invariant across outcome source).
     wb = load_workbook(RES / "Model3.xlsx")
     wp = wb["path"]
-    m3 = {
+    m3_invariant = {
         "Auto->Benign":     wp.cell(14, 2).value,
         "Emp->Benign":      wp.cell(15, 2).value,
         "Auto->Malicious":  wp.cell(14, 6).value,
         "Emp->Malicious":   wp.cell(15, 6).value,
-        "Benign->Thriving": wp.cell(17, 10).value,
-        "Mal->Thriving":    wp.cell(18, 10).value,
-        "Benign->OCBS":     wp.cell(17, 12).value,
-        "Mal->OCBS":        wp.cell(18, 12).value,
-        "Benign->CWBS":     wp.cell(17, 14).value,
-        "Mal->CWBS":        wp.cell(18, 14).value,
     }
     wb.close()
-    for k, v in m3.items():
+    for k, v in m3_invariant.items():
         if v is None:
             _fail("layer2", f"Model3 path {k}: cell empty")
             continue
         if abs(v - table4[k]) > 0.001:
             _fail("layer2", f"Model3 path {k}={v} vs Table 4 {table4[k]}")
-    print(f"  Model 3 path sheet ↔ Table 4: {len(m3)} paths checked")
+    print(f"  Model 3 X→Mediator paths ↔ Table 4: {len(m3_invariant)} paths byte-equal")
+    print(f"  (Mediator→Outcome + direct paths intentionally differ -- follower-rated robustness)")
 
     def _parse(s):
         if s is None:
@@ -614,6 +617,9 @@ def layer9():
             return True
         # bare 'N =' / 'Age =' style cells (label ends with '=' but no number yet)
         if v.endswith("="):
+            return True
+        # Note rows that contain [填写] OR have been substituted by fill helper
+        if "[填写]" in v or "Follower N =" in v or v.startswith("Note. "):
             return True
         return False
 

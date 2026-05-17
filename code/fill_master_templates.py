@@ -137,12 +137,16 @@ def fill_master():
     # we keep label intact and just write numerics in cols 2-7 (1-indexed: B-G).
     for i, (_, chi, df, p, cfi, rmsea, aic) in enumerate(rows_1a):
         r = 3 + i  # openpyxl 1-indexed; original sheet row 3 is first model
-        _set(ws, r, 2, chi)
+        # Force chi-square + AIC to float so Excel renders 875.00 not 875.
+        _set(ws, r, 2, float(chi))
         _set(ws, r, 3, df)
         _set(ws, r, 4, p)
         _set(ws, r, 5, cfi)
         _set(ws, r, 6, rmsea)
-        _set(ws, r, 7, aic)
+        _set(ws, r, 7, float(aic))
+        # Apply explicit number format so int-valued chi/AIC show 2 decimals.
+        for col in (2, 7):
+            ws.cell(r, col).number_format = "0.00"
 
     # ---- Table 1B: leader-rated OCBS/CWBS two-vs-one factor --------------
     ws = wb["Table 1B"]
