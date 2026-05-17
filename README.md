@@ -120,3 +120,4 @@ reliability / ICC / descriptive / correlation analyses (use the raw scores).
 
 Indirect and conditional indirect effects use **Monte-Carlo simulation with
 20 000 replications** (see `analysis_code.R`).
+# Sample Size Changes Added
