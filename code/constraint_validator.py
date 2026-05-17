@@ -333,7 +333,7 @@ def main() -> int:
     section("18. Eight deliverable files exist")
     for f in ["Model1.xlsx", "Model2.xlsx", "Model3.xlsx",
               "measurement appendix.xlsx", "ICC空模型.xlsx",
-              "YUYU样本量变化.xlsx",
+              "样本量变化表.xlsx",
               "主模型结果填答表.xlsx", "study3附录结果填答.xlsx"]:
         check(f"results/{f}", (RES / f).exists())
 
@@ -341,7 +341,7 @@ def main() -> int:
     section("19. Each incremental file has EXACTLY 1 sheet")
     for f in ["Model1.xlsx", "Model2.xlsx", "Model3.xlsx",
               "measurement appendix.xlsx", "ICC空模型.xlsx",
-              "YUYU样本量变化.xlsx"]:
+              "样本量变化表.xlsx"]:
         p = RES / f
         # Sheet count is intentionally multi-sheet for the new richer templates.
         # We no longer enforce single-sheet; the template-byte-equal check covers
@@ -540,19 +540,20 @@ def main() -> int:
               f"v={icc_row3}")
         wb.close()
 
-    # ---------- 33. YUYU 34-row layout column C populated for data rows ----------
-    section("33. YUYU table 34-row layout, col C populated for data rows")
-    p = RES / "YUYU样本量变化.xlsx"
+    # ---------- 33. 样本量变化表 55-row layout, col C populated for data rows ----------
+    section("33. 样本量变化表 55-row layout, col C populated for data rows")
+    p = RES / "样本量变化表.xlsx"
     if p.exists():
         wb = load_workbook(p)
         ws = wb[wb.sheetnames[0]]
-        # Rows that should have a number: 3..7, 9..14, 16..19, 21..25, 27..34
-        data_rows = (list(range(3, 8)) + list(range(9, 15))
-                     + list(range(16, 20)) + list(range(21, 26))
-                     + list(range(27, 35)))
+        # Data rows per section (skip blank separator rows): A 2-4, B 6-13,
+        # C 15-23, D 25-31, E 33-40, F 42-55.
+        data_rows = (list(range(2, 5))   + list(range(6, 14))
+                     + list(range(15, 24)) + list(range(25, 32))
+                     + list(range(33, 41)) + list(range(42, 56)))
         empties = [r for r in data_rows if ws.cell(r, 3).value is None
                    or str(ws.cell(r, 3).value).strip() == ""]
-        check("YUYU data rows col C all filled",
+        check("样本量变化表 data rows col C all filled",
               not empties, f"empty rows: {empties}")
         wb.close()
 

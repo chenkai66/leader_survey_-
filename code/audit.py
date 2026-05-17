@@ -166,7 +166,7 @@ def layer3():
     _hdr("Layer 3 — Structural fidelity (label cells byte-equal)")
     INC = ["Model1.xlsx", "Model2.xlsx", "Model3.xlsx",
            "measurement appendix.xlsx", "ICC空模型.xlsx",
-           "YUYU样本量变化.xlsx"]
+           "样本量变化表.xlsx"]
     MASTER = ["主模型结果填答表.xlsx", "study3附录结果填答.xlsx"]
 
     def _check(template_path, output_path, label):
@@ -283,18 +283,23 @@ def layer5():
             _fail("layer5", f"{c} sum = {final[c].sum():.6e}")
     print("  All centered _C columns sum to ~ 0")
 
-    wb = load_workbook(RES / "YUYU样本量变化.xlsx")
+    wb = load_workbook(RES / "样本量变化表.xlsx")
     ws = wb[wb.sheetnames[0]]
     # New 34-row YUYU layout. Per wave: submitted, AC-fail, usable.
     # Spreadsheet arithmetic does NOT simply balance because dups / ID
     # mismatch removals are not shown here (they live in the cascade JSON).
     # Here we only check that each wave triple is populated and that
     # submitted >= usable >= 0.
+    # 样本量变化表.xlsx layout:
+    #   B (T1): row 6 submitted, row 7 AC fail, row 11 usable
+    #   C (T2): row 16 submitted, row 17 AC fail, row 21 usable
+    #   D (T3f): row 26 submitted, row 27 AC fail, row 31 usable
+    #   E (T3l): row 34 submitted, row 35 AC fail, row 39 usable
     triples = [
-        ("T1", 3, 4, 5),     # 3=submitted, 4=AC fail, 5=usable
-        ("T2", 10, 11, 12),  # 10=submitted, 11=AC fail, 12=usable
-        ("T3f", 17, 18, 19), # 17=submitted, 18=AC fail, 19=usable
-        ("T3l", 22, 23, 24), # 22=submitted, 23=AC fail, 24=usable
+        ("T1",  6,  7, 11),
+        ("T2",  16, 17, 21),
+        ("T3f", 26, 27, 31),
+        ("T3l", 34, 35, 39),
     ]
     for wave, sub_r, ac_r, use_r in triples:
         sub = ws.cell(sub_r, 3).value
@@ -595,7 +600,7 @@ def layer9():
     TPL_INC = ROOT / "第一轮结果后客户反馈"
     files = ["Model1.xlsx", "Model2.xlsx", "Model3.xlsx",
              "measurement appendix.xlsx", "ICC空模型.xlsx",
-             "YUYU样本量变化.xlsx"]
+             "样本量变化表.xlsx"]
     placeholder_strs = {"___", "(___)", "(_填克隆巴赫系数__)",
                         "F(___, ___) = ___",
                         "Method factor explains ___%", "__%"}

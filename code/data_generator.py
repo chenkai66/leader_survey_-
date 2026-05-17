@@ -292,11 +292,11 @@ def gen_t3_leader(leader_ids_t3: list[str]):
     df["LeaderGender"] = np.random.choice([1, 2], n, p=[0.65, 0.35])
     df["LeaderEducation"] = np.random.choice([2, 3, 4, 5], n,
                                               p=[0.10, 0.55, 0.30, 0.05])
-    # Leadership tenure: spec M~6.2 SD~3.4 range 1-18 — lognormal keeps the
-    # tail short while preserving plausible variability.
-    df["LeadershipTenure"] = np.clip(
-        np.random.lognormal(mean=1.55, sigma=0.55, size=n), 1, 18
-    ).round(1)
+    # Leadership tenure: spec M~6.2 SD~3.4 range 1-18 — lognormal sample,
+    # then cap to LeaderAge - 22 to keep implied lead-start age >= 22.
+    raw_lt = np.random.lognormal(mean=1.55, sigma=0.55, size=n)
+    age_cap = (df["LeaderAge"].astype(int) - 22).clip(lower=1)
+    df["LeadershipTenure"] = np.minimum(np.clip(raw_lt, 1, 18), age_cap).round(1)
     df["SpanOfControl"] = np.random.choice([3, 4, 5, 6, 7, 8], n,
                                             p=[0.10, 0.20, 0.30, 0.20, 0.15, 0.05])
     # Recommended leader-side demographics per Study3 measurement plan.

@@ -1114,49 +1114,88 @@ def fill_icc():
 # YUYU样本量变化.xlsx — 1 sheet × 34 rows × 4 cols
 # =============================================================================
 
-def fill_yuyu():
-    src = TPL / "YUYU样本量变化.xlsx"
-    dst = OUT / "YUYU样本量变化.xlsx"
+def fill_sample_size():
+    """Fill the rich 55-row 样本量变化表.xlsx template (replaces the old YUYU)."""
+    src = TPL / "样本量变化表.xlsx"
+    dst = OUT / "样本量变化表.xlsx"
     wb = load_workbook(src)
     _clear_author_metadata(wb)
     attr = _attrition()
     ws = wb["Sheet1"]
-    # col 3 = 你的数字, fill from attr summary
+
+    # Column 3 ('你的数字') fills below. Cells pre-filled by template (rows
+    # 2-4 = A 初始联系样本; rows 46-47 = 0 by design) are LEFT UNCHANGED
+    # because they're spec-defined fixed counts.
     mapping = {
-        3:  attr.get("T1_submitted"),
-        4:  attr.get("T1_ac_fail_cascade", attr.get("T1_ac_fail")),
-        5:  attr.get("T1_usable_followers"),
-        6:  attr.get("T1_usable_leaders"),
-        7:  attr.get("T1_usable_leaders"),
-        9:  attr.get("T2_invited"),
-        10: attr.get("T2_submitted"),
-        11: attr.get("T2_ac_fail_cascade", attr.get("T2_ac_fail")),
-        12: attr.get("T2_usable_followers"),
-        13: attr.get("T2_usable_leaders"),
-        14: attr.get("T2_usable_leaders"),
-        16: attr.get("T3f_invited"),
-        17: attr.get("T3f_submitted"),
-        18: attr.get("T3f_ac_fail_cascade", attr.get("T3f_ac_fail")),
-        19: attr.get("T3f_usable"),
-        21: attr.get("T3l_invited"),
-        22: attr.get("T3l_submitted"),
-        23: attr.get("T3l_ac_fail_cascade", attr.get("T3l_ac_fail")),
-        24: attr.get("T3l_usable"),
-        25: attr.get("T3l_usable"),
-        27: attr.get("Final_dyads"),
-        28: 0,
-        29: attr.get("Final_dyads"),
-        30: attr.get("Final_dyads"),
-        31: attr.get("Final_leaders"),
-        32: attr.get("Final_leaders"),
-        33: round(attr.get("Avg_followers_per_leader", 0), 2),
-        34: round(attr.get("Avg_followers_per_leader", 0), 2),
+        # B. T1下属端
+        6:  attr.get("T1_submitted"),                     # T1 提交问卷下属数
+        7:  attr.get("T1_ac_fail_cascade", 0),            # T1 注意力检查失败人数
+        8:  attr.get("T1_dups_cascade", 0),               # T1 重复提交人数
+        9:  0,                                            # T1 ID 无效 (none injected in T1)
+        10: 0,                                            # T1 其他无效作答人数
+        11: attr.get("T1_usable_followers"),              # T1 可用下属数
+        12: attr.get("T1_usable_leaders"),                # T1 可用团队数
+        13: attr.get("T1_usable_leaders"),                # T1 可用领导数
+        # C. T2下属端
+        15: attr.get("T2_invited"),                       # T2 受邀下属数
+        16: attr.get("T2_submitted"),                     # T2 提交问卷下属数
+        17: attr.get("T2_ac_fail_cascade", 0),            # T2 注意力检查失败人数
+        18: attr.get("T2_dups_cascade", 0),               # T2 重复提交人数
+        19: attr.get("T2_id_mismatch_cascade", 0),        # T2 ID 无效
+        20: 0,                                            # T2 其他无效作答人数
+        21: attr.get("T2_usable_followers"),              # T2 可用下属数
+        22: attr.get("T2_usable_leaders"),                # T2 可用团队数
+        23: attr.get("T2_usable_leaders"),                # T2 可用领导数
+        # D. T3下属端
+        25: attr.get("T3f_invited"),                      # T3 受邀下属数
+        26: attr.get("T3f_submitted"),                    # T3 提交问卷下属数
+        27: attr.get("T3f_ac_fail_cascade", 0),           # T3 下属注意力检查失败人数
+        28: attr.get("T3f_dups_cascade", 0),              # T3 下属重复提交人数
+        29: attr.get("T3f_id_mismatch_cascade", 0),       # T3 下属 ID 无效
+        30: 0,                                            # T3 下属其他无效作答人数
+        31: attr.get("T3f_usable"),                       # T3 下属可用人数
+        # E. T3领导端
+        33: attr.get("T3l_invited"),                      # T3 受邀领导数
+        34: attr.get("T3l_submitted"),                    # T3 提交问卷领导数
+        35: attr.get("T3l_ac_fail_cascade", 0),           # T3 领导注意力检查失败人数
+        36: attr.get("T3l_dups_cascade", 0),              # T3 领导重复提交人数
+        37: attr.get("T3l_id_mismatch_cascade", 0),       # T3 领导 ID 无效
+        38: 0,                                            # T3 领导其他无效作答人数
+        39: attr.get("T3l_usable"),                       # T3 领导可用人数
+        40: attr.get("T3l_usable"),                       # T3 领导可用团队数
+        # F. 匹配与最终分析
+        42: attr.get("Final_dyads"),                      # T3 初步匹配成功 dyad 数 (≈ final)
+        43: 0,                                            # 跨波次 ID 不匹配 (cascade caught in B-E)
+        44: 0,                                            # AC 失败 dyad 数 (cascade caught in B-E)
+        45: 0,                                            # 重复/冲突 dyad 数 (cascade caught in B-E)
+        # rows 46, 47 (核心变量缺失 / 其他原因) are pre-filled '0' by template
+        48: attr.get("Final_dyads"),                      # 最终有效 dyad 数
+        49: attr.get("Final_dyads"),                      # 最终有效下属数
+        50: attr.get("Final_leaders"),                    # 最终有效领导数
+        51: attr.get("Final_leaders"),                    # 最终有效团队数
+        52: round(attr.get("Avg_followers_per_leader", 0), 2),  # 最终每位领导平均下属数
+        53: round(attr.get("Avg_followers_per_leader", 0), 2),  # 最终每团队平均下属数
+        # rows 54 (team member response rate_j) and 55 (avg team rate) are
+        # team-level metrics; we report the cohort average.
     }
+    n_followers = attr.get("Final_dyads")
+    n_invited = attr.get("T1_submitted", 0)
+    if n_followers and n_invited:
+        mapping[54] = round(n_followers / n_invited, 3)
+        mapping[55] = round(n_followers / n_invited, 3)
+
     for r, v in mapping.items():
-        if v is not None:
+        if v is None:
+            continue
+        cur = ws.cell(r, 3).value
+        # Only fill empty / None cells; preserve pre-filled template values
+        # like A 模块 (450, 90, 90) and F rows 46-47 (0).
+        if cur is None or (isinstance(cur, str) and cur.strip() == ""):
             ws.cell(r, 3).value = v
+
     wb.save(dst)
     print(f"  -> {dst.name}")
+
 
 
 # =============================================================================
@@ -1172,7 +1211,7 @@ def main():
     fill_model3()
     fill_measurement_appendix()
     fill_icc()
-    fill_yuyu()
+    fill_sample_size()
     print()
     print("Done.")
 
