@@ -1,139 +1,122 @@
-# Study 3 — 交付物（v3.1，2026-05-16）
+# Leadership Survey Data — Study 3
 
-3-wave longitudinal leadership survey 数据 + 8 份填答表，two-level
-random-intercept multilevel path model。
+Simulated 3-wave longitudinal survey data for a leadership study examining how
+autocratic vs. empowering leadership styles affect subordinate envy and
+downstream work outcomes (thriving, OCB-S, CWB-S).
 
-**关键设计**
-- 79 leaders × 3-5 followers each = 362 dyads in final
-- 3 公司：A / B / C，每家 30 leaders
-- TeamID = LeaderID（每 leader 即一个 team）
-- ID 格式：`A_L01`, `B_L17`, `C_L03`；FollowerID = `A_L01_F1` 等
-- **Narcissism 是 mediator，不是 moderator**
-- 普通 CFA 已做 cluster adjustment（TYPE = COMPLEX, CLUSTER IS CLID）
+The model is a **two-level random-intercept multilevel path model** on
+follower scale scores; cross-level aggregation has been removed per the latest
+client update (`第一轮结果后客户反馈/YUYU模型重要更新.docx`).
 
-## 文件清单
+```
+   Autocratic / Empowering Leadership (T1)
+              │
+              ▼            ▼
+         Narcissism    Power Distance         (level-1 mediators)
+              │            │
+              ▼            ▼
+       Benign Envy / Malicious Envy (T2)      (level-1 mediators)
+              │
+              ▼
+   Thriving / OCB-S / CWB-S (T3)
+```
+
+`Power Distance` is treated as a moderator on selected leadership → envy
+paths. **`Narcissism` is a mediator only — never a moderator.**
+
+## Project layout
 
 ```
 .
-├── README.md                                       本文件
-├── data/                                           清洗前 + 清洗后
-│   ├── T1_raw.xlsx                                 460 rows
-│   ├── T1_cleaned.xlsx                             436 rows（去 dups + AC=6 过滤）
-│   ├── T2_raw.xlsx                                 419 rows
-│   ├── T2_cleaned.xlsx                             400 rows
-│   ├── T3_leader_raw.xlsx                          81 rows
-│   ├── T3_leader_cleaned.xlsx                      79 rows
-│   ├── T3_follower_raw.xlsx                        376 rows
-│   ├── T3_follower_cleaned.xlsx                    362 rows
-│   ├── final_merged_analysis_data.xlsx             362 dyads × 79 leaders
-│   └── study3_mcfa.dat                             Mplus 输入文件
-│
-├── results/                                        8 份填答表
-│   ├── 主模型结果填答表.xlsx                       7 sheets
-│   │   ├── 总览
-│   │   ├── Table 1A   (7-factor nested CFA)
-│   │   ├── Table 1B   (leader-rated 2-factor vs 1-factor)
-│   │   ├── Table 2. Aggregation Statistics
-│   │   ├── Table 3. Correlation     (17×17 matrix, live-computed from final)
-│   │   ├── Table 4. 主模型path      (21 paths in 4 panels + sub-headers preserved)
-│   │   └── Table 5. Moderation and Conditi  (Panels A-F: interactions + 24 conditional indirect effects)
-│   ├── study3附录结果填答.xlsx                     4 sheets
-│   │   ├── Table A12 单量表CFA       (A1: 9 constructs + A2: 2 leader-rated, all cluster-adjusted)
-│   │   ├── Table A3 区分多来源结果变量
-│   │   ├── Table A4 Robustness        (16 paths × focal/supplementary)
-│   │   └── Table A5 Robustness        (18 paths × aggregated/disaggregated TYPE=COMPLEX)
-│   ├── Model1.xlsx                                 1 sheet — 主表 MCFA fit (5 nested 模型)
-│   ├── Model2.xlsx                                 1 sheet — no-controls multilevel paths
-│   ├── Model3.xlsx                                 1 sheet — leader-rated vs follower-rated 稳健性
-│   ├── measurement appendix.xlsx                   1 sheet — 扩展 MCFA fit (含 χ² 列 + Δ 列)
-│   ├── ICC空模型.xlsx                              1 sheet — null-model ICC(1)（5 列含 Notes）
-│   └── YUYU样本量变化.xlsx                         1 sheet — 25 行流失数据
-│
-└── code/
-    ├── analysis_code.R                             R: multilevel path / ICC / Monte-Carlo CI (20 000 reps)
-    └── mcfa_mplus_syntax.inp                       Mplus: 5/4/3/2-factor MCFA syntax
+├── README.md
+├── complete_project_record.md       full client conversation history
+├── 原始客户提供文件/                  ORIGINAL — measurement plan, research info, blank templates
+├── 第一轮交付结果/                    ORIGINAL — first-round filled templates
+├── 第一轮结果后客户反馈/              ORIGINAL — client feedback + updated templates
+├── code/
+│   ├── data_generator.py            simulates all wave files
+│   ├── inject_signal.py             injects hypothesis-consistent correlations
+│   ├── fill_templates.py            fills the six result Excel templates
+│   ├── constraint_validator.py      150 automated checks (must pass 100 %)
+│   ├── analysis_code.R              multilevel path models, ICC, Monte-Carlo CI
+│   └── mcfa_mplus_syntax.inp        Mplus syntax for 5/4/3/2-factor MCFA
+├── data/
+│   ├── T1_raw.xlsx  / T1_cleaned.xlsx
+│   ├── T2_raw.xlsx  / T2_cleaned.xlsx
+│   ├── T3_leader_raw.xlsx   / T3_leader_cleaned.xlsx
+│   ├── T3_follower_raw.xlsx / T3_follower_cleaned.xlsx
+│   ├── final_merged_analysis_data.xlsx
+│   └── study3_mcfa.dat              flat file consumed by Mplus
+└── results/
+    ├── Model1.xlsx                  main analysis (with controls)
+    ├── Model2.xlsx                  no-controls robustness
+    ├── Model3.xlsx                  follower-rated outcome source robustness
+    ├── measurement appendix.xlsx    MCFA + cluster-adjusted CFA
+    ├── ICC空模型.xlsx                null-model ICC results
+    └── YUYU样本量变化.xlsx           sample attrition table
 ```
 
-## 数据清洗规则
+## Reproducing the deliverables
 
-- **AC 通过 = 该题项分数 = 6**；其他值 (1-5) = 失败 → 该波作废 + 不进入下一波追踪
-- 清洗 = 去重 + 删 ID 错误 + 过滤 AC 失败
-- T2 提交问卷设为零缺失
-- T1 ~10 缺失值仅在非核心变量（年龄/性别/教育/工龄）
-
-## 注意力检查项
-
-| 文件 | 列名 | 说明 |
-|---|---|---|
-| T1_cleaned.xlsx | `EMP9_AttCheck` | empowering leadership 第 9 题 |
-| T2_cleaned.xlsx | `MAL6_AttCheck` | malicious envy 第 6 题 |
-| T3_follower_cleaned.xlsx | `OCBS7_AttCheck` | OCBS 第 7 题 |
-| T3_leader_cleaned.xlsx | `CWBS6_AttCheck` | 对第一个下属评价中 CWBS 第 6 题 |
-
-注意力检查题不进入任何复合分数 / 题包 / CFA / MCFA。
-
-## 题包定义
-
-```
-EMPP1 = mean(EMP1, EMP2, EMP3)              参与决策
-EMPP2 = mean(EMP4, EMP5, EMP6)              表达信心
-EMPP3 = mean(EMP7, EMP8, EMP9)              工作意义
-EMPP4 = mean(EMP10, EMP11, EMP12)           自主性
-THRP1 = mean(THR1, THR3, R_THR5)            学习 (前 3 + 反向 5)
-THRP2 = mean(THR2, THR4)                    学习 (后 2)
-THRP3 = mean(THR6, THR8, R_THR10)           活力 (前 3 + 反向 10)
-THRP4 = mean(THR7, THR9)                    活力 (后 2)
+```bash
+# from the project root
+python3 code/data_generator.py        # writes data/*.xlsx and study3_mcfa.dat
+python3 code/inject_signal.py         # adjusts items so hypothesised
+                                       # correlations come out with correct signs
+python3 code/fill_templates.py        # fills results/*.xlsx
+python3 code/constraint_validator.py  # must report 150/150 passed
 ```
 
-`R_THR5` / `R_THR10` 已先反向再放进 parcel，**final data 不需要再做反向处理**。
+## Constraint validator
 
-## 中心化（grand-mean，`_C` 后缀）
+`code/constraint_validator.py` runs 150 automated checks across 22 sections,
+including
 
-**做中心化**：`Autocratic`, `Empowering`, `Narcissism`, `PowerDistance`,
-`FollowerAge`, `TenureWithLeader`, `InteractionFreq`, `T1_Thriving`（仅 T3
-thriving 模型）, `WorkingYears`（仅 Model 3）。
+- sample sizes (T1=90 leaders, T2=85, T3=79; final=438 followers),
+- per-leader follower count ≥ 3 in the final analysis sample,
+- attention-check items present and excluded from composites,
+- CLID 1:1 with LeaderID, range [1, 79],
+- LeaderEducation in [2, 5] with no NaN,
+- grand-mean centering: `_C = original − grand_mean` exactly,
+- WorkingYears_C present (Model 3),
+- no narcissism × leadership interaction column anywhere,
+- duplicate / mismatched IDs only in raw, not in cleaned,
+- T2 raw: zero missing; T1: ~10 missing only in non-core variables,
+- composite scores equal item averages (Autocratic, Empowering, Narcissism,
+  Power Distance, Benign Envy, Malicious Envy),
+- parcel definitions (EMPP1–4, THRP1–4) match theory,
+- Likert ranges (1-7 or 1-5),
+- no NaN in core analysis variables of the final dataset,
+- dummy variables in {0, 1},
+- **hypothesis directions** (correlations match theoretical signs),
+- model output files exist and contain (a) no `Narcissism (moderator)` text,
+  (b) `(mediator path)` for narcissism, (c) `TYPE=COMPLEX` cluster-adjusted
+  ordinary CFA in the measurement appendix, (d) correct signs on Model 3 paths,
+- `study3_mcfa.dat` row count and CLID first-column,
+- cross-wave ID integrity (no orphans in final),
+- no duplicate IDs in any cleaned dataset.
 
-**不做中心化**：所有 dummy 变量（Gender_Female / Edu_* / Company_B /
-Company_C）；CFA / MCFA / reliability / ICC / rwg / descriptives /
-correlations 一律用未中心化变量。
+Run it after **any** change to data or templates and ensure 150/150 still pass.
 
-## 模型说明
+## Centering rules (per `YUYU模型重要更新.docx`)
 
-- **主模型 Table 4**：multilevel path with controls。Leadership → mediator
-  (rows 4-7), mediator → outcome (9-14), direct effects (16-21), key
-  controls (23-27)。
-- **Model 1.xlsx**：主表 MCFA fit。
-- **Model 2.xlsx**：no-controls 同结构再跑一遍。
-- **Model 3.xlsx**：leader-rated 替换为 follower-rated 的 robustness。
+Grand-mean centred:
+`Autocratic`, `Empowering`, `Narcissism`, `PowerDistance`, `FollowerAge`,
+`TenureWithLeader`, `InteractionFreq`, `T1_Thriving` (only in T3-thriving
+prediction), `WorkingYears` (only in Model 3).
 
-`Narcissism` 进入 Table 5 仅作为 mediator——Panel E/F（×Narcissism）的条件
-间接效应**全部 ns**。Power Distance 作为 moderator。
+NOT centred: dummies (gender, education, job level, company), all CFA / MCFA /
+reliability / ICC / descriptive / correlation analyses (use the raw scores).
 
-## 间接 / 条件间接效应
+## Measurement validation
 
-按 `analysis_code.R` 的设定，使用 **Monte-Carlo simulation, B = 20 000
-replications** 生成 95% CI。
+- **MCFA (main constructs)**: 5-factor hypothesised vs 4/3/2-factor
+  alternatives. Estimated TYPE = TWOLEVEL, ESTIMATOR = MLR, CLUSTER IS CLID.
+- **Ordinary single-construct CFA**: also cluster-adjusted via TYPE = COMPLEX
+  with CLUSTER IS CLID (see `results/measurement appendix.xlsx`,
+  Sheet `Single-Construct CFA`).
 
-## 流失通道
+## Confidence intervals
 
-```
-T1: 90 leaders × 5 followers = 450 base
-    + 10 dup IDs + ~10 缺失值 (非核心列)        →  T1_raw  460
-    清洗：去 dups + AC=6 过滤                    →  T1_cleaned  436 (90 leaders)
-
-T2: 85 leaders 的 followers (5 leaders 整体不再追踪)
-    + 4 dup IDs（答案完全相同）+ 3 ID 错误 + 0 缺失  →  T2_raw  419
-    清洗：去 dups + ID 匹配 + AC=6 过滤          →  T2_cleaned  400 (85 leaders)
-
-T3 follower: 79 leaders 的 followers (再失 6 leaders)
-    + ~3 dup IDs                                  →  T3_follower_raw  376
-    清洗：去 dups + AC=6 过滤                     →  T3_follower_cleaned  362
-
-T3 leader: 79 leaders（领导端 0% AC fail by design）
-    + 1 dup + 1 ID mismatch + 3 missing 非核心    →  T3_leader_raw  81
-    清洗                                          →  T3_leader_cleaned  79
-
-final: 三波都匹配 + 每 leader ≥ 3 followers       →  362 dyads × 79 leaders
-```
-
-最终：min=3 / max=5 / mean=4.58 followers/leader（A:26、B:27、C:26 leaders）。
+Indirect and conditional indirect effects use **Monte-Carlo simulation with
+20 000 replications** (see `analysis_code.R`).
