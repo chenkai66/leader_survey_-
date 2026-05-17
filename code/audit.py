@@ -51,10 +51,20 @@ def _hdr(t):
 
 
 def _is_label(v):
+    """A label cell is one whose template value MUST be preserved
+    byte-equal in the output. Excludes numerics, empty cells, em-dash
+    cells, and every placeholder pattern the fill_templates.py overwrites."""
     if v is None or isinstance(v, (int, float)):
         return False
     s = str(v).strip()
-    if s in ("", "___", "—"):
+    if s in ("", "___", "—", "(___)", "(_填克隆巴赫系数__)",
+             "F(___, ___) = ___", "Method factor explains ___%", "__%"):
+        return False
+    # demographic-line placeholders ('- Male: ___ (%)', 'M = ___, SD = ___', etc.)
+    if "___" in s and ("(%)" in s or "M =" in s or "SD =" in s):
+        return False
+    # bare 'N =' style cells (label ends with '=' but no number yet)
+    if s.endswith("="):
         return False
     if re.fullmatch(r"-?\d+(\.\d+)?", s):
         return False
@@ -93,23 +103,32 @@ def layer2():
     }
     wb.close()
 
+    # New Model3 layout: 'path' sheet, X→Mediator at rows 14 (Aut), 15 (Emp).
+    # Cols 2/3 = BE main effects b/SE; cols 6/7 = ME main effects b/SE.
+    # Cols 10/11 = THR final mediator effect (BE at row 17, ME at row 18).
+    # Cols 12/13 = OCBS final; 14/15 = CWBS final.
     wb = load_workbook(RES / "Model3.xlsx")
-    ws = wb["Sheet1"]
+    wp = wb["path"]
     m3 = {
-        "Auto->Malicious":  ws.cell(3, 2).value,
-        "Emp->Benign":      ws.cell(3, 3).value,
-        "Mal->OCBS":        ws.cell(3, 4).value,
-        "Benign->OCBS":     ws.cell(3, 5).value,
-        "Mal->CWBS":        ws.cell(3, 6).value,
-        "Benign->CWBS":     ws.cell(3, 7).value,
-        "Mal->Thriving":    ws.cell(3, 8).value,
-        "Benign->Thriving": ws.cell(3, 9).value,
+        "Auto->Benign":     wp.cell(14, 2).value,
+        "Emp->Benign":      wp.cell(15, 2).value,
+        "Auto->Malicious":  wp.cell(14, 6).value,
+        "Emp->Malicious":   wp.cell(15, 6).value,
+        "Benign->Thriving": wp.cell(17, 10).value,
+        "Mal->Thriving":    wp.cell(18, 10).value,
+        "Benign->OCBS":     wp.cell(17, 12).value,
+        "Mal->OCBS":        wp.cell(18, 12).value,
+        "Benign->CWBS":     wp.cell(17, 14).value,
+        "Mal->CWBS":        wp.cell(18, 14).value,
     }
     wb.close()
     for k, v in m3.items():
+        if v is None:
+            _fail("layer2", f"Model3 path {k}: cell empty")
+            continue
         if abs(v - table4[k]) > 0.001:
-            _fail("layer2", f"Model3 LR {k}={v} vs Table 4 {table4[k]}")
-    print(f"  Model 3 LR ↔ Table 4: {len(m3)} paths checked")
+            _fail("layer2", f"Model3 path {k}={v} vs Table 4 {table4[k]}")
+    print(f"  Model 3 path sheet ↔ Table 4: {len(m3)} paths checked")
 
     def _parse(s):
         if s is None:
@@ -266,13 +285,30 @@ def layer5():
 
     wb = load_workbook(RES / "YUYU样本量变化.xlsx")
     ws = wb[wb.sheetnames[0]]
-    # Verify rows 2-3-4, 8-9-10, 13-14-15, 17-18-19 balance
-    pairs = [(2, 3, 4), (8, 9, 10), (13, 14, 15), (17, 18, 19)]
-    for sub_r, rem_r, use_r in pairs:
-        s, rem, u = ws.cell(sub_r, 3).value, ws.cell(rem_r, 3).value, ws.cell(use_r, 3).value
-        if s - rem != u:
-            _fail("layer5", f"YUYU row {sub_r}-{rem_r}-{use_r}: {s}-{rem}!={u}")
-    print("  YUYU arithmetic balanced for all 4 wave segments")
+    # New 34-row YUYU layout. Per wave: submitted, AC-fail, usable.
+    # Spreadsheet arithmetic does NOT simply balance because dups / ID
+    # mismatch removals are not shown here (they live in the cascade JSON).
+    # Here we only check that each wave triple is populated and that
+    # submitted >= usable >= 0.
+    triples = [
+        ("T1", 3, 4, 5),     # 3=submitted, 4=AC fail, 5=usable
+        ("T2", 10, 11, 12),  # 10=submitted, 11=AC fail, 12=usable
+        ("T3f", 17, 18, 19), # 17=submitted, 18=AC fail, 19=usable
+        ("T3l", 22, 23, 24), # 22=submitted, 23=AC fail, 24=usable
+    ]
+    for wave, sub_r, ac_r, use_r in triples:
+        sub = ws.cell(sub_r, 3).value
+        ac  = ws.cell(ac_r, 3).value
+        use = ws.cell(use_r, 3).value
+        for label, val in [("submitted", sub), ("AC fail", ac), ("usable", use)]:
+            if val is None:
+                _fail("layer5", f"YUYU {wave} {label} cell empty")
+        if all(isinstance(x, (int, float)) for x in (sub, use)):
+            if sub < use:
+                _fail("layer5", f"YUYU {wave}: submitted ({sub}) < usable ({use})")
+            if use < 0:
+                _fail("layer5", f"YUYU {wave}: usable ({use}) < 0")
+    print("  YUYU spreadsheet triples populated for all 4 waves")
     wb.close()
 
     # JSON-level reconciling arithmetic using cascade counts.  Each
@@ -540,17 +576,73 @@ def layer8():
     print(f"  Table A4 rows 7-18 (mediator-equation paths) focal == supp")
 
 
+
+# ── Layer 9 ─────────────────────────────────────────────────────────
+def layer9():
+    """Template byte-equal preservation: every cell whose template value
+    is a real label/note/sub-header (NOT a placeholder, NOT None) must
+    appear unchanged in the result file. Catches accidental overwrites
+    by the fill scripts."""
+    _hdr("Layer 9 — Template byte-equal preservation")
+    TPL_INC = ROOT / "第一轮结果后客户反馈"
+    files = ["Model1.xlsx", "Model2.xlsx", "Model3.xlsx",
+             "measurement appendix.xlsx", "ICC空模型.xlsx",
+             "YUYU样本量变化.xlsx"]
+    placeholder_strs = {"___", "(___)", "(_填克隆巴赫系数__)",
+                        "F(___, ___) = ___",
+                        "Method factor explains ___%", "__%"}
+
+    def _is_ph(v):
+        if v is None or not isinstance(v, str):
+            return False
+        if v in placeholder_strs:
+            return True
+        if "___" in v and ("(%)" in v or "M =" in v or "SD =" in v):
+            return True
+        # bare 'N =' / 'Age =' style cells (label ends with '=' but no number yet)
+        if v.endswith("="):
+            return True
+        return False
+
+    total = 0
+    for f in files:
+        wt = load_workbook(TPL_INC / f)
+        wo = load_workbook(RES / f)
+        if wt.sheetnames != wo.sheetnames:
+            _fail("layer9", f"{f} sheets differ: tpl={wt.sheetnames} out={wo.sheetnames}")
+            wt.close(); wo.close()
+            continue
+        file_diffs = 0
+        for sn in wt.sheetnames:
+            wst, wso = wt[sn], wo[sn]
+            for r in range(1, wst.max_row + 1):
+                for c in range(1, wst.max_column + 1):
+                    tv = wst.cell(r, c).value
+                    if tv is None:
+                        continue
+                    if _is_ph(tv):
+                        continue
+                    if tv != wso.cell(r, c).value:
+                        file_diffs += 1
+        if file_diffs:
+            _fail("layer9", f"{f}: {file_diffs} non-placeholder cells differ from template")
+        total += file_diffs
+        wt.close(); wo.close()
+    if total == 0:
+        print(f"  All 6 templates byte-equal preserved across labels / notes / headers")
+
+
 # ── Driver ──────────────────────────────────────────────────────────
 def main():
     print("=" * 70)
-    print("DELIVERABLE AUDIT — 8 layers")
+    print("DELIVERABLE AUDIT — 9 layers")
     print("=" * 70)
 
-    layer1(); layer2(); layer3(); layer4(); layer5(); layer6(); layer7(); layer8()
+    layer1(); layer2(); layer3(); layer4(); layer5(); layer6(); layer7(); layer8(); layer9()
 
     print("\n" + "=" * 70)
     if not ALL_FAILURES:
-        print("ALL 8 AUDIT LAYERS PASSED — deliverables clean.")
+        print("ALL 9 AUDIT LAYERS PASSED — deliverables clean.")
         print("=" * 70)
         return 0
     print(f"FOUND {len(ALL_FAILURES)} ISSUES across audit layers:")
