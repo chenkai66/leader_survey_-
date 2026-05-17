@@ -346,19 +346,56 @@ data/
 results/   (8 份填答表，严格对齐原始模板)
   主模型结果填答表.xlsx               7 sheets
   study3附录结果填答.xlsx              4 sheets
-  Model1.xlsx        1 sheet — MCFA fit (5 nested models)
-  Model2.xlsx        1 sheet — no-controls multilevel paths
-  Model3.xlsx        1 sheet — leader-rated vs follower-rated robustness
-  measurement appendix.xlsx           1 sheet — Expanded MCFA fit (含 χ² 列)
-  ICC空模型.xlsx                       1 sheet — null-model ICC(1)
-  YUYU样本量变化.xlsx（即样本量变化表 260427）  1 sheet — 25 行流失数据
+  Model1.xlsx        9 sheets — MCFA / Correlation / Path / 被调节的中介效应 /
+                                 简单调节效应 / ICC等 / 描述性统计 / CMV / 流失率
+  Model2.xlsx        4 sheets — path (no controls) / 被调节的中介效应检验 /
+                                 单纯的调节效应 / 是否和model1结论一致
+  Model3.xlsx        6 sheets — CMV / MCFA / correlation / path / 被调节的中介效应 /
+                                 简单调节效应（follower-rated outcomes 替换 leader-rated）
+  measurement appendix.xlsx           5 sheets — 1A (MCFA 5 nested) /
+                                                  1B (Narc+PD+BE+ME+THR CFA) /
+                                                  1C (Leader-rated OCBS+CWBS CFA) /
+                                                  1D (Follower-rated OCBS+CWBS CFA) /
+                                                  单量表CFA (Table A1 + A2 single-construct CFAs)
+  ICC空模型.xlsx                       1 sheet — 10 列 × 7 变量行 (含 σ²/τ00/L1%/L2%)
+  YUYU样本量变化.xlsx（即样本量变化表 260427）  1 sheet — 34 行流失数据（含模块/指标/你的数字/备注）
 ```
 
 ### 七、与原模板严格对齐
 
-- Model1.xlsx：列 = `Model | CMIN/DF | CFI | TLI | RMSEA | SRMR Within | SRMR Between | AIC | BIC | LL | df`，行 = Hypothesised + Alternative model 1-4 + Reference
-- Model2.xlsx：行 = Estimate / SE / t / p / 95% CI Lower / Upper / Note，列 = 6 paths + 8 模型诊断 + Sample size
-- Model3.xlsx：行 = Leader-rated estimate / Follower-rated estimate / Difference / 95% CI Lower / Upper / Robustness，列 = 8 paths + Notes
-- measurement appendix.xlsx：列 = `Model | χ² | CMIN/DF | CFI | TLI | RMSEA | SRMR_W | SRMR_B | AIC | BIC | ΔCMIN/DF | ΔAIC | ΔBIC | Δdf` —— 比原模板多了一列 χ²
-- ICC空模型.xlsx：列 = `Variable | ICC(1) | Level-1 variance | Level-2 variance % | Notes`，5 列全填，没有空列
-- YUYU 样本量变化.xlsx：26 行（含表头）按原始模块结构 B/C/D/E/F 全填
+> **Note**: 2026-05-17 客户更新了 Model1-3 / 措施 appendix / ICC / YUYU 6 个模板，
+> 让结构变得更丰富（之前的"1 sheet 版"已经被客户更新覆盖，是当时存文件的问题）。
+> 现在的填表规则是：**严格 byte-equal 保留模板**所有 label / header / note /
+> sub-header / 占位符 / 表标题，**仅覆写**占位符模式
+> （`'___'` / `'(___)'` / `'F(___, ___) = ___'` / `'Method factor explains ___%'` /
+> `'M = ___, SD = ___'` / `'- Male: ___ (%)'` / `'N ='` 等）。
+
+- **Model1.xlsx** (9 sheets):
+  - `MCFA`: 5 nested model comparison (within = BE/ME/THR, between = AL/EL)
+  - `Correlation`: 14 × 14 with Mean/SD/Cronbach α on diagonal
+  - `Path`: 28 × 15 full path table (intercept + controls + predictors +
+    mediators + moderators + interactions + R² within/between)
+  - `被调节的中介效应`: 42-row indirect + conditional indirect effects table
+  - `简单调节效应`: 8 simple-slope rows × 23 cols (interaction b/SE/p/CI +
+    high/low/diff simple slopes)
+  - `ICC等`: ICC(1)/ICC(2)/F/p/rwg for AL + EL only
+  - `描述性统计`: 52-row follower + leader demographics (M/SD/categorical %)
+  - `CMV`: common method variance assessment + variance-explained %
+  - `流失率和注意力检查`: 21-row attrition + AC failure counts
+- **Model2.xlsx** (4 sheets): path (no controls) / 被调节的中介效应检验 /
+  单纯的调节效应 / 是否和model1结论一致 (24-row consistency table)
+- **Model3.xlsx** (6 sheets): same structure as Model1 but with follower-rated
+  OCBS/CWBS replacing leader-rated outcomes (robustness)
+- **measurement appendix.xlsx** (5 sheets): 1A (MCFA fit, 5 nested) /
+  1B (普通 CFA for Narc+PD+BE+ME+THR with Δχ²/Δdf cols) /
+  1C (Leader-rated OCBS+CWBS CFA) / 1D (Follower-rated OCBS+CWBS CFA) /
+  单量表CFA (Tables A1 + A2, 11 single-construct CFAs)
+- **ICC空模型.xlsx**: 10 列 × 7 变量行
+  (Variable | Source | Time | L1 unit | L2 unit | σ² | τ00 | ICC(1) | L1% | L2%)
+- **YUYU 样本量变化.xlsx**: 34 行 × 4 列
+  (模块 | 指标 | 你的数字 | 备注/定义), 含 B/C/D/E/F 模块 + 比例计算
+- **主模型结果填答表.xlsx** (7 sheets): 总览 / Table 1A / Table 1B /
+  Table 2. Aggregation Statistics / Table 3. Correlation / Table 4. 主模型path /
+  Table 5. Moderation and Conditional Indirect Effects (6 panels A-F)
+- **study3附录结果填答.xlsx** (4 sheets): Table A1 / Table A2 / Table A3 /
+  Table A4 Robustness / Table A5 Robustness

@@ -259,10 +259,10 @@ def main() -> int:
         ("EMPP2", ["EMP4", "EMP5", "EMP6"]),
         ("EMPP3", ["EMP7", "EMP8", "EMP9"]),
         ("EMPP4", ["EMP10", "EMP11", "EMP12"]),
-        ("THRP1", ["THR1", "THR3", "R_THR5"]),
-        ("THRP2", ["THR2", "THR4"]),
-        ("THRP3", ["THR6", "THR8", "R_THR10"]),
-        ("THRP4", ["THR7", "THR9"]),
+        ("THRP1", ["THR1", "THR2", "THR3"]),
+        ("THRP2", ["THR4", "R_THR5"]),
+        ("THRP3", ["THR6", "THR7", "THR8"]),
+        ("THRP4", ["THR9", "R_THR10"]),
     ]
     for parcel, items in parcels:
         if all(c in t1.columns for c in items + [parcel]):

@@ -206,14 +206,16 @@ def main() -> None:
                 final[c] = final[key[0]].map(m[c])
 
     # Recompute parcels / composites that depend on changed items
-    if all(c in final.columns for c in ['T3_THR1', 'T3_THR3', 'T3_R_THR5']):
-        final['T3_THRP1'] = final[['T3_THR1', 'T3_THR3', 'T3_R_THR5']].mean(axis=1)
-    if all(c in final.columns for c in ['T3_THR2', 'T3_THR4']):
-        final['T3_THRP2'] = final[['T3_THR2', 'T3_THR4']].mean(axis=1)
-    if all(c in final.columns for c in ['T3_THR6', 'T3_THR8', 'T3_R_THR10']):
-        final['T3_THRP3'] = final[['T3_THR6', 'T3_THR8', 'T3_R_THR10']].mean(axis=1)
-    if all(c in final.columns for c in ['T3_THR7', 'T3_THR9']):
-        final['T3_THRP4'] = final[['T3_THR7', 'T3_THR9']].mean(axis=1)
+    # Thriving parcels per YUYU spec: P1/P3 = first 3 of learning/vitality;
+    #   P2/P4 = last 2 (with reverse item reversed first).
+    if all(c in final.columns for c in ['T3_THR1', 'T3_THR2', 'T3_THR3']):
+        final['T3_THRP1'] = final[['T3_THR1', 'T3_THR2', 'T3_THR3']].mean(axis=1)
+    if all(c in final.columns for c in ['T3_THR4', 'T3_R_THR5']):
+        final['T3_THRP2'] = final[['T3_THR4', 'T3_R_THR5']].mean(axis=1)
+    if all(c in final.columns for c in ['T3_THR6', 'T3_THR7', 'T3_THR8']):
+        final['T3_THRP3'] = final[['T3_THR6', 'T3_THR7', 'T3_THR8']].mean(axis=1)
+    if all(c in final.columns for c in ['T3_THR9', 'T3_R_THR10']):
+        final['T3_THRP4'] = final[['T3_THR9', 'T3_R_THR10']].mean(axis=1)
     if all(c in final.columns for c in ['T3_THRP1', 'T3_THRP2', 'T3_THRP3', 'T3_THRP4']):
         final['T3_Thriving'] = final[['T3_THRP1', 'T3_THRP2',
                                       'T3_THRP3', 'T3_THRP4']].mean(axis=1)
@@ -246,16 +248,24 @@ def main() -> None:
 
     # After R_THR repair, re-derive thriving parcels + composite using
     # corrected reverse-coded items.
-    if all(c in final.columns for c in ['T3_THR1', 'T3_THR3', 'T3_R_THR5']):
-        final['T3_THRP1'] = final[['T3_THR1', 'T3_THR3', 'T3_R_THR5']].mean(axis=1)
-    if all(c in final.columns for c in ['T3_THR6', 'T3_THR8', 'T3_R_THR10']):
-        final['T3_THRP3'] = final[['T3_THR6', 'T3_THR8', 'T3_R_THR10']].mean(axis=1)
+    if all(c in final.columns for c in ['T3_THR1', 'T3_THR2', 'T3_THR3']):
+        final['T3_THRP1'] = final[['T3_THR1', 'T3_THR2', 'T3_THR3']].mean(axis=1)
+    if all(c in final.columns for c in ['T3_THR4', 'T3_R_THR5']):
+        final['T3_THRP2'] = final[['T3_THR4', 'T3_R_THR5']].mean(axis=1)
+    if all(c in final.columns for c in ['T3_THR6', 'T3_THR7', 'T3_THR8']):
+        final['T3_THRP3'] = final[['T3_THR6', 'T3_THR7', 'T3_THR8']].mean(axis=1)
+    if all(c in final.columns for c in ['T3_THR9', 'T3_R_THR10']):
+        final['T3_THRP4'] = final[['T3_THR9', 'T3_R_THR10']].mean(axis=1)
     if all(c in final.columns for c in ['T3_THRP1','T3_THRP2','T3_THRP3','T3_THRP4']):
         final['T3_Thriving'] = final[['T3_THRP1','T3_THRP2','T3_THRP3','T3_THRP4']].mean(axis=1)
-    if all(c in final.columns for c in ['THR1', 'THR3', 'R_THR5']):
-        final['THRP1'] = final[['THR1', 'THR3', 'R_THR5']].mean(axis=1)
-    if all(c in final.columns for c in ['THR6', 'THR8', 'R_THR10']):
-        final['THRP3'] = final[['THR6', 'THR8', 'R_THR10']].mean(axis=1)
+    if all(c in final.columns for c in ['THR1', 'THR2', 'THR3']):
+        final['THRP1'] = final[['THR1', 'THR2', 'THR3']].mean(axis=1)
+    if all(c in final.columns for c in ['THR4', 'R_THR5']):
+        final['THRP2'] = final[['THR4', 'R_THR5']].mean(axis=1)
+    if all(c in final.columns for c in ['THR6', 'THR7', 'THR8']):
+        final['THRP3'] = final[['THR6', 'THR7', 'THR8']].mean(axis=1)
+    if all(c in final.columns for c in ['THR9', 'R_THR10']):
+        final['THRP4'] = final[['THR9', 'R_THR10']].mean(axis=1)
     if all(c in final.columns for c in ['THRP1','THRP2','THRP3','THRP4']):
         final['T1_Thriving'] = final[['THRP1','THRP2','THRP3','THRP4']].mean(axis=1)
 

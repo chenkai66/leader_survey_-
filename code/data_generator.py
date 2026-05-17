@@ -58,7 +58,7 @@ N_FOLLOWERS_PER_LEADER = (5,)               # start with 5 each, attrition reduc
 COMPANY_SPLIT = {"A": 30, "B": 30, "C": 30}  # sums to 90
 
 AC_PASS_VALUE = 6
-AC_FAIL_RATE = 0.035  # 3.5% per wave (centered in spec range, balances leader count)
+AC_FAIL_RATE = 0.03  # nudged to keep Final_leaders=79 after stricter tenure distribution
 
 LIKERT_HI = 7  # 1-7 scale for Autocratic, Empowering, Narcissism, PD, BEN, MAL, Thriving, OCBS, CWBS
 
@@ -116,12 +116,13 @@ def ac_column(n_rows: int) -> np.ndarray:
     return out
 
 
-def integer_tenure(n_rows: int) -> np.ndarray:
-    """Years with current leader, mostly integer 1-10, ~5% with .5 increments."""
-    base = np.random.choice(np.arange(1, 11), size=n_rows,
-                            p=[0.10, 0.15, 0.18, 0.15, 0.12, 0.10, 0.08, 0.06, 0.04, 0.02]).astype(float)
+def integer_tenure(n_rows):
+    """Tenure: spec M~2.3 SD~1.4 range 0.2-7.5; right-skewed."""
+    import numpy as np
+    base = np.random.choice(np.arange(1, 8), size=n_rows,
+                            p=[0.30, 0.28, 0.18, 0.12, 0.07, 0.03, 0.02]).astype(float)
     half_idx = np.random.choice(n_rows, size=int(0.05 * n_rows), replace=False)
-    base[half_idx] = base[half_idx] - 0.5
+    base[half_idx] = 0.5
     return base
 
 
@@ -169,7 +170,7 @@ def gen_t1():
                                               p=[0.20, 0.35, 0.25, 0.15, 0.05])
     df["WorkingYears"] = np.clip(
         df["FollowerAge"] - 22 + np.random.normal(0, 2, n).round().astype(int),
-        0, 35,
+        1, 35,
     ).astype(int)
     # Tenure with current leader: must be <= total work history.
     raw_tenure = integer_tenure(n)
@@ -198,10 +199,13 @@ def add_t1_derived(df: pd.DataFrame) -> pd.DataFrame:
     df["EMPP4"] = df[["EMP10", "EMP11", "EMP12"]].mean(axis=1)
 
     # Thriving parcels (Items 5 and 10 reversed first)
-    df["THRP1"] = df[["THR1", "THR3", "R_THR5"]].mean(axis=1)
-    df["THRP2"] = df[["THR2", "THR4"]].mean(axis=1)
-    df["THRP3"] = df[["THR6", "THR8", "R_THR10"]].mean(axis=1)
-    df["THRP4"] = df[["THR7", "THR9"]].mean(axis=1)
+    # Thriving parcels per YUYU spec: P1 = first 3 learning items;
+    # P2 = last 2 learning items (reversed first); P3 = first 3 vitality;
+    # P4 = last 2 vitality (reversed first). Items 5 & 10 reversed.
+    df["THRP1"] = df[["THR1", "THR2", "THR3"]].mean(axis=1)
+    df["THRP2"] = df[["THR4", "R_THR5"]].mean(axis=1)
+    df["THRP3"] = df[["THR6", "THR7", "THR8"]].mean(axis=1)
+    df["THRP4"] = df[["THR9", "R_THR10"]].mean(axis=1)
 
     # Composites (excluding attention-check items)
     df["Autocratic"] = df[[f"AUT{i}" for i in range(1, 7)]].mean(axis=1)
@@ -288,12 +292,22 @@ def gen_t3_leader(leader_ids_t3: list[str]):
     df["LeaderGender"] = np.random.choice([1, 2], n, p=[0.65, 0.35])
     df["LeaderEducation"] = np.random.choice([2, 3, 4, 5], n,
                                               p=[0.10, 0.55, 0.30, 0.05])
+    # Leadership tenure: spec M~6.2 SD~3.4 range 1-18 — lognormal keeps the
+    # tail short while preserving plausible variability.
     df["LeadershipTenure"] = np.clip(
-        df["LeaderAge"] - 28 + np.random.normal(0, 2, n).round().astype(int),
-        1, 30,
-    ).astype(int)
+        np.random.lognormal(mean=1.55, sigma=0.55, size=n), 1, 18
+    ).round(1)
     df["SpanOfControl"] = np.random.choice([3, 4, 5, 6, 7, 8], n,
                                             p=[0.10, 0.20, 0.30, 0.20, 0.15, 0.05])
+    # Recommended leader-side demographics per Study3 measurement plan.
+    # Working years: spec M~15.1 SD~5.8 range 5-29.
+    df["LeaderWorkingYears"] = np.clip(
+        np.random.normal(15.1, 5.8, n), 5, 29
+    ).round().astype(int)
+    # Job level: 5-category (spec M~3.35 SD~0.72).
+    df["LeaderJobLevel"] = np.clip(
+        np.round(np.random.normal(3.35, 0.72, n)), 2, 5
+    ).astype(int)
     return df
 
 
@@ -411,10 +425,11 @@ def add_t3f_dups(t3f: pd.DataFrame) -> pd.DataFrame:
 def derive_t3_follower_outcomes(t3f: pd.DataFrame) -> pd.DataFrame:
     df = t3f.copy()
     # T3 thriving parcels and composite
-    df["T3_THRP1"] = df[["T3_THR1", "T3_THR3", "T3_R_THR5"]].mean(axis=1)
-    df["T3_THRP2"] = df[["T3_THR2", "T3_THR4"]].mean(axis=1)
-    df["T3_THRP3"] = df[["T3_THR6", "T3_THR8", "T3_R_THR10"]].mean(axis=1)
-    df["T3_THRP4"] = df[["T3_THR7", "T3_THR9"]].mean(axis=1)
+    # Same parcel rule as T1.
+    df["T3_THRP1"] = df[["T3_THR1", "T3_THR2", "T3_THR3"]].mean(axis=1)
+    df["T3_THRP2"] = df[["T3_THR4", "T3_R_THR5"]].mean(axis=1)
+    df["T3_THRP3"] = df[["T3_THR6", "T3_THR7", "T3_THR8"]].mean(axis=1)
+    df["T3_THRP4"] = df[["T3_THR9", "T3_R_THR10"]].mean(axis=1)
     df["T3_Thriving"] = df[[f"T3_THRP{i}" for i in range(1, 5)]].mean(axis=1)
     df["OCBS_Follower"] = df[[f"OCBS_Self{i}" for i in range(1, 7)]].mean(axis=1)
     df["CWBS_Follower"] = df[[f"CWBS_Self{i}" for i in range(1, 6)]].mean(axis=1)
@@ -472,6 +487,12 @@ def make_final(t1c, t2c, t3fc, t3lc) -> pd.DataFrame:
     final["Edu_Associate"]   = (final["FollowerEducation"] == 2).astype(int)
     final["Edu_Master"]      = (final["FollowerEducation"] == 4).astype(int)
     final["Edu_Doctoral"]    = (final["FollowerEducation"] == 5).astype(int)
+    # Job level dummies (Level 2..5; Level 1 = reference)
+    for lvl, label in [(2, "Mid"), (3, "Senior"), (4, "Manager"), (5, "Executive")]:
+        final[f"Job_{label}"] = (final["FollowerJobLevel"] == lvl).astype(int)
+    # Leader gender dummy (Male = 1, others = 0)
+    if "LeaderGender" in final.columns:
+        final["LeaderMale"] = (final["LeaderGender"] == 1).astype(int)
     # Company dummies (k-1 = 2)
     final["Company_B"] = (final["CompanyID"] == "B").astype(int)
     final["Company_C"] = (final["CompanyID"] == "C").astype(int)

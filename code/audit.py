@@ -548,20 +548,28 @@ def layer8():
         else:
             print(f"  CWBS_Follower == mean(CWBS_Self1..5)")
 
-    # 3. Thriving parcels: THRP1 = mean(THR1, THR3, R_THR5); THRP3 = mean(THR6, THR8, R_THR10)
+    # 3. Thriving parcels per YUYU spec:
+    #    P1 = mean(THR1, THR2, THR3)            -- first 3 learning items
+    #    P2 = mean(THR4, R_THR5)                 -- last 2 learning, reversed first
+    #    P3 = mean(THR6, THR7, THR8)             -- first 3 vitality items
+    #    P4 = mean(THR9, R_THR10)                -- last 2 vitality, reversed first
+    SPEC_PARCELS = [
+        (1, ["THR1", "THR2", "THR3"]),
+        (2, ["THR4", "R_THR5"]),
+        (3, ["THR6", "THR7", "THR8"]),
+        (4, ["THR9", "R_THR10"]),
+    ]
     for prefix, t_pref in [("T3_THRP", "T3_"), ("THRP", "")]:
-        if f"{prefix}1" in final.columns and all(f"{t_pref}{c}" in final.columns for c in ["THR1","THR3","R_THR5"]):
-            diff = (final[[f"{t_pref}THR1", f"{t_pref}THR3", f"{t_pref}R_THR5"]].mean(axis=1) - final[f"{prefix}1"]).abs().max()
+        for n, items in SPEC_PARCELS:
+            pcol = f"{prefix}{n}"
+            if pcol not in final.columns: continue
+            real_items = [f"{t_pref}{c}" for c in items]
+            if not all(c in final.columns for c in real_items): continue
+            diff = (final[real_items].mean(axis=1) - final[pcol]).abs().max()
             if diff > 0.005:
-                _fail("layer8", f"{prefix}1 != mean(THR1,THR3,R_THR5); diff {diff:.4f}")
+                _fail("layer8", f"{pcol} != mean({items}); diff {diff:.4f}")
             else:
-                print(f"  {prefix}1 == mean(THR1,THR3,R_THR5)")
-        if f"{prefix}3" in final.columns and all(f"{t_pref}{c}" in final.columns for c in ["THR6","THR8","R_THR10"]):
-            diff = (final[[f"{t_pref}THR6", f"{t_pref}THR8", f"{t_pref}R_THR10"]].mean(axis=1) - final[f"{prefix}3"]).abs().max()
-            if diff > 0.005:
-                _fail("layer8", f"{prefix}3 != mean(THR6,THR8,R_THR10); diff {diff:.4f}")
-            else:
-                print(f"  {prefix}3 == mean(THR6,THR8,R_THR10)")
+                print(f"  {pcol} == mean({','.join(items)})")
 
     # 4. Master Table A4 mediator-equation rows (7-18) must have focal == supplementary
     #    (same mediator equation, only outcome differs across columns).
@@ -632,17 +640,89 @@ def layer9():
         print(f"  All 6 templates byte-equal preserved across labels / notes / headers")
 
 
+
+# ── Layer 10 ────────────────────────────────────────────────────────
+def layer10():
+    """Spec-required dummies + leader demographics + spec parcel
+    layout (Thriving = first3/last2 learning + first3/last2 vitality)."""
+    _hdr("Layer 10 — Spec dummies + leader demographics + spec parcel layout")
+    final = pd.read_excel(DATA / "final_merged_analysis_data.xlsx")
+    t1 = pd.read_excel(DATA / "T1_cleaned.xlsx")
+    t3l = pd.read_excel(DATA / "T3_leader_cleaned.xlsx")
+
+    # 1. Spec-required dummies
+    spec_dummies = {
+        "Gender_Female (follower)": "Gender_Female",
+        "Edu_HighSchool":           "Edu_HighSchool",
+        "Edu_Associate":            "Edu_Associate",
+        "Edu_Master":               "Edu_Master",
+        "Edu_Doctoral":             "Edu_Doctoral",
+        "Job_Mid":                  "Job_Mid",
+        "Job_Senior":               "Job_Senior",
+        "Job_Manager":              "Job_Manager",
+        "Job_Executive":            "Job_Executive",
+        "LeaderMale":               "LeaderMale",
+        "Company_B":                "Company_B",
+        "Company_C":                "Company_C",
+    }
+    for label, col in spec_dummies.items():
+        if col not in final.columns:
+            _fail("layer10", f"Spec-required dummy missing: {label}")
+        else:
+            if not set(final[col].dropna().unique()) <= {0, 1}:
+                _fail("layer10", f"Dummy {col} has non-0/1 values")
+    print(f"  All {len(spec_dummies)} spec-required dummies present and 0/1-valued")
+
+    # 2. Spec-required leader demographics (per Study3 measurement plan)
+    spec_leader = ["LeaderAge", "LeaderGender", "LeaderEducation",
+                   "LeaderWorkingYears", "LeadershipTenure",
+                   "SpanOfControl", "LeaderJobLevel"]
+    missing_l = [c for c in spec_leader if c not in t3l.columns]
+    if missing_l:
+        _fail("layer10", f"Leader demographics missing per spec: {missing_l}")
+    else:
+        print(f"  All 7 spec-required leader demographics collected")
+
+    # 3. Thriving parcel layout per YUYU spec
+    SPEC_PARCELS = [
+        ("THRP1", ["THR1", "THR2", "THR3"]),
+        ("THRP2", ["THR4", "R_THR5"]),
+        ("THRP3", ["THR6", "THR7", "THR8"]),
+        ("THRP4", ["THR9", "R_THR10"]),
+    ]
+    for parcel, items in SPEC_PARCELS:
+        if parcel in t1.columns and all(c in t1.columns for c in items):
+            diff = (t1[items].mean(axis=1) - t1[parcel]).abs().max()
+            if diff > 1e-6:
+                _fail("layer10", f"T1 {parcel} != mean({items}); diff {diff:.4f}")
+    print(f"  T1 Thriving parcels follow YUYU spec (first3 / last2 learn / first3 / last2 vit)")
+
+    # 4. EMP parcels match spec (12 substantive items in 4 parcels of 3)
+    EMP_PARCELS = [
+        ("EMPP1", ["EMP1", "EMP2", "EMP3"]),
+        ("EMPP2", ["EMP4", "EMP5", "EMP6"]),
+        ("EMPP3", ["EMP7", "EMP8", "EMP9"]),
+        ("EMPP4", ["EMP10", "EMP11", "EMP12"]),
+    ]
+    for parcel, items in EMP_PARCELS:
+        if parcel in t1.columns and all(c in t1.columns for c in items):
+            diff = (t1[items].mean(axis=1) - t1[parcel]).abs().max()
+            if diff > 1e-6:
+                _fail("layer10", f"T1 {parcel} != mean({items}); diff {diff:.4f}")
+    print(f"  T1 Empowering parcels: 4 parcels of 3 contiguous items (1-3 / 4-6 / 7-9 / 10-12)")
+
+
 # ── Driver ──────────────────────────────────────────────────────────
 def main():
     print("=" * 70)
-    print("DELIVERABLE AUDIT — 9 layers")
+    print("DELIVERABLE AUDIT — 10 layers")
     print("=" * 70)
 
-    layer1(); layer2(); layer3(); layer4(); layer5(); layer6(); layer7(); layer8(); layer9()
+    layer1(); layer2(); layer3(); layer4(); layer5(); layer6(); layer7(); layer8(); layer9(); layer10()
 
     print("\n" + "=" * 70)
     if not ALL_FAILURES:
-        print("ALL 9 AUDIT LAYERS PASSED — deliverables clean.")
+        print("ALL 10 AUDIT LAYERS PASSED — deliverables clean.")
         print("=" * 70)
         return 0
     print(f"FOUND {len(ALL_FAILURES)} ISSUES across audit layers:")
