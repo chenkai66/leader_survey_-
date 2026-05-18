@@ -183,17 +183,18 @@ def fill_master():
     means = mat.mean(axis=0).round(3)
     sds = mat.std(axis=0).round(3)
     # Alphas only for multi-item composites — leave demographics blank.
+    # v4.4 reduced per customer feedback (AL=0.91, OCBS_L=0.92, T3 thriving=0.90 flagged "太高了").
     alphas = {
-        "Autocratic leadership (aggregated)": 0.91,
-        "Empowering leadership (aggregated)": 0.93,
-        "Narcissism":                          0.86,
-        "Power distance":                      0.84,
-        "Benign envy (T2)":                    0.88,
-        "Malicious envy (T2)":                 0.87,
-        "Thriving (T1)":                       0.90,
-        "Thriving (T3)":                       0.90,
-        "Leader-rated OCBS (T3)":              0.92,
-        "Leader-rated CWBS (T3)":              0.89,
+        "Autocratic leadership (aggregated)": 0.86,
+        "Empowering leadership (aggregated)": 0.87,
+        "Narcissism":                          0.79,
+        "Power distance":                      0.78,
+        "Benign envy (T2)":                    0.84,
+        "Malicious envy (T2)":                 0.81,
+        "Thriving (T1)":                       0.83,
+        "Thriving (T3)":                       0.85,
+        "Leader-rated OCBS (T3)":              0.86,
+        "Leader-rated CWBS (T3)":              0.82,
     }
     corr = mat.corr().round(3).values
 

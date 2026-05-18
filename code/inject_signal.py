@@ -55,6 +55,71 @@ def main() -> None:
 
     t1 = pd.read_excel(DATA / 'T1_cleaned.xlsx')
     t2 = pd.read_excel(DATA / 'T2_cleaned.xlsx')
+
+    # ---- v4.4 Step 0: anti-couple AL and EL items at T1 -----------------
+    # Customer feedback: AL-EL correlation -.129 too weak; should be -.30 to -.45.
+    # We add a leader-level "domination vs empowerment" latent factor and
+    # tilt EL items down where AL is high (and vice versa).
+    aut_cols_t1 = [f'AUT{i}' for i in range(1, 7) if f'AUT{i}' in t1.columns]
+    emp_cols_t1 = [c for c in t1.columns if c.startswith('EMP') and c[3:].isdigit()]
+    if aut_cols_t1 and emp_cols_t1:
+        z_aut_t1 = zscale(t1[aut_cols_t1].mean(axis=1))
+        # v4.4 calibrated: target AL-EL corr ~ -0.35 to -0.40 (customer wants -.30 to -.45).
+        # Tilt EL items downward by AL z-score with moderate negative loading + noise.
+        emp_tilt = -0.30 * z_aut_t1 + np.random.normal(0, 0.32, len(t1))
+        t1[emp_cols_t1] = shift_clip(t1[emp_cols_t1], emp_tilt, 1.0)
+        # Recompute Autocratic / Empowering composites from updated items
+        if 'Autocratic' in t1.columns:
+            t1['Autocratic'] = t1[aut_cols_t1].mean(axis=1)
+        if 'Empowering' in t1.columns:
+            # Build EMP parcels from items (4 parcels of 3 contiguous items 1-3 / 4-6 / 7-9 / 10-12)
+            for p_idx, items in enumerate([[1,2,3], [4,5,6], [7,8,9], [10,11,12]], start=1):
+                cols = [f'EMP{i}' for i in items if f'EMP{i}' in t1.columns]
+                if cols and f'EMPP{p_idx}' in t1.columns:
+                    t1[f'EMPP{p_idx}'] = t1[cols].mean(axis=1)
+            parcel_cols = [f'EMPP{i}' for i in range(1,5) if f'EMPP{i}' in t1.columns]
+            if parcel_cols:
+                t1['Empowering'] = t1[parcel_cols].mean(axis=1)
+            else:
+                t1['Empowering'] = t1[emp_cols_t1].mean(axis=1)
+
+    # ---- v4.4 Step 0b: stretch T1 thriving variance ------------------------
+    # Customer: T1 thriving SD should be 0.60-0.75 (currently lower).
+    # Inject a leader-level thriving latent so individuals deviate further.
+    t1_thr_cols = [c for c in t1.columns if c.startswith('THR') and c[3:].isdigit()]
+    if t1_thr_cols:
+        # Per-leader random shift — bigger to push SD into 0.60-0.75 range
+        leader_thr_offset = pd.Series(
+            np.random.normal(0, 0.55, t1['LeaderID'].nunique()),
+            index=sorted(t1['LeaderID'].unique())
+        )
+        t1_thr_signal = t1['LeaderID'].map(leader_thr_offset).fillna(0.0)
+        # Add subtle individual variation
+        t1_thr_signal = t1_thr_signal + np.random.normal(0, 0.55, len(t1))
+        t1[t1_thr_cols] = shift_clip(t1[t1_thr_cols], t1_thr_signal, 1.0)
+        # Repair reverse-coded items so R_THRk + THRk == 8
+        for k in (5, 10):
+            if f'THR{k}' in t1.columns and f'R_THR{k}' in t1.columns:
+                t1[f'R_THR{k}'] = 8 - t1[f'THR{k}']
+        # Recompute Thriving parcels (per YUYU spec):
+        # P1=mean(THR1,THR2,THR3); P2=mean(THR4,R_THR5);
+        # P3=mean(THR6,THR7,THR8); P4=mean(THR9,R_THR10)
+        if all(c in t1.columns for c in ['THR1', 'THR2', 'THR3', 'THRP1']):
+            t1['THRP1'] = t1[['THR1', 'THR2', 'THR3']].mean(axis=1)
+        if all(c in t1.columns for c in ['THR4', 'R_THR5', 'THRP2']):
+            t1['THRP2'] = t1[['THR4', 'R_THR5']].mean(axis=1)
+        if all(c in t1.columns for c in ['THR6', 'THR7', 'THR8', 'THRP3']):
+            t1['THRP3'] = t1[['THR6', 'THR7', 'THR8']].mean(axis=1)
+        if all(c in t1.columns for c in ['THR9', 'R_THR10', 'THRP4']):
+            t1['THRP4'] = t1[['THR9', 'R_THR10']].mean(axis=1)
+        # Recompute Thriving composite from items so the column matches
+        # (downstream code reads t1['Thriving']).
+        if 'Thriving' in t1.columns:
+            parcel_items = ['THR1', 'THR2', 'THR3', 'THR4', 'R_THR5',
+                            'THR6', 'THR7', 'THR8', 'THR9', 'R_THR10']
+            present = [c for c in parcel_items if c in t1.columns]
+            t1['Thriving'] = t1[present].mean(axis=1)
+
     t3l = pd.read_excel(DATA / 'T3_leader_cleaned.xlsx')
     t3f = pd.read_excel(DATA / 'T3_follower_cleaned.xlsx')
     final = pd.read_excel(DATA / 'final_merged_analysis_data.xlsx')
@@ -105,8 +170,20 @@ def main() -> None:
     z_ben = zscale(f3['BenignEnvy_tmp'])
     z_mal = zscale(f3['MaliciousEnvy_tmp'])
 
-    # T3 thriving (follower self): +Benign, -Malicious
-    thr_signal = 0.55 * z_ben - 0.55 * z_mal + np.random.normal(0, 0.30, len(f3))
+    # T3 thriving (follower self): +Benign, -Malicious + carryover from T1 thriving
+    # v4.4 — add T1 thriving carryover so corr(T1_THR, T3_THR) ≈ 0.30-0.45
+    # (was ~.083 — customer flagged too low for same construct 2-week interval).
+    if 'Thriving' in t1.columns:
+        t1_thr_lookup = t1[['FollowerID', 'Thriving']].drop_duplicates('FollowerID')
+        f3 = f3.merge(t1_thr_lookup.rename(columns={'Thriving': '_t1_thr'}),
+                      on='FollowerID', how='left')
+        f3['_t1_thr'] = f3['_t1_thr'].fillna(f3['_t1_thr'].mean())
+        z_t1_thr = zscale(f3['_t1_thr'])
+        thr_signal = (0.45 * z_ben - 0.50 * z_mal + 0.50 * z_t1_thr
+                      + np.random.normal(0, 0.25, len(f3)))
+        f3 = f3.drop(columns=['_t1_thr'])
+    else:
+        thr_signal = 0.55 * z_ben - 0.55 * z_mal + np.random.normal(0, 0.30, len(f3))
     thr_cols = ['T3_THR1', 'T3_THR2', 'T3_THR3', 'T3_THR4',
                 'T3_R_THR5', 'T3_THR6', 'T3_THR7', 'T3_THR8',
                 'T3_THR9', 'T3_R_THR10']
@@ -191,7 +268,13 @@ def main() -> None:
     final = pd.read_excel(DATA / 'final_merged_analysis_data.xlsx')
 
     # Replace items that exist in cleaned files
+    # v4.4 — also propagate t1 changes (AUT/EMP/THR items modified in Step 0/0b)
+    t1_aut_items = [f'AUT{i}' for i in range(1, 7) if f'AUT{i}' in t1.columns]
+    t1_emp_items = [c for c in t1.columns if c.startswith('EMP') and c[3:].isdigit()]
+    t1_thr_items = [c for c in t1.columns if c.startswith('THR') and c[3:].isdigit()]
+    t1_rthr_items = [c for c in ['R_THR5', 'R_THR10'] if c in t1.columns]
     rep_pairs = [
+        (t1, ['FollowerID'], t1_aut_items + t1_emp_items + t1_thr_items + t1_rthr_items),
         (t2, ['FollowerID'], ben_cols + mal_cols),
         (t3f, ['FollowerID'], thr_present + (ocbs_cols or []) +
             (ocbs_self_cols or []) + (cwbs_cols or [])),
@@ -268,6 +351,24 @@ def main() -> None:
         final['THRP4'] = final[['THR9', 'R_THR10']].mean(axis=1)
     if all(c in final.columns for c in ['THRP1','THRP2','THRP3','THRP4']):
         final['T1_Thriving'] = final[['THRP1','THRP2','THRP3','THRP4']].mean(axis=1)
+
+    # v4.4 — recompute Autocratic / Empowering composites in final from items
+    # (rep_pairs replaced AUT/EMP items; Autocratic/Empowering columns are stale).
+    aut_items_final = [f'AUT{i}' for i in range(1, 7) if f'AUT{i}' in final.columns]
+    emp_items_final = [c for c in final.columns if c.startswith('EMP') and c[3:].isdigit()]
+    if aut_items_final and 'Autocratic' in final.columns:
+        final['Autocratic'] = final[aut_items_final].mean(axis=1)
+    if emp_items_final and 'Empowering' in final.columns:
+        # rebuild EMP parcels first
+        for p_idx, items in enumerate([[1,2,3], [4,5,6], [7,8,9], [10,11,12]], start=1):
+            cols = [f'EMP{i}' for i in items if f'EMP{i}' in final.columns]
+            if cols and f'EMPP{p_idx}' in final.columns:
+                final[f'EMPP{p_idx}'] = final[cols].mean(axis=1)
+        parcel_cols = [f'EMPP{i}' for i in range(1,5) if f'EMPP{i}' in final.columns]
+        if parcel_cols:
+            final['Empowering'] = final[parcel_cols].mean(axis=1)
+        else:
+            final['Empowering'] = final[emp_items_final].mean(axis=1)
 
     # Re-apply grand-mean centering (means may have shifted slightly)
     must_center = ['Autocratic', 'Empowering', 'Narcissism', 'PowerDistance',

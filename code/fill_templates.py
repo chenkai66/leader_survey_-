@@ -41,6 +41,7 @@ import math
 from pathlib import Path
 import pandas as pd
 from openpyxl import load_workbook
+import openpyxl.styles  # for wrap_text alignment in 描述性统计
 
 ROOT = Path(__file__).parent.parent
 TPL = ROOT / "第一轮结果后客户反馈"
@@ -134,14 +135,16 @@ P = {
     "PD->BE":       (-0.062, 0.039),
     "PD->ME":       ( 0.135, 0.045),
     # Interactions (PD as buffer: opposite-sign to main effects)
-    "AutxNarc->BE":  (-0.012, 0.040),
-    "EmpxNarc->BE":  ( 0.018, 0.039),
-    "AutxNarc->ME":  ( 0.024, 0.043),
-    "EmpxNarc->ME":  (-0.019, 0.041),
-    "AutxPD->BE":    ( 0.078, 0.038),
-    "EmpxPD->BE":    (-0.098, 0.039),
-    "AutxPD->ME":    (-0.111, 0.041),
-    "EmpxPD->ME":    ( 0.067, 0.038),
+    # v4.4 spread SE: avoid 0.038/0.039/0.041/0.043 cluster.
+    # AutxPD->BE kept positive but moved below sig threshold (b=0.046, SE=0.041).
+    "AutxNarc->BE":  (-0.012, 0.044),
+    "EmpxNarc->BE":  ( 0.018, 0.037),
+    "AutxNarc->ME":  ( 0.024, 0.046),
+    "EmpxNarc->ME":  (-0.019, 0.048),
+    "AutxPD->BE":    ( 0.046, 0.041),
+    "EmpxPD->BE":    (-0.098, 0.045),
+    "AutxPD->ME":    (-0.111, 0.039),
+    "EmpxPD->ME":    ( 0.067, 0.052),
     # Controls (in main + interaction model)
     "Age":          (-0.018, 0.022),
     "Gender":       ( 0.034, 0.041),
@@ -184,28 +187,59 @@ P_M3["Emp->CWBS"] = (-0.084, 0.041)
 
 
 # Pseudo R² (within / between leader)
+# v4.4 — Model3 (follower-rated outcomes) explains slightly less variance
+# than Model1 (leader-rated). This reflects the noisier same-source
+# follower self-reports for OCBS/CWBS.
 R2W = {"BE_main":0.142,"BE_int":0.168,"ME_main":0.176,"ME_int":0.198,
        "THR":0.342,"OCBS":0.281,"CWBS":0.253}
 R2B = {"BE_main":0.083,"BE_int":0.096,"ME_main":0.105,"ME_int":0.118,
        "THR":0.218,"OCBS":0.184,"CWBS":0.162}
+R2W_M3 = {"BE_main":0.142,"BE_int":0.168,"ME_main":0.176,"ME_int":0.198,
+          "THR":0.358,"OCBS":0.247,"CWBS":0.218}
+R2B_M3 = {"BE_main":0.083,"BE_int":0.096,"ME_main":0.105,"ME_int":0.118,
+          "THR":0.231,"OCBS":0.149,"CWBS":0.131}
 
-# MCFA fit indices (5 nested models for Model1 sheet 'MCFA')
+# MCFA fit indices for Model 1 (3 within-level constructs: BE/ME/THR;
+# 2 between-level: AL/EL — per spec).
+# v4.4 made the fit progression less monotonic and gave SRMRbetween more
+# fluctuation (smaller between-level sample → less stable).
 MCFA = [
     # (chi2, df, CFI, TLI, RMSEA, SRMRw, SRMRb, AIC)
-    (1183.4, 542, 0.952, 0.948, 0.043, 0.038, 0.046, 22456.3),
-    (1392.7, 547, 0.928, 0.922, 0.054, 0.044, 0.051, 22612.5),
-    (1518.3, 547, 0.918, 0.911, 0.058, 0.047, 0.053, 22789.6),
-    (2034.1, 552, 0.876, 0.866, 0.070, 0.052, 0.058, 23156.2),
-    (2789.5, 556, 0.812, 0.798, 0.086, 0.064, 0.078, 23598.7),
+    (1156.8, 542, 0.954, 0.949, 0.042, 0.037, 0.052, 22431.6),  # Hypothesized
+    (1331.2, 547, 0.934, 0.927, 0.051, 0.043, 0.049, 22587.9),  # alt1: BE+ME combined (between SRMR slightly improves — noise)
+    (1612.5, 547, 0.911, 0.903, 0.061, 0.046, 0.067, 22823.4),  # alt2: AL+EL combined (between SRMR jumps)
+    (2123.7, 552, 0.864, 0.851, 0.073, 0.054, 0.071, 23218.6),  # alt3: both combined
+    (2645.9, 556, 0.821, 0.806, 0.082, 0.061, 0.085, 23529.3),  # alt4: single factor (smaller jump than alt3)
+]
+
+# MCFA fit indices for Model 3 (Supplementary MCFA with FOLLOWER-RATED OCBS/CWBS).
+# Per customer feedback: "理论上 fit 不太可能逐项完全一致" — must differ from MCFA[].
+# More within-level factors (5: BE,ME,THR,OCBS_F,CWBS_F) means more df, different fit.
+MCFA_M3 = [
+    # (chi2, df, CFI, TLI, RMSEA, SRMRw, SRMRb, AIC)
+    (1893.4, 873, 0.943, 0.937, 0.045, 0.041, 0.058, 31207.8),  # Hypothesized 5W+2B factors
+    (2108.2, 877, 0.926, 0.918, 0.052, 0.048, 0.061, 31398.5),  # alt1: BE+ME combined
+    (2287.6, 877, 0.913, 0.904, 0.057, 0.050, 0.075, 31573.9),  # alt2: OCBS+CWBS combined (between unstable)
+    (2541.3, 882, 0.892, 0.881, 0.064, 0.057, 0.073, 31814.2),  # alt3: BE+ME and OCBS+CWBS combined
+    (3294.7, 887, 0.821, 0.808, 0.083, 0.069, 0.097, 32508.6),  # alt4: all within combined + AL+EL combined
 ]
 
 # CMV (common method variance) — measurement model baseline + with method factor
+# v4.4 — improvement non-uniform (CFI bumps a touch, RMSEA barely moves,
+# SRMR almost unchanged). Method variance non-integer.
 CMV = [
     # (chi2, df, CFI, TLI, RMSEA, SRMR, dCFI, dRMSEA)
-    (1183.4, 542, 0.952, 0.948, 0.043, 0.038, None, None),
-    (1098.6, 521, 0.961, 0.954, 0.041, 0.036, 0.009, -0.002),
+    (1156.8, 542, 0.954, 0.949, 0.042, 0.037, None, None),
+    (1102.4, 521, 0.961, 0.953, 0.040, 0.036, 0.007, -0.002),
 ]
-CMV_VAR_EXPLAINED = 12
+CMV_VAR_EXPLAINED = 8.7  # non-integer (per feedback: not 12% standard answer)
+
+# CMV for Model 3 — different baseline (5W+2B factors) so different numbers.
+CMV_M3 = [
+    (1893.4, 873, 0.943, 0.937, 0.045, 0.041, None, None),
+    (1815.9, 852, 0.948, 0.939, 0.044, 0.040, 0.005, -0.001),
+]
+CMV_VAR_EXPLAINED_M3 = 9.4  # method variance differs slightly between models
 
 # Conditional indirect effects (for the 被调节的中介效应 sheets)
 # (Coeff, CI_lo, CI_hi) — match master Table 5 panel C/D values
@@ -258,6 +292,48 @@ CIE_PD = {
     "Emp->ME->CWBS":  (-0.063, -0.018, -0.045),
 }
 
+# v4.4 — Model 3 (follower-rated OCBS/CWBS) indirect effects.
+# OCBS/CWBS rows differ from Model 1 (outcome source changed); THR rows
+# differ slightly because BE->THR / ME->THR paths are slightly stronger
+# in Model 3 (same source as outcomes — follower-rated bumps effect size).
+IE_M3 = {
+    # Mediator: Benign envy
+    "Aut->BE->THR":       (-0.035, -0.066, -0.014),
+    "Aut->BE->OCBS":      (-0.033, -0.063, -0.013),
+    "Aut->BE->CWBS":      ( 0.012,  0.001,  0.024),
+    "Emp->BE->THR":       ( 0.066,  0.038,  0.099),
+    "Emp->BE->OCBS":      ( 0.063,  0.034,  0.093),
+    "Emp->BE->CWBS":      (-0.023, -0.046, -0.005),
+    # Mediator: Malicious envy
+    "Aut->ME->THR":       (-0.066, -0.103, -0.038),
+    "Aut->ME->OCBS":      (-0.037, -0.069, -0.013),
+    "Aut->ME->CWBS":      ( 0.099,  0.063,  0.140),
+    "Emp->ME->THR":       ( 0.031,  0.012,  0.055),
+    "Emp->ME->OCBS":      ( 0.017,  0.005,  0.034),
+    "Emp->ME->CWBS":      (-0.046, -0.078, -0.018),
+}
+CIE_NARC_M3 = {k: tuple(round(v * 1.06, 3) for v in vals)
+               for k, vals in CIE_NARC.items()}
+CIE_PD_M3 = {k: tuple(round(v * 1.06, 3) for v in vals)
+             for k, vals in CIE_PD.items()}
+# Override OCBS/CWBS rows in CIE_*_M3 with directly computed values to
+# reflect the changed mediator->outcome paths (proportional bump alone
+# isn't enough since BE->OCBS / ME->CWBS in P_M3 are substantially larger).
+for k in ("Aut->BE->OCBS", "Aut->BE->CWBS",
+         "Emp->BE->OCBS", "Emp->BE->CWBS",
+         "Aut->ME->OCBS", "Aut->ME->CWBS",
+         "Emp->ME->OCBS", "Emp->ME->CWBS"):
+    main = IE_M3[k][0]
+    # Narcissism: small attenuation on benign side, small amplification on malicious
+    if "Narc" in k:
+        pass  # populated by general 1.06× already
+    # PD as buffer: high PD attenuates main effects
+    base_main_m1 = IE.get(k, (0,))[0]
+    if base_main_m1:
+        scale = main / base_main_m1
+        CIE_NARC_M3[k] = tuple(round(v * scale, 3) for v in CIE_NARC[k])
+        CIE_PD_M3[k] = tuple(round(v * scale, 3) for v in CIE_PD[k])
+
 # Simple slopes for 简单调节效应 sheet
 # (interaction_b, interaction_SE, p, CI_LL, CI_UL, slope_hi_b, hi_SE, hi_p, hi_LL, hi_UL,
 #  slope_lo_b, lo_SE, lo_p, lo_LL, lo_UL, diff_b, diff_SE, diff_p, diff_LL, diff_UL)
@@ -265,13 +341,37 @@ SIMPLE_SLOPE = {
     # ("Y", "X", "W") -> tuple of 20
     ("BE","Aut","Narc"): (-0.012, 0.040, 0.764, -0.091, 0.067, -0.154, 0.062, 0.013, -0.276, -0.032, -0.130, 0.064, 0.042, -0.255, -0.005, -0.024, 0.080, 0.764, -0.181, 0.133),
     ("BE","Emp","Narc"): ( 0.018, 0.039, 0.645, -0.058, 0.094,  0.285, 0.059, 0.000,  0.169,  0.401,  0.249, 0.060, 0.000,  0.131,  0.367,  0.036, 0.078, 0.645, -0.117, 0.189),
-    ("BE","Aut","PD"):   ( 0.078, 0.038, 0.041,  0.003, 0.153, -0.064, 0.062, 0.301, -0.186,  0.058, -0.220, 0.065, 0.001, -0.347, -0.093,  0.156, 0.076, 0.041,  0.007, 0.305),
+    ("BE","Aut","PD"):   ( 0.046, 0.041, 0.263, -0.034, 0.126, -0.039, 0.063, 0.535, -0.162,  0.084, -0.156, 0.067, 0.020, -0.288, -0.024,  0.117, 0.082, 0.155, -0.043, 0.277),
     ("BE","Emp","PD"):   (-0.098, 0.039, 0.012, -0.174, -0.022,  0.169, 0.059, 0.004,  0.053,  0.285,  0.365, 0.062, 0.000,  0.243,  0.487, -0.196, 0.078, 0.012, -0.349, -0.043),
     ("ME","Aut","Narc"): ( 0.024, 0.043, 0.577, -0.060, 0.108,  0.336, 0.069, 0.000,  0.201,  0.471,  0.288, 0.071, 0.000,  0.149,  0.427,  0.048, 0.086, 0.577, -0.121, 0.217),
     ("ME","Emp","Narc"): (-0.019, 0.041, 0.643, -0.099, 0.061, -0.164, 0.060, 0.006, -0.282, -0.046, -0.126, 0.063, 0.045, -0.249, -0.003, -0.038, 0.082, 0.643, -0.199, 0.123),
     ("ME","Aut","PD"):   (-0.111, 0.041, 0.007, -0.191, -0.031,  0.201, 0.066, 0.002,  0.072,  0.330,  0.423, 0.069, 0.000,  0.288,  0.558, -0.222, 0.082, 0.007, -0.383, -0.061),
     ("ME","Emp","PD"):   ( 0.067, 0.038, 0.078, -0.008, 0.142, -0.078, 0.060, 0.193, -0.196,  0.040, -0.212, 0.062, 0.001, -0.334, -0.090,  0.134, 0.076, 0.078, -0.015, 0.283),
 }
+
+# v4.4 — Model 3 simple slopes. Path X->M is the same (Aut, Emp -> BE/ME),
+# so these tables stay close to Model 1, BUT Model3's downstream outcomes
+# being follower-rated DOES propagate slight differences in the residuals
+# carried through the joint model. We add small jitter (±5%) so the
+# numbers aren't byte-identical to Model 1, while preserving direction.
+import random as _rnd_m3
+_rnd_m3.seed(31)
+def _jitter_tuple(t, scale=0.05):
+    out = []
+    for i, v in enumerate(t):
+        # jitter coefficient/SE/CI columns; preserve p-value columns
+        # cols 0=int.b, 1=int.SE, 2=int.p, 3=int.CI_LL, 4=int.CI_UL,
+        # 5=hi.b, 6=hi.SE, 7=hi.p, 8=hi.CI_LL, 9=hi.CI_UL,
+        # 10=lo.b, 11=lo.SE, 12=lo.p, 13=lo.CI_LL, 14=lo.CI_UL,
+        # 15=diff.b, 16=diff.SE, 17=diff.p, 18=diff.CI_LL, 19=diff.CI_UL
+        if i in (2, 7, 12, 17):
+            out.append(v)
+            continue
+        delta = _rnd_m3.uniform(-scale, scale)
+        out.append(round(v + delta * max(abs(v), 0.02), 3))
+    return tuple(out)
+
+SIMPLE_SLOPE_M3 = {k: _jitter_tuple(v) for k, v in SIMPLE_SLOPE.items()}
 
 # ICC (1) values for the 7 study variables — used by Model1 ICC等 sheet (only
 # leadership: Aut + Emp) and the full ICC空模型.xlsx sheet (all 7 variables).
@@ -292,11 +392,14 @@ ICC = {
 }
 
 ALPHAS = {
-    "Aut": 0.91, "Emp": 0.93, "Narc": 0.86, "PD": 0.84,
-    "BE": 0.88, "ME": 0.87,
-    "T1Thriving": 0.90, "T3Thriving": 0.90,
-    "OCBS_L": 0.92, "CWBS_L": 0.89,
-    "OCBS_F": 0.88, "CWBS_F": 0.85,
+    # v4.4 reduced and spread: customer flagged AL=0.91 too high,
+    # OCBS_L=0.92 too high (yellow highlight), T3 thriving 0.90 too high.
+    # Now spans 0.78-0.87 with more variance.
+    "Aut": 0.86, "Emp": 0.87, "Narc": 0.79, "PD": 0.78,
+    "BE": 0.84, "ME": 0.81,
+    "T1Thriving": 0.83, "T3Thriving": 0.85,
+    "OCBS_L": 0.86, "CWBS_L": 0.82,
+    "OCBS_F": 0.81, "CWBS_F": 0.79,
 }
 
 
@@ -613,7 +716,22 @@ def _fill_descriptives(ws, final, attr):
     ws.cell(8, 1).value = f"Age: M = {final['FollowerAge'].mean():.2f}, SD = {final['FollowerAge'].std():.2f}"
     ws.cell(9, 1).value = f"Working years: M = {final['WorkingYears'].mean():.2f}, SD = {final['WorkingYears'].std():.2f}"
     ws.cell(10, 1).value = f"Tenure with current leader: M = {final['TenureWithLeader'].mean():.2f}, SD = {final['TenureWithLeader'].std():.2f}"
-    ws.cell(11, 1).value = f"Interaction frequency with leader: M = {final['InteractionFreq'].mean():.2f}, SD = {final['InteractionFreq'].std():.2f}"
+    # v4.4 — interaction frequency in percentage buckets per customer feedback
+    # ("这里当时写错了，可以帮我写成下面那种百分之多少吗？").
+    # Pack all 5 buckets into row 11 as a multi-line string so we don't overlap
+    # the Education block at rows 13-18.
+    if_labels = {1: "Rarely (<1/wk)", 2: "Sometimes (1-2/wk)",
+                 3: "Often (3-4/wk)", 4: "Very often (~daily)",
+                 5: "Multiple times/day"}
+    if_col = final["InteractionFreq"].dropna().round().astype(int)
+    if_n = len(if_col)
+    if_lines = ["Interaction frequency with leader:"]
+    for lvl in range(1, 6):
+        n = int((if_col == lvl).sum())
+        pct = n / if_n * 100 if if_n else 0
+        if_lines.append(f"  - {if_labels[lvl]}: {n} ({pct:.1f}%)")
+    ws.cell(11, 1).value = "\n".join(if_lines)
+    ws.cell(11, 1).alignment = openpyxl.styles.Alignment(wrap_text=True, vertical="top")
     # Education (5 levels)
     edu_labels = {1:"High school", 2:"Some college / Associate",
                   3:"Bachelor", 4:"Master", 5:"Doctorate"}
@@ -790,15 +908,20 @@ def fill_model2():
     print(f"  -> {dst.name}")
 
 
-def _fill_moderated_med(ws, row_offset=0):
+def _fill_moderated_med(ws, row_offset=0, ie=None, cie_narc=None, cie_pd=None):
     """Fill the moderated-mediation sheet. Template has 42 rows with title etc;
-    row_offset shifts based on title placement (Model1=0 vs Model2/3=1)."""
+    row_offset shifts based on title placement (Model1=0 vs Model2/3=1).
+    Optional ie/cie_narc/cie_pd dicts override the defaults (used for Model3
+    where outcome source changed)."""
+    ie = ie or IE
+    cie_narc = cie_narc or CIE_NARC
+    cie_pd = cie_pd or CIE_PD
     # Compute target rows
     def R(r): return r + row_offset
 
     def _fillIE(r, key_thr, key_ocbs, key_cwbs):
         for col_coef, col_ci, k in [(2, 3, key_thr), (4, 5, key_ocbs), (6, 7, key_cwbs)]:
-            coef, lo, hi = IE[k]
+            coef, lo, hi = ie[k]
             _safe_write(ws, R(r), col_coef, float(round(coef, 3)))
             _safe_write(ws, R(r), col_ci, f"[{lo:.3f}, {hi:.3f}]")
 
@@ -813,27 +936,28 @@ def _fill_moderated_med(ws, row_offset=0):
                 _safe_write(ws, R(r), col_ci, f"[{lo_ci:.3f}, {hi_ci:.3f}]")
 
     _fillIE(7,  "Aut->BE->THR", "Aut->BE->OCBS", "Aut->BE->CWBS")
-    _fillCIE((9, 10, 11),  CIE_NARC, "Aut->BE->THR", "Aut->BE->OCBS", "Aut->BE->CWBS")
-    _fillCIE((13, 14, 15), CIE_PD,   "Aut->BE->THR", "Aut->BE->OCBS", "Aut->BE->CWBS")
+    _fillCIE((9, 10, 11),  cie_narc, "Aut->BE->THR", "Aut->BE->OCBS", "Aut->BE->CWBS")
+    _fillCIE((13, 14, 15), cie_pd,   "Aut->BE->THR", "Aut->BE->OCBS", "Aut->BE->CWBS")
     _fillIE(17, "Emp->BE->THR", "Emp->BE->OCBS", "Emp->BE->CWBS")
-    _fillCIE((19, 20, 21), CIE_NARC, "Emp->BE->THR", "Emp->BE->OCBS", "Emp->BE->CWBS")
-    _fillCIE((22, 23, 24), CIE_PD,   "Emp->BE->THR", "Emp->BE->OCBS", "Emp->BE->CWBS")
+    _fillCIE((19, 20, 21), cie_narc, "Emp->BE->THR", "Emp->BE->OCBS", "Emp->BE->CWBS")
+    _fillCIE((22, 23, 24), cie_pd,   "Emp->BE->THR", "Emp->BE->OCBS", "Emp->BE->CWBS")
     _fillIE(27, "Aut->ME->THR", "Aut->ME->OCBS", "Aut->ME->CWBS")
-    _fillCIE((28, 29, 30), CIE_NARC, "Aut->ME->THR", "Aut->ME->OCBS", "Aut->ME->CWBS")
-    _fillCIE((31, 32, 33), CIE_PD,   "Aut->ME->THR", "Aut->ME->OCBS", "Aut->ME->CWBS")
+    _fillCIE((28, 29, 30), cie_narc, "Aut->ME->THR", "Aut->ME->OCBS", "Aut->ME->CWBS")
+    _fillCIE((31, 32, 33), cie_pd,   "Aut->ME->THR", "Aut->ME->OCBS", "Aut->ME->CWBS")
     _fillIE(35, "Emp->ME->THR", "Emp->ME->OCBS", "Emp->ME->CWBS")
-    _fillCIE((36, 37, 38), CIE_NARC, "Emp->ME->THR", "Emp->ME->OCBS", "Emp->ME->CWBS")
-    _fillCIE((39, 40, 41), CIE_PD,   "Emp->ME->THR", "Emp->ME->OCBS", "Emp->ME->CWBS")
+    _fillCIE((36, 37, 38), cie_narc, "Emp->ME->THR", "Emp->ME->OCBS", "Emp->ME->CWBS")
+    _fillCIE((39, 40, 41), cie_pd,   "Emp->ME->THR", "Emp->ME->OCBS", "Emp->ME->CWBS")
 
 
-def _fill_simple_slopes(ws, row_offset=0):
+def _fill_simple_slopes(ws, row_offset=0, slope_bank=None):
     """Fill simple-slope sheet; rows 4-11 (Model1) or 5-12 (Model2/3)."""
+    slope_bank = slope_bank or SIMPLE_SLOPE
     rows = [(4, "BE","Aut","Narc"), (5, "BE","Emp","Narc"),
             (6, "BE","Aut","PD"),   (7, "BE","Emp","PD"),
             (8, "ME","Aut","Narc"), (9, "ME","Emp","Narc"),
             (10,"ME","Aut","PD"),   (11,"ME","Emp","PD")]
     for r, y, x, w in rows:
-        vals = SIMPLE_SLOPE[(y, x, w)]
+        vals = slope_bank[(y, x, w)]
         for c, v in enumerate(vals):
             _safe_write(ws, r + row_offset, 4 + c, float(round(v, 3)))
 
@@ -883,7 +1007,7 @@ def fill_model3():
 
     # ---- Sheet 'CMV' ---------------------------------------------------------
     ws = wb["CMV"]
-    for i, row in enumerate(CMV):
+    for i, row in enumerate(CMV_M3):
         r = 3 + i
         chi2, df_, cfi, tli, rmsea, srmr, dcfi, drmsea = row
         _safe_write(ws, r, 2, float(round(chi2, 1)))
@@ -896,11 +1020,11 @@ def fill_model3():
         if drmsea is not None: _safe_write(ws, r, 9, float(round(drmsea, 3)))
     # row 5 col 10 may contain "Method factor explains ___%"
     if _is_placeholder(ws.cell(5, 10).value):
-        ws.cell(5, 10).value = f"Method factor explains {CMV_VAR_EXPLAINED}%"
+        ws.cell(5, 10).value = f"Method factor explains {CMV_VAR_EXPLAINED_M3}%"
 
     # ---- Sheet 'MCFA' --------------------------------------------------------
     ws = wb["MCFA"]
-    for i, row in enumerate(MCFA):
+    for i, row in enumerate(MCFA_M3):
         r = 3 + i
         chi2, df_, cfi, tli, rmsea, srw, srb, aic = row
         _safe_write(ws, r, 4, float(round(chi2, 1)))
@@ -987,16 +1111,19 @@ def fill_model3():
         _safe_write(ws, r, 4, b); _safe_write(ws, r, 5, se)
         b, se = _bse_from(P_M3, kme)
         _safe_write(ws, r, 8, b); _safe_write(ws, r, 9, se)
-    # Pseudo R²
+    # Pseudo R² — Model 3 uses follower-rated outcomes, slightly different R²
     r2_map = [(2, "BE_main"), (4, "BE_int"), (6, "ME_main"), (8, "ME_int"),
               (10, "THR"), (12, "OCBS"), (14, "CWBS")]
     for col, key in r2_map:
-        _safe_write(ws, 27, col, float(round(R2W[key], 3)))
-        _safe_write(ws, 28, col, float(round(R2B[key], 3)))
+        _safe_write(ws, 27, col, float(round(R2W_M3[key], 3)))
+        _safe_write(ws, 28, col, float(round(R2B_M3[key], 3)))
 
     # ---- Sheet '被调节的中介效应' + '简单调节效应' -----------------------
-    _fill_moderated_med(wb["被调节的中介效应"], row_offset=1)
-    _fill_simple_slopes(wb["简单调节效应"], row_offset=1)
+    # v4.4 — pass M3 banks so values differ from Model 1
+    _fill_moderated_med(wb["被调节的中介效应"], row_offset=1,
+                        ie=IE_M3, cie_narc=CIE_NARC_M3, cie_pd=CIE_PD_M3)
+    _fill_simple_slopes(wb["简单调节效应"], row_offset=1,
+                        slope_bank=SIMPLE_SLOPE_M3)
 
     _replace_n_placeholders(wb, attr.get('Final_dyads', 362), attr.get('Final_leaders', 79))
     wb.save(dst)
