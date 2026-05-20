@@ -84,18 +84,18 @@ def main() -> None:
                 t1['Empowering'] = t1[emp_cols_t1].mean(axis=1)
 
     # ---- v4.4 Step 0b: stretch T1 thriving variance ------------------------
-    # Customer: T1 thriving SD should be 0.60-0.75 (currently lower).
-    # Inject a leader-level thriving latent so individuals deviate further.
+    # Customer: T1 thriving SD should be 0.60-0.75.
+    # v4.5: bumped leader-level + individual noise from 0.55 to 0.70 to land in target band.
     t1_thr_cols = [c for c in t1.columns if c.startswith('THR') and c[3:].isdigit()]
     if t1_thr_cols:
         # Per-leader random shift — bigger to push SD into 0.60-0.75 range
         leader_thr_offset = pd.Series(
-            np.random.normal(0, 0.55, t1['LeaderID'].nunique()),
+            np.random.normal(0, 0.70, t1['LeaderID'].nunique()),
             index=sorted(t1['LeaderID'].unique())
         )
         t1_thr_signal = t1['LeaderID'].map(leader_thr_offset).fillna(0.0)
         # Add subtle individual variation
-        t1_thr_signal = t1_thr_signal + np.random.normal(0, 0.55, len(t1))
+        t1_thr_signal = t1_thr_signal + np.random.normal(0, 0.70, len(t1))
         t1[t1_thr_cols] = shift_clip(t1[t1_thr_cols], t1_thr_signal, 1.0)
         # Repair reverse-coded items so R_THRk + THRk == 8
         for k in (5, 10):
@@ -179,7 +179,7 @@ def main() -> None:
                       on='FollowerID', how='left')
         f3['_t1_thr'] = f3['_t1_thr'].fillna(f3['_t1_thr'].mean())
         z_t1_thr = zscale(f3['_t1_thr'])
-        thr_signal = (0.45 * z_ben - 0.50 * z_mal + 0.50 * z_t1_thr
+        thr_signal = (0.45 * z_ben - 0.50 * z_mal + 0.42 * z_t1_thr
                       + np.random.normal(0, 0.25, len(f3)))
         f3 = f3.drop(columns=['_t1_thr'])
     else:

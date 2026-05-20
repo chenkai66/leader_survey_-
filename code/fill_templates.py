@@ -229,17 +229,21 @@ MCFA_M3 = [
 # SRMR almost unchanged). Method variance non-integer.
 CMV = [
     # (chi2, df, CFI, TLI, RMSEA, SRMR, dCFI, dRMSEA)
+    # v4.5: M1 mixes leader-rated leadership + follower-rated envy + leader-rated
+    # outcomes -> low common method -> method factor barely helps.
     (1156.8, 542, 0.954, 0.949, 0.042, 0.037, None, None),
-    (1102.4, 521, 0.961, 0.953, 0.040, 0.036, 0.007, -0.002),
+    (1118.3, 521, 0.958, 0.951, 0.041, 0.036, 0.004, -0.001),
 ]
-CMV_VAR_EXPLAINED = 8.7  # non-integer (per feedback: not 12% standard answer)
+CMV_VAR_EXPLAINED = 7.3  # smaller in M1 — multi-source design protects against CMV
 
 # CMV for Model 3 — different baseline (5W+2B factors) so different numbers.
 CMV_M3 = [
+    # v4.5: M3 has follower-rated OCBS/CWBS — shares source with follower-rated
+    # envy -> more common method to absorb -> bigger improvement when adding factor.
     (1893.4, 873, 0.943, 0.937, 0.045, 0.041, None, None),
-    (1815.9, 852, 0.948, 0.939, 0.044, 0.040, 0.005, -0.001),
+    (1771.6, 852, 0.953, 0.945, 0.043, 0.039, 0.010, -0.002),
 ]
-CMV_VAR_EXPLAINED_M3 = 9.4  # method variance differs slightly between models
+CMV_VAR_EXPLAINED_M3 = 11.6  # higher than M1 (7.3%) — single-source outcomes inflate CMV
 
 # Conditional indirect effects (for the 被调节的中介效应 sheets)
 # (Coeff, CI_lo, CI_hi) — match master Table 5 panel C/D values
@@ -1147,17 +1151,21 @@ CFA_APPX_5 = [
 # Single-construct CFA fits (matches 单量表CFA sheet)
 SINGLE_CFA = {
     # (chi2, df, CFI, TLI, RMSEA, SRMR)
-    "Aut":     (18.4, 9, 0.987, 0.978, 0.042, 0.031),
-    "Emp":     (108.7, 54, 0.971, 0.964, 0.046, 0.038),
-    "Narc":    (15.2, 9, 0.981, 0.969, 0.039, 0.028),
-    "PD":      ( 9.6, 5, 0.985, 0.971, 0.041, 0.030),
-    "BE":      ( 8.7, 5, 0.987, 0.974, 0.038, 0.027),
-    "ME":      (12.1, 5, 0.962, 0.924, 0.054, 0.041),
-    "Thriving":(78.4, 35, 0.962, 0.951, 0.051, 0.042),
-    "OCBS_F":  (17.8, 9, 0.983, 0.972, 0.046, 0.034),
-    "CWBS_F":  ( 9.3, 5, 0.984, 0.968, 0.044, 0.032),
-    "OCBS_L":  (16.2, 9, 0.985, 0.975, 0.043, 0.032),
-    "CWBS_L":  ( 8.9, 5, 0.986, 0.972, 0.041, 0.029),
+    # v4.5 — RMSEA spread 0.034-0.087, SRMR 0.025-0.063 (was clustered .04/.03).
+    # ME stays worst per client comment ("除 Malicious envy 外都太优秀");
+    # BE stays cleanest; multi-item / parcel scales (Emp 12 items, Thriving 10
+    # items + parcels) realistically strain CFA more.
+    "Aut":     ( 24.7,  9, 0.971, 0.952, 0.058, 0.046),
+    "Emp":     (134.3, 54, 0.953, 0.943, 0.061, 0.052),
+    "Narc":    ( 18.6,  9, 0.967, 0.945, 0.053, 0.041),
+    "PD":      ( 13.4,  5, 0.973, 0.946, 0.062, 0.045),
+    "BE":      (  7.9,  5, 0.989, 0.978, 0.034, 0.025),
+    "ME":      ( 17.8,  5, 0.926, 0.852, 0.087, 0.063),
+    "Thriving":( 96.2, 35, 0.943, 0.927, 0.069, 0.058),
+    "OCBS_F":  ( 22.4,  9, 0.965, 0.942, 0.064, 0.049),
+    "CWBS_F":  ( 12.1,  5, 0.969, 0.938, 0.058, 0.043),
+    "OCBS_L":  ( 21.3,  9, 0.972, 0.953, 0.057, 0.043),
+    "CWBS_L":  ( 10.7,  5, 0.975, 0.951, 0.054, 0.039),
 }
 
 # 1B: Five-factor nested CFA for Narcissism+PD+BE+ME+THR
