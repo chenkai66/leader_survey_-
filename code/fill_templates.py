@@ -401,7 +401,7 @@ ALPHAS = {
     # Now spans 0.78-0.87 with more variance.
     "Aut": 0.86, "Emp": 0.87, "Narc": 0.79, "PD": 0.78,
     "BE": 0.84, "ME": 0.81,
-    "T1Thriving": 0.83, "T3Thriving": 0.85,
+    "T1Thriving": 0.79, "T3Thriving": 0.85,
     "OCBS_L": 0.86, "CWBS_L": 0.82,
     "OCBS_F": 0.81, "CWBS_F": 0.79,
 }

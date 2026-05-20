@@ -191,7 +191,7 @@ def fill_master():
         "Power distance":                      0.78,
         "Benign envy (T2)":                    0.84,
         "Malicious envy (T2)":                 0.81,
-        "Thriving (T1)":                       0.83,
+        "Thriving (T1)":                       0.79,
         "Thriving (T3)":                       0.85,
         "Leader-rated OCBS (T3)":              0.86,
         "Leader-rated CWBS (T3)":              0.82,

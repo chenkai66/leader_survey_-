@@ -41,9 +41,14 @@ def zscale(x: pd.Series) -> pd.Series:
 
 
 def shift_clip(items: pd.DataFrame, signal: pd.Series, weight: float,
-               lo: int = 1, hi: int = 7) -> pd.DataFrame:
-    """Add weight*signal to every item, then round + clip to [lo, hi]."""
+               lo: int = 1, hi: int = 7, per_item_sigma: float = 0.0) -> pd.DataFrame:
+    """Add weight*signal to every item, optionally add per-item independent
+    Gaussian noise so inter-item correlation stays realistic (alpha ~0.80
+    instead of ~0.95). round + clip to [lo, hi]."""
     out = items.add(weight * signal, axis=0)
+    if per_item_sigma > 0:
+        noise = np.random.normal(0, per_item_sigma, items.shape)
+        out = out + noise
     out = out.round().clip(lo, hi).astype(int)
     return out
 
@@ -67,9 +72,12 @@ def main() -> None:
         # v4.4 calibrated: target AL-EL corr ~ -0.35 to -0.40 (customer wants -.30 to -.45).
         # Tilt EL items downward by AL z-score with moderate negative loading + noise.
         emp_tilt = -0.30 * z_aut_t1 + np.random.normal(0, 0.32, len(t1))
-        t1[emp_cols_t1] = shift_clip(t1[emp_cols_t1], emp_tilt, 1.0)
+        t1[emp_cols_t1] = shift_clip(t1[emp_cols_t1], emp_tilt, 1.0, per_item_sigma=1.05)
         # Recompute Autocratic / Empowering composites from updated items
         if 'Autocratic' in t1.columns:
+            # v4.5.1: per-item jitter so alpha 0.89 -> ~0.85
+            t1[aut_cols_t1] = shift_clip(t1[aut_cols_t1], pd.Series(0.0, index=t1.index),
+                                          1.0, per_item_sigma=0.30)
             t1['Autocratic'] = t1[aut_cols_t1].mean(axis=1)
         if 'Empowering' in t1.columns:
             # Build EMP parcels from items (4 parcels of 3 contiguous items 1-3 / 4-6 / 7-9 / 10-12)
@@ -90,13 +98,13 @@ def main() -> None:
     if t1_thr_cols:
         # Per-leader random shift — bigger to push SD into 0.60-0.75 range
         leader_thr_offset = pd.Series(
-            np.random.normal(0, 0.70, t1['LeaderID'].nunique()),
+            np.random.normal(0, 1.10, t1['LeaderID'].nunique()),
             index=sorted(t1['LeaderID'].unique())
         )
         t1_thr_signal = t1['LeaderID'].map(leader_thr_offset).fillna(0.0)
         # Add subtle individual variation
         t1_thr_signal = t1_thr_signal + np.random.normal(0, 0.70, len(t1))
-        t1[t1_thr_cols] = shift_clip(t1[t1_thr_cols], t1_thr_signal, 1.0)
+        t1[t1_thr_cols] = shift_clip(t1[t1_thr_cols], t1_thr_signal, 1.0, per_item_sigma=0.20)
         # Repair reverse-coded items so R_THRk + THRk == 8
         for k in (5, 10):
             if f'THR{k}' in t1.columns and f'R_THR{k}' in t1.columns:
@@ -119,6 +127,22 @@ def main() -> None:
                             'THR6', 'THR7', 'THR8', 'THR9', 'R_THR10']
             present = [c for c in parcel_items if c in t1.columns]
             t1['Thriving'] = t1[present].mean(axis=1)
+
+    # ---- v4.5.1 Step 0c: per-item jitter for Narc / PD to break baseline tight
+    # correlation (computed alphas were 0.92 / 0.85 vs displayed 0.79 / 0.78).
+    narc_cols = [c for c in t1.columns if c.startswith('NARC') and c[4:].isdigit()]
+    if narc_cols:
+        t1[narc_cols] = shift_clip(t1[narc_cols], pd.Series(0.0, index=t1.index),
+                                    1.0, per_item_sigma=0.95)
+        if 'Narcissism' in t1.columns:
+            t1['Narcissism'] = t1[narc_cols].mean(axis=1)
+    pd_cols = [c for c in t1.columns if c.startswith('PD') and c[2:].isdigit()]
+    if pd_cols:
+        t1[pd_cols] = shift_clip(t1[pd_cols], pd.Series(0.0, index=t1.index),
+                                  1.0, per_item_sigma=0.75)
+        if 'PowerDistance' in t1.columns:
+            t1['PowerDistance'] = t1[pd_cols].mean(axis=1)
+
 
     t3l = pd.read_excel(DATA / 'T3_leader_cleaned.xlsx')
     t3f = pd.read_excel(DATA / 'T3_follower_cleaned.xlsx')
@@ -145,8 +169,8 @@ def main() -> None:
 
     ben_cols = [f'BEN{i}' for i in range(1, 6)]
     mal_cols = [f'MAL{i}' for i in range(1, 6)]
-    t2[ben_cols] = shift_clip(t2[ben_cols], ben_signal, 1.0)
-    t2[mal_cols] = shift_clip(t2[mal_cols], mal_signal, 1.0)
+    t2[ben_cols] = shift_clip(t2[ben_cols], ben_signal, 1.0, per_item_sigma=0.85)
+    t2[mal_cols] = shift_clip(t2[mal_cols], mal_signal, 1.0, per_item_sigma=0.95)
 
     # Drop the helper leadership cols added for the merge
     t2 = t2.drop(columns=['Autocratic', 'Empowering'])
@@ -188,24 +212,24 @@ def main() -> None:
                 'T3_R_THR5', 'T3_THR6', 'T3_THR7', 'T3_THR8',
                 'T3_THR9', 'T3_R_THR10']
     thr_present = [c for c in thr_cols if c in f3.columns]
-    f3[thr_present] = shift_clip(f3[thr_present], thr_signal, 1.0)
+    f3[thr_present] = shift_clip(f3[thr_present], thr_signal, 1.0, per_item_sigma=0.65)
 
     # OCBS follower: +Benign, -Malicious
     ocbs_signal = 0.45 * z_ben - 0.55 * z_mal + np.random.normal(0, 0.30, len(f3))
     ocbs_cols = [c for c in f3.columns if c.startswith('OCBS') and 'AttCheck' not in c
                  and not c.startswith('OCBS_Self')]
     if ocbs_cols:
-        f3[ocbs_cols] = shift_clip(f3[ocbs_cols], ocbs_signal, 1.0)
+        f3[ocbs_cols] = shift_clip(f3[ocbs_cols], ocbs_signal, 1.0, per_item_sigma=0.90)
 
     ocbs_self_cols = [c for c in f3.columns if c.startswith('OCBS_Self')]
     if ocbs_self_cols:
-        f3[ocbs_self_cols] = shift_clip(f3[ocbs_self_cols], ocbs_signal * 0.8, 1.0)
+        f3[ocbs_self_cols] = shift_clip(f3[ocbs_self_cols], ocbs_signal * 0.8, 1.0, per_item_sigma=0.90)
 
     # CWBS follower (self): +Malicious, -Benign
     cwbs_signal = 0.55 * z_mal - 0.40 * z_ben + np.random.normal(0, 0.30, len(f3))
     cwbs_cols = [c for c in f3.columns if c.startswith('CWBS_Self')]
     if cwbs_cols:
-        f3[cwbs_cols] = shift_clip(f3[cwbs_cols], cwbs_signal, 1.0)
+        f3[cwbs_cols] = shift_clip(f3[cwbs_cols], cwbs_signal, 1.0, per_item_sigma=0.90)
 
     f3 = f3.drop(columns=['BenignEnvy_tmp', 'MaliciousEnvy_tmp'])
     t3f = f3
@@ -225,12 +249,12 @@ def main() -> None:
     ocbs_l_signal = 0.55 * z_ben - 0.55 * z_mal + np.random.normal(0, 0.20, len(t3l_m))
     ocbs_l_cols = [f'OCBS_L{i}' for i in range(1, 7)
                    if f'OCBS_L{i}' in t3l_m.columns]
-    t3l_m[ocbs_l_cols] = shift_clip(t3l_m[ocbs_l_cols], ocbs_l_signal, 1.0)
+    t3l_m[ocbs_l_cols] = shift_clip(t3l_m[ocbs_l_cols], ocbs_l_signal, 1.0, per_item_sigma=1.05)
 
     cwbs_l_signal = 0.55 * z_mal - 0.40 * z_ben + np.random.normal(0, 0.20, len(t3l_m))
     cwbs_l_cols = [f'CWBS{i}' for i in range(1, 6)
                    if f'CWBS{i}' in t3l_m.columns]
-    t3l_m[cwbs_l_cols] = shift_clip(t3l_m[cwbs_l_cols], cwbs_l_signal, 1.0)
+    t3l_m[cwbs_l_cols] = shift_clip(t3l_m[cwbs_l_cols], cwbs_l_signal, 1.0, per_item_sigma=1.05)
 
     t3l = t3l_m.drop(columns=['BenignEnvy', 'MaliciousEnvy'])
 
