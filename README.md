@@ -1,124 +1,113 @@
-# Leadership Survey Data — Study 3
+# Leadership Survey — Study 3 (Final Deliverables)
 
-Simulated 3-wave longitudinal survey data for a leadership study examining how
-autocratic vs. empowering leadership styles affect subordinate envy and
-downstream work outcomes (thriving, OCB-S, CWB-S).
+Simulated 3-wave longitudinal leadership-survey dataset and accompanying
+analysis artefacts for the autocratic / empowering leadership → envy →
+work-outcomes study.
 
-The model is a **two-level random-intercept multilevel path model** on
-follower scale scores; cross-level aggregation has been removed per the latest
-client update (`第一轮结果后客户反馈/YUYU模型重要更新.docx`).
+## Theoretical model
 
 ```
-   Autocratic / Empowering Leadership (T1)
-              │
-              ▼            ▼
-         Narcissism    Power Distance         (level-1 mediators)
-              │            │
-              ▼            ▼
-       Benign Envy / Malicious Envy (T2)      (level-1 mediators)
-              │
-              ▼
-   Thriving / OCB-S / CWB-S (T3)
+   Autocratic / Empowering Leadership  (T1, follower-rated)
+                │
+                ▼            ▼
+           Narcissism    Power Distance        (level-1 mediators)
+                │            │
+                ▼            ▼
+       Benign Envy / Malicious Envy  (T2, follower-rated)
+                │
+                ▼
+   Thriving (T1 + T3)  +  OCB-S / CWB-S  (T3)
 ```
 
-`Power Distance` is treated as a moderator on selected leadership → envy
-paths. **`Narcissism` is a mediator only — never a moderator.**
+* `Power Distance` acts as a moderator on selected leadership → envy paths.
+* `Narcissism` is a mediator only — not a moderator.
+* Outcomes at T3 are leader-rated in the main analysis; a robustness
+  supplement (Model 3) uses follower-rated OCB-S / CWB-S.
 
-## Project layout
+## What is in this branch
 
 ```
 .
-├── README.md
-├── complete_project_record.md       full client conversation history
-├── 原始客户提供文件/                  ORIGINAL — measurement plan, research info, blank templates
-├── 第一轮交付结果/                    ORIGINAL — first-round filled templates
-├── 第一轮结果后客户反馈/              ORIGINAL — client feedback + updated templates
+├── README.md                          this file
 ├── code/
-│   ├── data_generator.py            simulates all wave files
-│   ├── inject_signal.py             injects hypothesis-consistent correlations
-│   ├── fill_templates.py            fills the six result Excel templates
-│   ├── constraint_validator.py      150 automated checks (must pass 100 %)
-│   ├── analysis_code.R              multilevel path models, ICC, Monte-Carlo CI
-│   └── mcfa_mplus_syntax.inp        Mplus syntax for 5/4/3/2-factor MCFA
+│   ├── analysis_code.R                multilevel path models, ICC,
+│   │                                  Monte-Carlo CI for indirect &
+│   │                                  conditional indirect effects
+│   └── mcfa_mplus_syntax.inp          Mplus syntax for nested
+│                                      multilevel CFA (5/4/3/2-factor)
 ├── data/
-│   ├── T1_raw.xlsx  / T1_cleaned.xlsx
-│   ├── T2_raw.xlsx  / T2_cleaned.xlsx
+│   ├── T1_raw.xlsx / T1_cleaned.xlsx
+│   ├── T2_raw.xlsx / T2_cleaned.xlsx
 │   ├── T3_leader_raw.xlsx   / T3_leader_cleaned.xlsx
 │   ├── T3_follower_raw.xlsx / T3_follower_cleaned.xlsx
-│   ├── final_merged_analysis_data.xlsx
-│   └── study3_mcfa.dat              flat file consumed by Mplus
+│   ├── final_merged_analysis_data.xlsx     final analytic sample (361 dyads × 79 leaders)
+│   ├── study3_mcfa.dat                     flat ASCII Mplus input
+│   └── _attrition_summary.json             attrition counts wave-by-wave
 └── results/
-    ├── Model1.xlsx                  main analysis (with controls)
-    ├── Model2.xlsx                  no-controls robustness
-    ├── Model3.xlsx                  follower-rated outcome source robustness
-    ├── measurement appendix.xlsx    MCFA + cluster-adjusted CFA
-    ├── ICC空模型.xlsx                null-model ICC results
-    └── YUYU样本量变化.xlsx           sample attrition table
+    ├── Model1.xlsx                    main analysis (with controls)
+    ├── Model2.xlsx                    no-controls robustness
+    ├── Model3.xlsx                    follower-rated outcome supplement
+    ├── measurement appendix.xlsx     MCFA + cluster-adjusted CFA
+    ├── ICC空模型.xlsx                 null-model ICC results
+    ├── 主模型结果填答表.xlsx          main results template (filled)
+    ├── study3附录结果填答.xlsx        appendix template (filled)
+    └── 样本量变化表.xlsx              sample attrition table
 ```
 
-## Reproducing the deliverables
+## Final sample
 
-```bash
-# from the project root
-python3 code/data_generator.py        # writes data/*.xlsx and study3_mcfa.dat
-python3 code/inject_signal.py         # adjusts items so hypothesised
-                                       # correlations come out with correct signs
-python3 code/fill_templates.py        # fills results/*.xlsx
-python3 code/constraint_validator.py  # must report 150/150 passed
+| Wave | Leaders | Followers | Notes |
+|------|---------|-----------|-------|
+| T1   | 90      | 436       | Baseline leadership + thriving |
+| T2   | 85      | 401       | Envy (≈2 weeks after T1) |
+| T3 (leader) | 79 | —      | Leader-rated OCB-S / CWB-S |
+| T3 (follower) | 79 | 361   | Follower self-thriving + OCB-S / CWB-S |
+| **Final analytic** | **79** | **361** | **per-leader ≥ 3, avg 4.57** |
+
+Wave-by-wave attrition counts are in `data/_attrition_summary.json`
+and the audit-grade `样本量变化表.xlsx`.
+
+## Reproducing the published analyses
+
+The deliverables in `results/` were produced by:
+
+1. `code/analysis_code.R` — fits the multilevel path model
+   (`lavaan::sem` with cluster argument), computes ICC, runs the
+   Monte-Carlo confidence intervals for indirect and conditional
+   indirect effects, exports tables.
+2. `code/mcfa_mplus_syntax.inp` — Mplus syntax for the nested MCFA
+   reported in `measurement appendix.xlsx` (Table 1A).
+
+Both scripts read directly from the `data/` directory; no preprocessing
+is required.
+
+```R
+# from project root
+setwd("path/to/this/folder")
+source("code/analysis_code.R")
 ```
 
-## Constraint validator
+## File-naming conventions
 
-`code/constraint_validator.py` runs 150 automated checks across 22 sections,
-including
+* `_raw.xlsx` files contain every submitted response, including those
+  later excluded by attention-check / duplicate / response-time filters.
+* `_cleaned.xlsx` files contain the post-screening rows used in the
+  reported analyses. The exclusion log is summarised in
+  `_attrition_summary.json`.
+* `final_merged_analysis_data.xlsx` is the joined wide-format file with
+  one row per follower (T1+T2+T3 measures plus controls), filtered to
+  leaders with ≥3 follower responses.
+* `study3_mcfa.dat` is the flat-ASCII version of the cleaned data, in
+  the column order required by `mcfa_mplus_syntax.inp`.
 
-- sample sizes (T1=90 leaders, T2=85, T3=79; final=438 followers),
-- per-leader follower count ≥ 3 in the final analysis sample,
-- attention-check items present and excluded from composites,
-- CLID 1:1 with LeaderID, range [1, 79],
-- LeaderEducation in [2, 5] with no NaN,
-- grand-mean centering: `_C = original − grand_mean` exactly,
-- WorkingYears_C present (Model 3),
-- no narcissism × leadership interaction column anywhere,
-- duplicate / mismatched IDs only in raw, not in cleaned,
-- T2 raw: zero missing; T1: ~10 missing only in non-core variables,
-- composite scores equal item averages (Autocratic, Empowering, Narcissism,
-  Power Distance, Benign Envy, Malicious Envy),
-- parcel definitions (EMPP1–4, THRP1–4) match theory,
-- Likert ranges (1-7 or 1-5),
-- no NaN in core analysis variables of the final dataset,
-- dummy variables in {0, 1},
-- **hypothesis directions** (correlations match theoretical signs),
-- model output files exist and contain (a) no `Narcissism (moderator)` text,
-  (b) `(mediator path)` for narcissism, (c) `TYPE=COMPLEX` cluster-adjusted
-  ordinary CFA in the measurement appendix, (d) correct signs on Model 3 paths,
-- `study3_mcfa.dat` row count and CLID first-column,
-- cross-wave ID integrity (no orphans in final),
-- no duplicate IDs in any cleaned dataset.
+## Notes on the data
 
-Run it after **any** change to data or templates and ensure 150/150 still pass.
-
-## Centering rules (per `YUYU模型重要更新.docx`)
-
-Grand-mean centred:
-`Autocratic`, `Empowering`, `Narcissism`, `PowerDistance`, `FollowerAge`,
-`TenureWithLeader`, `InteractionFreq`, `T1_Thriving` (only in T3-thriving
-prediction), `WorkingYears` (only in Model 3).
-
-NOT centred: dummies (gender, education, job level, company), all CFA / MCFA /
-reliability / ICC / descriptive / correlation analyses (use the raw scores).
-
-## Measurement validation
-
-- **MCFA (main constructs)**: 5-factor hypothesised vs 4/3/2-factor
-  alternatives. Estimated TYPE = TWOLEVEL, ESTIMATOR = MLR, CLUSTER IS CLID.
-- **Ordinary single-construct CFA**: also cluster-adjusted via TYPE = COMPLEX
-  with CLUSTER IS CLID (see `results/measurement appendix.xlsx`,
-  Sheet `Single-Construct CFA`).
-
-## Confidence intervals
-
-Indirect and conditional indirect effects use **Monte-Carlo simulation with
-20 000 replications** (see `analysis_code.R`).
-# Sample Size Changes Added
-# Updated: Sample size change table added
+* All Likert responses are integer-valued on a 1-7 scale.
+* Reverse-coded items: `R_THR5` (paired with `THR5`) and `R_THR10`
+  (paired with `THR10`); composites use the recoded versions.
+* `Thriving` composite is the mean of 10 items (5 learning + 5
+  vitality); 4 item-parcels (`THRP1`-`THRP4`) follow the YUYU spec
+  layout for the measurement appendix CFAs.
+* Leader-level identifiers (`LeaderID`) match across waves and are
+  retained in the cluster column (`CLID`, 1-to-1 with `LeaderID`,
+  range [1, 79]).
