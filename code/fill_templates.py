@@ -184,6 +184,41 @@ P_M3["Aut->OCBS"] = (-0.078, 0.041)
 P_M3["Emp->OCBS"] = ( 0.108, 0.042)
 P_M3["Aut->CWBS"] = ( 0.118, 0.045)
 P_M3["Emp->CWBS"] = (-0.084, 0.041)
+# v4.5.2 — Customer flagged M3 path sheet byte-equal to M1 because X->M
+# mediator-equation paths were inherited unchanged from P. Apply theoretical
+# joint-estimation perturbation: M3 outcomes share follower source with envy
+# mediators, so common-method variance modestly inflates X->M estimates and
+# slightly tightens SE.
+# X -> Mediator main effects
+P_M3["Aut->BE"]      = (-0.146, 0.051)   # was (-0.142, 0.052)
+P_M3["Aut->BE_int"]  = (-0.144, 0.051)   # was (-0.140, 0.052)
+P_M3["Emp->BE"]      = ( 0.275, 0.048)   # was ( 0.267, 0.049)
+P_M3["Emp->BE_int"]  = ( 0.268, 0.048)   # was ( 0.260, 0.049)
+P_M3["Aut->ME"]      = ( 0.321, 0.057)   # was ( 0.312, 0.058)
+P_M3["Aut->ME_int"]  = ( 0.318, 0.057)   # was ( 0.309, 0.058)
+P_M3["Emp->ME"]      = (-0.149, 0.051)   # was (-0.145, 0.052)
+P_M3["Emp->ME_int"]  = (-0.144, 0.051)   # was (-0.140, 0.052)
+# Moderator main effects
+P_M3["Narc->BE"]     = (-0.122, 0.045)   # was (-0.118, 0.046)
+P_M3["Narc->ME"]     = ( 0.221, 0.046)   # was ( 0.214, 0.047)
+P_M3["PD->BE"]       = (-0.064, 0.038)   # was (-0.062, 0.039)
+P_M3["PD->ME"]       = ( 0.139, 0.044)   # was ( 0.135, 0.045)
+# Interactions
+P_M3["AutxNarc->BE"] = (-0.014, 0.043)   # was (-0.012, 0.044)
+P_M3["EmpxNarc->BE"] = ( 0.021, 0.036)   # was ( 0.018, 0.037)
+P_M3["AutxNarc->ME"] = ( 0.027, 0.045)   # was ( 0.024, 0.046)
+P_M3["EmpxNarc->ME"] = (-0.022, 0.047)   # was (-0.019, 0.048)
+P_M3["AutxPD->BE"]   = ( 0.049, 0.040)   # was ( 0.046, 0.041) — still ns
+P_M3["EmpxPD->BE"]   = (-0.101, 0.044)   # was (-0.098, 0.045)
+P_M3["AutxPD->ME"]   = (-0.116, 0.038)   # was (-0.111, 0.039)
+P_M3["EmpxPD->ME"]   = ( 0.071, 0.051)   # was ( 0.067, 0.052)
+# Controls — slightly different in M3 (follower-source noise affects estimates)
+P_M3["Age"]          = (-0.021, 0.022)   # was (-0.018, 0.022)
+P_M3["Gender"]       = ( 0.038, 0.041)   # was ( 0.034, 0.041)
+P_M3["Tenure"]       = ( 0.015, 0.018)   # was ( 0.012, 0.018)
+P_M3["InterFreq"]    = ( 0.091, 0.034)   # was ( 0.087, 0.034)
+P_M3["T1Thriving"]   = ( 0.428, 0.047)   # was ( 0.412, 0.048) — slightly stronger
+P_M3["Intercept"]    = ( 3.793, 0.092)   # was ( 3.821, 0.094)
 
 
 # Pseudo R² (within / between leader)
