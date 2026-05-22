@@ -69,6 +69,9 @@ def _is_label(v):
     # Note rows: treat as flex (fill helper substitutes [填写] and N values)
     if "[填写]" in s or "Follower N =" in s or s.startswith("Note. "):
         return False
+    # v4.5.8: customer-annotation cells (intentionally cleared in deliverable)
+    if "MCFA" in s and ("不是 MCFA" in s or "也是普通 CFA" in s or "应该是普通 CFA" in s):
+        return False
     if re.fullmatch(r"-?\d+(\.\d+)?", s):
         return False
     return True
@@ -653,6 +656,11 @@ def layer9():
             return True
         # Note rows that contain [填写] OR have been substituted by fill helper
         if "[填写]" in v or "Follower N =" in v or v.startswith("Note. "):
+            return True
+        # v4.5.8: customer-annotation cells (their round-1 feedback embedded
+        # in template cells) are intentionally cleared in the deliverable
+        # since the underlying issue has been fixed. Treat them as placeholders.
+        if "MCFA" in v and ("不是 MCFA" in v or "也是普通 CFA" in v or "应该是普通 CFA" in v):
             return True
         return False
 

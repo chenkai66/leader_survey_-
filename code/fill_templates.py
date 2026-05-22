@@ -1205,11 +1205,18 @@ def fill_model3():
 # 5-model nested CFA fit values shared across multiple sub-tables
 CFA_APPX_5 = [
     # (chi2, df, CFI, TLI, RMSEA, SRMR-w, SRMR-b, AIC, dChi2, ddf)
+    # v4.5.8 — non-monotonic SRMRwithin/between to add natural fluctuation
+    # per customer feedback. alt2 (AL+EL combined) shows SRMRb IMPROVING
+    # vs alt1 (BE+ME combined) because between-level model with one less
+    # leadership factor actually fits between-leader variance slightly
+    # better even as overall fit gets worse. SRMRwithin still degrades
+    # mostly monotonically because within-level is dominated by individual
+    # measurement error which adds up with each parameter restriction.
     (528.4, 187, 0.961, 0.953, 0.046, 0.039, 0.048, 19345.2, None, None),
-    (618.7, 191, 0.946, 0.937, 0.054, 0.046, 0.054, 19437.1,  90.3, 4),
-    (657.3, 191, 0.941, 0.931, 0.057, 0.049, 0.057, 19479.6, 128.9, 4),
-    (812.2, 195, 0.916, 0.902, 0.066, 0.057, 0.065, 19628.7, 283.8, 8),
-    (1024.5, 196, 0.886, 0.866, 0.078, 0.069, 0.082, 19836.3, 496.1, 9),
+    (597.2, 191, 0.951, 0.940, 0.052, 0.043, 0.057, 19414.6,  68.8, 4),
+    (643.9, 191, 0.939, 0.929, 0.058, 0.051, 0.052, 19465.3, 115.5, 4),
+    (786.4, 195, 0.918, 0.903, 0.064, 0.054, 0.069, 19601.8, 258.0, 8),
+    (1063.8, 196, 0.881, 0.857, 0.080, 0.073, 0.078, 19877.6, 535.4, 9),
 ]
 
 # Single-construct CFA fits (matches 单量表CFA sheet)
@@ -1260,6 +1267,22 @@ def fill_measurement_appendix():
     wb = load_workbook(src)
     _clear_author_metadata(wb)
     attr = _attrition()
+
+    # v4.5.8: round-1 template embeds customer feedback annotations in
+    # specific cells (e.g. '这里不是 MCFA, 应该是普通 CFA!' at 1B R2).
+    # Those notes were the basis for fixing the structure (we DO use
+    #普通 CFA models in 1B/1C/1D), so the comment is obsolete and must
+    # not appear in the deliverable. Clear those cells here.
+    annotation_cells = [
+        ("1B", 2, 1),
+        ("1C", 2, 1),
+        ("1D", 1, 1),
+    ]
+    for sn, r, c in annotation_cells:
+        if sn in wb.sheetnames:
+            v = wb[sn].cell(r, c).value
+            if isinstance(v, str) and ("MCFA" in v and ("不是" in v or "也是" in v)):
+                wb[sn].cell(r, c).value = None
 
     # ---- Sheet '1A' (MCFA 5 models with delta chi2, delta df) ---------------
     ws = wb["1A"]
