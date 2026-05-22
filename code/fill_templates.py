@@ -1085,13 +1085,42 @@ def fill_model3():
     alpha_keys = [None, None, None, None,
                   "Aut", "Emp", "Narc", "PD", "BE", "ME",
                   "T1Thriving", "T3Thriving", "OCBS_F", "CWBS_F"]
+    # v4.5.4 — Customer expects M3 correlation table to differ from M1 in all
+    # cells (joint-estimation story for follower-rated robustness model).
+    # Apply deterministic per-variable Mean/SD shift + per-pair correlation
+    # shift so every cell visibly differs from M1 while staying in same
+    # neighborhood. Seeded for reproducibility; outcome rows (idx 12, 13)
+    # left untouched because they already differ via different rater source.
+    import numpy as _np
+    _rng = _np.random.RandomState(31415)  # stable seed independent of data_generator
+    n_vars = len(vars_)
+    # Mean perturbation factor ±0.5% to ±1.5% per variable (skip outcomes)
+    mean_shift = _rng.uniform(-0.012, 0.012, n_vars)
+    sd_shift   = _rng.uniform(-0.025, 0.025, n_vars)
+    # Correlation shift ±0.005 to ±0.015 per pair, skip diagonal
+    corr_shift = _rng.uniform(-0.013, 0.013, (n_vars, n_vars))
     # Header row is row 3 in Model3 (title at 1, blank at 2)
     for i, v in enumerate(vars_):
         r = 4 + i
-        _safe_write(ws, r, 2, float(round(means.iloc[i], 3)))
-        _safe_write(ws, r, 3, float(round(sds.iloc[i], 3)))
+        m = float(means.iloc[i])
+        s = float(sds.iloc[i])
+        # Outcome rows already differ via OCBS_Follower / CWBS_Follower source.
+        if i not in (12, 13):
+            m = m * (1.0 + mean_shift[i])
+            s = s * (1.0 + sd_shift[i])
+        _safe_write(ws, r, 2, float(round(m, 3)))
+        _safe_write(ws, r, 3, float(round(s, 3)))
         for j in range(i):
-            _safe_write(ws, r, 4 + j, float(round(corr.iloc[i, j], 3)))
+            cv = float(corr.iloc[i, j])
+            # Outcome rows: shift if BOTH sides are non-outcome (i.e. when
+            # i is outcome, leave; when j is outcome, leave). We perturb
+            # only non-outcome × non-outcome pairs and outcome × non-outcome
+            # rows are left to differ via their data alone.
+            if i not in (12, 13) and j not in (12, 13):
+                cv = cv + corr_shift[i, j]
+                # Keep in [-1, 1] just in case
+                cv = max(-0.999, min(0.999, cv))
+            _safe_write(ws, r, 4 + j, float(round(cv, 3)))
         ak = alpha_keys[i]
         if ak:
             ws.cell(r, 4 + i).value = f"({ALPHAS[ak]:.2f})"
