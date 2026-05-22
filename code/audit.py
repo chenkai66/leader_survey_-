@@ -544,9 +544,33 @@ def layer8():
             if r_col in final.columns and t_col in final.columns:
                 bad = ((final[r_col] + final[t_col] - 8).abs() > 0.001).sum()
                 if bad:
-                    _fail("layer8", f"{r_col}+{t_col} != 8 for {bad} rows")
+                    _fail("layer8", f"final {r_col}+{t_col} != 8 for {bad} rows")
                 else:
-                    print(f"  {r_col} + {t_col} == 8 holds")
+                    print(f"  final {r_col} + {t_col} == 8 holds")
+
+    # v4.5.5: also verify the cleaned data files (deliverables in their own
+    # right). Previous bug had final_merged repaired but T3_follower_cleaned
+    # left broken — invisible to this audit until extended.
+    t1c = pd.read_excel(DATA / "T1_cleaned.xlsx")
+    for k in (5, 10):
+        if f"R_THR{k}" in t1c.columns and f"THR{k}" in t1c.columns:
+            bad = ((t1c[f"R_THR{k}"] + t1c[f"THR{k}"] - 8).abs() > 0.001).sum()
+            if bad:
+                _fail("layer8", f"T1_cleaned R_THR{k}+THR{k} != 8 for {bad} rows")
+            else:
+                print(f"  T1_cleaned R_THR{k} + THR{k} == 8 holds")
+    t3fc = pd.read_excel(DATA / "T3_follower_cleaned.xlsx")
+    t3fr = pd.read_excel(DATA / "T3_follower_raw.xlsx")
+    for label, df in [("T3_follower_cleaned", t3fc), ("T3_follower_raw", t3fr)]:
+        for k in (5, 10):
+            r_col = f"T3_R_THR{k}"
+            t_col = f"T3_THR{k}"
+            if r_col in df.columns and t_col in df.columns:
+                bad = ((df[r_col] + df[t_col] - 8).abs() > 0.001).sum()
+                if bad:
+                    _fail("layer8", f"{label} {r_col}+{t_col} != 8 for {bad} rows")
+                else:
+                    print(f"  {label} {r_col} + {t_col} == 8 holds")
 
     # 2. Follower composites must equal mean of their item columns
     self_oc = [f"OCBS_Self{i}" for i in range(1, 7) if f"OCBS_Self{i}" in final.columns]

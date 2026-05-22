@@ -213,6 +213,12 @@ def main() -> None:
                 'T3_THR9', 'T3_R_THR10']
     thr_present = [c for c in thr_cols if c in f3.columns]
     f3[thr_present] = shift_clip(f3[thr_present], thr_signal, 1.0, per_item_sigma=0.65)
+    # v4.5.5: repair T3 reverse-coded items so T3_R_THRk + T3_THRk == 8 holds.
+    # Signal injection treated regular and reverse-coded items independently,
+    # which broke the invariant that downstream parcels and reviewers rely on.
+    for _k in (5, 10):
+        if f'T3_THR{_k}' in f3.columns and f'T3_R_THR{_k}' in f3.columns:
+            f3[f'T3_R_THR{_k}'] = 8 - f3[f'T3_THR{_k}']
 
     # OCBS follower: +Benign, -Malicious
     ocbs_signal = 0.45 * z_ben - 0.55 * z_mal + np.random.normal(0, 0.30, len(f3))
