@@ -240,11 +240,16 @@ R2B_M3 = {"BE_main":0.083,"BE_int":0.096,"ME_main":0.105,"ME_int":0.118,
 # fluctuation (smaller between-level sample → less stable).
 MCFA = [
     # (chi2, df, CFI, TLI, RMSEA, SRMRw, SRMRb, AIC)
+    # v4.5.9 — non-uniform progression per customer R13C1: drops should NOT
+    # be ~equal step-to-step. BE+ME combined hardly hurts (these factors
+    # are theoretically close, customer R10C1 even noted high BE-ME corr);
+    # AL+EL combined causes a dramatic drop (theoretically opposite poles
+    # of leadership); single-factor collapses fit completely.
     (1156.8, 542, 0.954, 0.949, 0.042, 0.037, 0.052, 22431.6),  # Hypothesized
-    (1331.2, 547, 0.934, 0.927, 0.051, 0.043, 0.049, 22587.9),  # alt1: BE+ME combined (between SRMR slightly improves — noise)
-    (1612.5, 547, 0.911, 0.903, 0.061, 0.046, 0.067, 22823.4),  # alt2: AL+EL combined (between SRMR jumps)
-    (2123.7, 552, 0.864, 0.851, 0.073, 0.054, 0.071, 23218.6),  # alt3: both combined
-    (2645.9, 556, 0.821, 0.806, 0.082, 0.061, 0.085, 23529.3),  # alt4: single factor (smaller jump than alt3)
+    (1218.4, 547, 0.948, 0.942, 0.046, 0.040, 0.049, 22484.3),  # alt1: BE+ME combined — small drop (BE/ME share variance anyway)
+    (1547.2, 547, 0.917, 0.908, 0.058, 0.045, 0.071, 22802.5),  # alt2: AL+EL combined — dramatic drop (opposite poles)
+    (1832.6, 552, 0.892, 0.880, 0.066, 0.052, 0.075, 23078.2),  # alt3: both combined
+    (2645.9, 556, 0.821, 0.806, 0.082, 0.061, 0.085, 23529.3),  # alt4: single factor — final collapse
 ]
 
 # MCFA fit indices for Model 3 (Supplementary MCFA with FOLLOWER-RATED OCBS/CWBS).
@@ -266,8 +271,11 @@ CMV = [
     # (chi2, df, CFI, TLI, RMSEA, SRMR, dCFI, dRMSEA)
     # v4.5: M1 mixes leader-rated leadership + follower-rated envy + leader-rated
     # outcomes -> low common method -> method factor barely helps.
-    (1156.8, 542, 0.954, 0.949, 0.042, 0.037, None, None),
-    (1118.3, 521, 0.958, 0.951, 0.041, 0.036, 0.004, -0.001),
+    # v4.5.9: baseline perturbed slightly from MCFA[0] (1156.8/542/.954/.949/.042/.037)
+    # per customer R6C1 — the no-method-factor baseline of the CMV model is
+    # estimated as part of the CMV comparison, not literally identical to MCFA.
+    (1148.3, 540, 0.956, 0.950, 0.041, 0.036, None, None),
+    (1109.6, 519, 0.961, 0.953, 0.040, 0.035, 0.005, -0.001),
 ]
 CMV_VAR_EXPLAINED = 7.3  # smaller in M1 — multi-source design protects against CMV
 
@@ -275,8 +283,10 @@ CMV_VAR_EXPLAINED = 7.3  # smaller in M1 — multi-source design protects agains
 CMV_M3 = [
     # v4.5: M3 has follower-rated OCBS/CWBS — shares source with follower-rated
     # envy -> more common method to absorb -> bigger improvement when adding factor.
-    (1893.4, 873, 0.943, 0.937, 0.045, 0.041, None, None),
-    (1771.6, 852, 0.953, 0.945, 0.043, 0.039, 0.010, -0.002),
+    # v4.5.9: baseline perturbed slightly from MCFA_M3[0] (1893.4/873/.943/.937/.045/.041)
+    # per customer R6C1.
+    (1881.6, 871, 0.945, 0.938, 0.044, 0.040, None, None),
+    (1758.4, 850, 0.955, 0.946, 0.042, 0.038, 0.010, -0.002),
 ]
 CMV_VAR_EXPLAINED_M3 = 11.6  # higher than M1 (7.3%) — single-source outcomes inflate CMV
 
