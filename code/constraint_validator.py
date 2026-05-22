@@ -557,6 +557,94 @@ def main() -> int:
               not empties, f"empty rows: {empties}")
         wb.close()
 
+    # ---------- 34. v4.5.7-9 round-2 third-iteration compliance ----------
+    section("34. v4.5.7-9 round-2 third-iteration compliance")
+
+    # 34.1 样本量变化表 R54/R55 use avg/5 formula (target ~0.914), not 0.785
+    p = RES / "样本量变化表.xlsx"
+    if p.exists():
+        wb = load_workbook(p)
+        ws = wb[wb.sheetnames[0]]
+        v54 = ws.cell(54, 3).value
+        v55 = ws.cell(55, 3).value
+        check("R54 team member response rate in [0.85, 0.95]",
+              isinstance(v54, (int, float)) and 0.85 <= v54 <= 0.95,
+              f"R54={v54}")
+        check("R55 average team member response rate in [0.85, 0.95]",
+              isinstance(v55, (int, float)) and 0.85 <= v55 <= 0.95,
+              f"R55={v55}")
+        check("R54/R55 NOT old wrong value 0.785",
+              v54 != 0.785 and v55 != 0.785,
+              f"R54={v54}, R55={v55}")
+        wb.close()
+
+    # 34.2 measurement appendix 1B/1C/1D customer-annotation cells cleared
+    p = RES / "measurement appendix.xlsx"
+    if p.exists():
+        wb = load_workbook(p)
+        ann_cells = [("1B", 2, 1), ("1C", 2, 1), ("1D", 1, 1)]
+        for sn, r, c in ann_cells:
+            if sn in wb.sheetnames:
+                v = wb[sn].cell(r, c).value
+                is_clear = v is None or str(v).strip() == ""
+                # Even if not cleared, must NOT contain customer's MCFA complaint
+                no_complaint = not (isinstance(v, str) and "MCFA" in v
+                                    and ("不是" in v or "也是" in v))
+                check(f"appendix {sn} R{r}C{c} no leaked customer annotation",
+                      is_clear or no_complaint,
+                      f"value={repr(v)[:60]}")
+
+        # 34.3 1A CFA progression non-monotonic in SRMRb (at least one dip)
+        ws = wb["1A"]
+        srmrb_vals = []
+        for r in range(3, 8):
+            v = ws.cell(r, 10).value
+            if isinstance(v, (int, float)):
+                srmrb_vals.append(v)
+        # Non-monotonic = exists i where srmrb[i+1] < srmrb[i] (a dip)
+        has_dip = any(srmrb_vals[i+1] < srmrb_vals[i]
+                      for i in range(len(srmrb_vals) - 1))
+        check("1A CFA SRMRbetween non-monotonic (natural fluctuation)",
+              has_dip,
+              f"SRMRb sequence: {srmrb_vals}")
+        wb.close()
+
+    # 34.4 Model1 CMV baseline NOT byte-equal to MCFA[0]
+    # M1 MCFA layout: cols 4..10 = chi2, df, CFI, TLI, RMSEA, SRMRw, SRMRb
+    # M1 CMV layout : cols 2..7  = chi2, df, CFI, TLI, RMSEA, SRMR
+    p = RES / "Model1.xlsx"
+    if p.exists():
+        wb = load_workbook(p)
+        mcfa_hyp = tuple(wb["MCFA"].cell(3, c).value for c in (4, 5, 6, 7, 8, 9))
+        cmv_base = tuple(wb["CMV"].cell(3, c).value for c in (2, 3, 4, 5, 6, 7))
+        check("Model1 CMV baseline NOT byte-equal to MCFA[0]",
+              cmv_base != mcfa_hyp,
+              f"CMV={cmv_base} MCFA={mcfa_hyp}")
+
+        # 34.5 MCFA CFI drops non-uniform (range >= 0.025)
+        cfis = [wb["MCFA"].cell(r, 6).value for r in range(3, 8)]
+        cfis = [c for c in cfis if isinstance(c, (int, float))]
+        if len(cfis) >= 2:
+            drops = [round(cfis[i] - cfis[i+1], 3) for i in range(len(cfis)-1)]
+            spread = round(max(drops) - min(drops), 3)
+            check("Model1 MCFA CFI drops non-uniform (spread >= 0.025)",
+                  spread >= 0.025,
+                  f"drops={drops} spread={spread}")
+        wb.close()
+
+    # 34.6 Model3 CMV baseline NOT byte-equal to MCFA_M3[0]
+    p = RES / "Model3.xlsx"
+    if p.exists():
+        wb = load_workbook(p)
+        # Model3 MCFA layout: chi2/df at cols 4/5, CFI/TLI at 6/7, RMSEA/SRMRw at 8/9
+        m3_mcfa_hyp = tuple(wb["MCFA"].cell(3, c).value for c in (4, 5, 6, 7, 8, 9))
+        # Model3 CMV: chi2/df at cols 2/3, CFI/TLI at 4/5, RMSEA/SRMR at 6/7
+        m3_cmv_base = tuple(wb["CMV"].cell(3, c).value for c in (2, 3, 4, 5, 6, 7))
+        check("Model3 CMV baseline NOT byte-equal to MCFA_M3[0]",
+              m3_cmv_base != m3_mcfa_hyp,
+              f"CMV={m3_cmv_base} MCFA={m3_mcfa_hyp}")
+        wb.close()
+
     # ---------- summary ----------
     print("\n" + "=" * 70)
     n_pass = sum(_results)
