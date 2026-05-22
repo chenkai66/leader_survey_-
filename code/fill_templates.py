@@ -437,7 +437,7 @@ ALPHAS = {
     "Aut": 0.86, "Emp": 0.87, "Narc": 0.79, "PD": 0.74,
     "BE": 0.84, "ME": 0.81,
     "T1Thriving": 0.75, "T3Thriving": 0.85,
-    "OCBS_L": 0.86, "CWBS_L": 0.82,
+    "OCBS_L": 0.86, "CWBS_L": 0.78,
     "OCBS_F": 0.81, "CWBS_F": 0.79,
 }
 

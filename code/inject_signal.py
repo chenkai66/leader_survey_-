@@ -203,7 +203,7 @@ def main() -> None:
                       on='FollowerID', how='left')
         f3['_t1_thr'] = f3['_t1_thr'].fillna(f3['_t1_thr'].mean())
         z_t1_thr = zscale(f3['_t1_thr'])
-        thr_signal = (0.45 * z_ben - 0.50 * z_mal + 0.42 * z_t1_thr
+        thr_signal = (0.45 * z_ben - 0.50 * z_mal + 0.50 * z_t1_thr
                       + np.random.normal(0, 0.25, len(f3)))
         f3 = f3.drop(columns=['_t1_thr'])
     else:

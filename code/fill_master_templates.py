@@ -194,7 +194,7 @@ def fill_master():
         "Thriving (T1)":                       0.75,
         "Thriving (T3)":                       0.85,
         "Leader-rated OCBS (T3)":              0.86,
-        "Leader-rated CWBS (T3)":              0.82,
+        "Leader-rated CWBS (T3)":              0.78,
     }
     corr = mat.corr().round(3).values
 
