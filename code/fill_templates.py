@@ -1449,11 +1449,19 @@ def fill_sample_size():
         # rows 54 (team member response rate_j) and 55 (avg team rate) are
         # team-level metrics; we report the cohort average.
     }
+    # v4.5.7 — Customer correction: use avg_followers_per_leader / 5 (initial
+    # team invite size) instead of Final_dyads / T1_submitted. The two
+    # metrics customer cares about:
+    #   overall follower retention rate = Final_dyads / 450  (~0.80)
+    #   avg team-member rate among retained teams = avg / 5  (~0.91)
+    # R54 / R55 both show the team-level rate (.91); overall retention is
+    # implicit via R49 (count) / 450 (initial invites in row 2).
+    avg_per_leader = attr.get("Avg_followers_per_leader", 0)
     n_followers = attr.get("Final_dyads")
-    n_invited = attr.get("T1_submitted", 0)
-    if n_followers and n_invited:
-        mapping[54] = round(n_followers / n_invited, 3)
-        mapping[55] = round(n_followers / n_invited, 3)
+    n_initial_invited = 450  # 90 leaders × 5 invites per team (per study spec)
+    if avg_per_leader:
+        mapping[54] = round(avg_per_leader / 5.0, 3)
+        mapping[55] = round(avg_per_leader / 5.0, 3)
 
     for r, v in mapping.items():
         if v is None:
