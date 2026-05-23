@@ -645,6 +645,41 @@ def main() -> int:
               f"CMV={m3_cmv_base} MCFA={m3_mcfa_hyp}")
         wb.close()
 
+    # ---------- 35. v4.5.11-12 significance stars on Path/Correlation/IE/SS ----------
+    section("35. v4.5.11-12 significance stars present")
+    for fn in ("Model1.xlsx", "Model2.xlsx", "Model3.xlsx"):
+        p_ = RES / fn
+        if not p_.exists(): continue
+        wb = load_workbook(p_)
+        path_sheet = "Path" if "Path" in wb.sheetnames else "path"
+        n_stars = 0
+        if path_sheet in wb.sheetnames:
+            ws = wb[path_sheet]
+            for r in range(1, ws.max_row + 1):
+                for c in range(1, ws.max_column + 1):
+                    v = ws.cell(r, c).value
+                    if isinstance(v, str) and any(v.endswith(suf) for suf in ("***", "**", "*", "†")):
+                        n_stars += 1
+        check(f"{fn} {path_sheet} has significance stars (>=8 expected)",
+              n_stars >= 8, f"got {n_stars} starred cells")
+        wb.close()
+
+    for fn, cs in (("Model1.xlsx", "Correlation"), ("Model3.xlsx", "correlation")):
+        p_ = RES / fn
+        if not p_.exists(): continue
+        wb = load_workbook(p_)
+        if cs not in wb.sheetnames: continue
+        ws = wb[cs]
+        n_stars = 0
+        for r in range(1, ws.max_row + 1):
+            for c in range(1, ws.max_column + 1):
+                v = ws.cell(r, c).value
+                if isinstance(v, str) and any(v.endswith(suf) for suf in ("***", "**", "*")):
+                    n_stars += 1
+        check(f"{fn} {cs} has correlation stars (>=4 expected)",
+              n_stars >= 4, f"got {n_stars} starred cells")
+        wb.close()
+
     # ---------- summary ----------
     print("\n" + "=" * 70)
     n_pass = sum(_results)

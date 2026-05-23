@@ -50,6 +50,29 @@ def _hdr(t):
     print(f"\n{'=' * 70}\n{t}\n{'=' * 70}")
 
 
+def _parse_b(v):
+    """Strip significance star suffix from a path coefficient cell value.
+    Returns float, or None if cell is empty/em-dash/non-numeric."""
+    if v is None:
+        return None
+    if isinstance(v, (int, float)):
+        return float(v)
+    if isinstance(v, str):
+        s = v.strip()
+        if s in ("", "—", "-", "[填写]"):
+            return None
+        # Strip trailing stars / dagger
+        for suf in ("***", "**", "*", "†"):
+            if s.endswith(suf):
+                s = s[:-len(suf)]
+                break
+        try:
+            return float(s)
+        except ValueError:
+            return None
+    return None
+
+
 def _is_label(v):
     """A label cell is one whose template value MUST be preserved
     byte-equal in the output. Excludes numerics, empty cells, em-dash
@@ -96,16 +119,16 @@ def layer2():
     wb = load_workbook(RES / "主模型结果填答表.xlsx")
     ws4 = wb["Table 4. 主模型path"]
     table4 = {
-        "Auto->Benign":     ws4.cell(row=4,  column=3).value,
-        "Emp->Benign":      ws4.cell(row=5,  column=3).value,
-        "Auto->Malicious":  ws4.cell(row=6,  column=3).value,
-        "Emp->Malicious":   ws4.cell(row=7,  column=3).value,
-        "Benign->Thriving": ws4.cell(row=9,  column=3).value,
-        "Benign->OCBS":     ws4.cell(row=10, column=3).value,
-        "Benign->CWBS":     ws4.cell(row=11, column=3).value,
-        "Mal->Thriving":    ws4.cell(row=12, column=3).value,
-        "Mal->OCBS":        ws4.cell(row=13, column=3).value,
-        "Mal->CWBS":        ws4.cell(row=14, column=3).value,
+        "Auto->Benign":     _parse_b(ws4.cell(row=4,  column=3).value),
+        "Emp->Benign":      _parse_b(ws4.cell(row=5,  column=3).value),
+        "Auto->Malicious":  _parse_b(ws4.cell(row=6,  column=3).value),
+        "Emp->Malicious":   _parse_b(ws4.cell(row=7,  column=3).value),
+        "Benign->Thriving": _parse_b(ws4.cell(row=9,  column=3).value),
+        "Benign->OCBS":     _parse_b(ws4.cell(row=10, column=3).value),
+        "Benign->CWBS":     _parse_b(ws4.cell(row=11, column=3).value),
+        "Mal->Thriving":    _parse_b(ws4.cell(row=12, column=3).value),
+        "Mal->OCBS":        _parse_b(ws4.cell(row=13, column=3).value),
+        "Mal->CWBS":        _parse_b(ws4.cell(row=14, column=3).value),
     }
     wb.close()
 
@@ -121,10 +144,10 @@ def layer2():
     wb = load_workbook(RES / "Model3.xlsx")
     wp = wb["path"]
     m3_invariant = {
-        "Auto->Benign":     wp.cell(14, 2).value,
-        "Emp->Benign":      wp.cell(15, 2).value,
-        "Auto->Malicious":  wp.cell(14, 6).value,
-        "Emp->Malicious":   wp.cell(15, 6).value,
+        "Auto->Benign":     _parse_b(wp.cell(14, 2).value),
+        "Emp->Benign":      _parse_b(wp.cell(15, 2).value),
+        "Auto->Malicious":  _parse_b(wp.cell(14, 6).value),
+        "Emp->Malicious":   _parse_b(wp.cell(15, 6).value),
     }
     wb.close()
     # v4.5.2: M3 X→M paths intentionally differ from M1 by ~3% (common-method
@@ -148,7 +171,8 @@ def layer2():
     def _parse(s):
         if s is None:
             return None
-        return float(str(s).split()[0])
+        # First token, strip star suffix via _parse_b
+        return _parse_b(str(s).split()[0])
 
     wb = load_workbook(RES / "study3附录结果填答.xlsx")
     a4 = wb["Table A4 Robustness"]

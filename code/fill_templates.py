@@ -45,6 +45,101 @@ import openpyxl.styles  # for wrap_text alignment in 描述性统计
 
 ROOT = Path(__file__).parent.parent
 TPL = ROOT / "第一轮结果后客户反馈"
+
+
+def _star(b, se):
+    """Two-tailed z-test star for path coefficient b with std error se."""
+    if not isinstance(b, (int, float)) or not isinstance(se, (int, float)) or se <= 0:
+        return ""
+    t = abs(b / se)
+    if t >= 3.29: return "***"
+    if t >= 2.58: return "**"
+    if t >= 1.96: return "*"
+    if t >= 1.65: return "†"
+    return ""
+
+
+def _add_path_stars(ws, b_cols, se_cols, b_rows):
+    """Post-process: append significance star to each b cell based on b/SE."""
+    for r in b_rows:
+        for b_col, se_col in zip(b_cols, se_cols):
+            b = ws.cell(r, b_col).value
+            se = ws.cell(r, se_col).value
+            star = _star(b, se)
+            if star:
+                ws.cell(r, b_col).value = f"{b}{star}"
+
+
+def _ensure_sig_legend(ws, note_row, max_col=20):
+    """Make sure the Note row in a path-style sheet ends with the
+    significance legend. If it does not contain '*p < .05' anywhere, append."""
+    for c in range(1, max_col + 1):
+        v = ws.cell(note_row, c).value
+        if isinstance(v, str) and v.startswith("Note"):
+            if "*p" not in v and "*p <" not in v:
+                ws.cell(note_row, c).value = v.rstrip() + "  *p < .05. **p < .01. ***p < .001."
+            return
+
+
+def _star_r(r, n=361):
+    """Star a Pearson correlation based on N. Thresholds for N≈361 dyads:
+       |r| >= 0.103 (p<.05), 0.136 (p<.01), 0.174 (p<.001)."""
+    if not isinstance(r, (int, float)):
+        return ""
+    a = abs(r)
+    if a >= 0.174: return "***"
+    if a >= 0.136: return "**"
+    if a >= 0.103: return "*"
+    return ""
+
+
+def _add_corr_stars(ws, r_start, r_end, c_start, c_end, n=361):
+    """Walk the correlation matrix block and append star to each r cell.
+    Skip alpha-in-parens cells (already strings) and em-dash markers."""
+    for r in range(r_start, r_end + 1):
+        for c in range(c_start, c_end + 1):
+            v = ws.cell(r, c).value
+            if isinstance(v, (int, float)) and -1.0 < v < 1.0 and v != 0:
+                star = _star_r(v, n)
+                if star:
+                    ws.cell(r, c).value = f"{v}{star}"
+
+
+def _star_p(p):
+    if not isinstance(p, (int, float)): return ""
+    if p < 0.001: return "***"
+    if p < 0.01:  return "**"
+    if p < 0.05:  return "*"
+    if p < 0.10:  return "†"
+    return ""
+
+
+def _ci_excludes_zero(ci_str):
+    if not isinstance(ci_str, str): return False
+    import re as _re
+    m = _re.match(r"\[\s*(-?\d+\.?\d*),\s*(-?\d+\.?\d*)\s*\]", ci_str)
+    if not m: return False
+    lo, hi = float(m.group(1)), float(m.group(2))
+    return (lo > 0 and hi > 0) or (lo < 0 and hi < 0)
+
+
+def _add_simple_slope_stars(ws, b_p_pairs, b_rows):
+    for r in b_rows:
+        for b_col, p_col in b_p_pairs:
+            b = ws.cell(r, b_col).value
+            p_val = ws.cell(r, p_col).value
+            star = _star_p(p_val)
+            if star and isinstance(b, (int, float)):
+                ws.cell(r, b_col).value = f"{b}{star}"
+
+
+def _add_ie_stars(ws, b_ci_pairs, b_rows):
+    for r in b_rows:
+        for b_col, ci_col in b_ci_pairs:
+            b = ws.cell(r, b_col).value
+            ci = ws.cell(r, ci_col).value
+            if isinstance(b, (int, float)) and _ci_excludes_zero(ci):
+                ws.cell(r, b_col).value = f"{b}*"
 OUT = ROOT / "results"
 DATA = ROOT / "data"
 
@@ -567,6 +662,10 @@ def fill_model1():
         elif _is_placeholder(ws.cell(r, 4 + i).value):
             ws.cell(r, 4 + i).value = "—"
 
+    # v4.5.11 — significance stars on M1 Correlation lower triangle
+    _add_corr_stars(ws, r_start=3, r_end=16, c_start=4, c_end=17,
+                    n=int(attr.get("Final_dyads", 361)))
+
     # ---- Sheet 'Path' --------------------------------------------------------
     ws = wb["Path"]
     # Column blocks per outcome:
@@ -651,6 +750,12 @@ def fill_model1():
     for col, key in r2_map_w:
         _safe_write(ws, 26, col, float(round(R2W[key], 3)))
         _safe_write(ws, 27, col, float(round(R2B[key], 3)))
+    # v4.5.11 — significance stars on M1 Path coefficients
+    _add_path_stars(ws,
+                    b_cols=[2, 4, 6, 8, 10, 12, 14],
+                    se_cols=[3, 5, 7, 9, 11, 13, 15],
+                    b_rows=[5, 7, 8, 9, 10, 11, 13, 14, 16, 17, 19, 20, 22, 23, 24, 25])
+    _ensure_sig_legend(ws, note_row=28)
 
     # ---- Sheet '被调节的中介效应' (42 rows × 7 cols) -----------------------
     ws = wb["被调节的中介效应"]
@@ -690,6 +795,10 @@ def fill_model1():
     _fillIE(35, "Emp->ME->THR", "Emp->ME->OCBS", "Emp->ME->CWBS")
     _fillCIE((36, 37, 38), CIE_NARC, "Emp->ME->THR", "Emp->ME->OCBS", "Emp->ME->CWBS")
     _fillCIE((39, 40, 41), CIE_PD,   "Emp->ME->THR", "Emp->ME->OCBS", "Emp->ME->CWBS")
+    # v4.5.12 — M1 被调节中介 stars (single * if CI excludes 0)
+    _add_ie_stars(ws,
+                  b_ci_pairs=[(2, 3), (4, 5), (6, 7)],
+                  b_rows=list(range(7, 42)))
 
     # ---- Sheet '简单调节效应' ------------------------------------------------
     ws = wb["简单调节效应"]
@@ -703,6 +812,10 @@ def fill_model1():
         vals = SIMPLE_SLOPE[(y, x, w)]
         for c, v in enumerate(vals):
             _safe_write(ws, r, 4 + c, float(round(v, 3)))
+    # v4.5.12 — M1 简单调节 stars based on explicit p columns (4 b/p pairs)
+    _add_simple_slope_stars(ws,
+                            b_p_pairs=[(4, 6), (9, 11), (14, 16), (19, 21)],
+                            b_rows=[r for r, *_ in rows_be + rows_me])
 
     # ---- Sheet 'ICC等' (Aut + Emp ICC stats) --------------------------------
     ws = wb["ICC等"]
@@ -938,6 +1051,12 @@ def fill_model2():
     for col, key in r2_map:
         _safe_write(ws, 21, col, float(round(R2W[key], 3)))
         _safe_write(ws, 22, col, float(round(R2B[key], 3)))
+    # v4.5.11 — significance stars on M2 Path
+    _add_path_stars(ws,
+                    b_cols=[2, 4, 6, 8, 10, 12, 14],
+                    se_cols=[3, 5, 7, 9, 11, 13, 15],
+                    b_rows=list(range(3, 21)))
+    _ensure_sig_legend(ws, note_row=23)
 
     # ---- Sheets '被调节的中介效应检验' (43 rows × 8 cols) -------------------
     # Same structure as Model1's '被调节的中介效应' but column shift due to title row
@@ -998,6 +1117,11 @@ def _fill_moderated_med(ws, row_offset=0, ie=None, cie_narc=None, cie_pd=None):
     _fillCIE((39, 40, 41), cie_pd,   "Emp->ME->THR", "Emp->ME->OCBS", "Emp->ME->CWBS")
 
 
+    # v4.5.12 — auto stars (single * if CI excludes 0)
+    _add_ie_stars(ws,
+                  b_ci_pairs=[(2, 3), (4, 5), (6, 7)],
+                  b_rows=list(range(6 + row_offset, 43 + row_offset)))
+
 def _fill_simple_slopes(ws, row_offset=0, slope_bank=None):
     """Fill simple-slope sheet; rows 4-11 (Model1) or 5-12 (Model2/3)."""
     slope_bank = slope_bank or SIMPLE_SLOPE
@@ -1010,6 +1134,11 @@ def _fill_simple_slopes(ws, row_offset=0, slope_bank=None):
         for c, v in enumerate(vals):
             _safe_write(ws, r + row_offset, 4 + c, float(round(v, 3)))
 
+
+    # v4.5.12 — auto stars based on p-value column
+    _add_simple_slope_stars(ws,
+                            b_p_pairs=[(4, 6), (9, 11), (14, 16), (19, 21)],
+                            b_rows=list(range(3 + row_offset, 12 + row_offset)))
 
 def _fill_consistency(ws):
     """Fill the '是否和model1结论一致' summary table — Model 2 column matches
@@ -1135,6 +1264,10 @@ def fill_model3():
         if ak:
             ws.cell(r, 4 + i).value = f"({ALPHAS[ak]:.2f})"
 
+    # v4.5.11 — significance stars on M3 correlation lower triangle
+    _add_corr_stars(ws, r_start=4, r_end=17, c_start=4, c_end=17,
+                    n=int(attr.get("Final_dyads", 361)))
+
     # ---- Sheet 'path' (with follower-rated outcomes) ------------------------
     ws = wb["path"]
     # Same row layout as Model1.Path but with follower-rated outcomes in cols 12/14
@@ -1195,6 +1328,11 @@ def fill_model3():
     for col, key in r2_map:
         _safe_write(ws, 27, col, float(round(R2W_M3[key], 3)))
         _safe_write(ws, 28, col, float(round(R2B_M3[key], 3)))
+    # v4.5.11 — significance stars on M3 path (row offset +1 vs M1)
+    _add_path_stars(ws,
+                    b_cols=[2, 4, 6, 8, 10, 12, 14],
+                    se_cols=[3, 5, 7, 9, 11, 13, 15],
+                    b_rows=[6, 8, 9, 10, 11, 12, 14, 15, 17, 18, 20, 21, 23, 24, 25, 26])
 
     # ---- Sheet '被调节的中介效应' + '简单调节效应' -----------------------
     # v4.4 — pass M3 banks so values differ from Model 1
