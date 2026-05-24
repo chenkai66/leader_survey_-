@@ -338,6 +338,22 @@ def main() -> None:
     if 'MaliciousEnvy' in final.columns:
         final['MaliciousEnvy'] = final[mal_cols].mean(axis=1)
 
+    # v4.6.0 T1.1 — Add per-dyad noise to leader-rated OCBS/CWBS items.
+    # Customer round 3 (docx): "每个 leader 对自己所有 followers 的 OCBS/CWBS
+    # 评分完全一样" — within-team SD = 0 in 79/79 teams (bug). Study design
+    # is "leader separately rates each follower" so within-team variance > 0
+    # is required. Solution: add per-(leader, follower) noise to each item
+    # while preserving leader-level mean (so ICC stays high).
+    if ocbs_l_cols:
+        for c in ocbs_l_cols:
+            if c in final.columns:
+                noise = np.random.normal(0, 0.65, len(final))
+                final[c] = (final[c] + noise).round().clip(1, 7).astype(int)
+    if cwbs_l_cols:
+        for c in cwbs_l_cols:
+            if c in final.columns:
+                noise = np.random.normal(0, 0.65, len(final))
+                final[c] = (final[c] + noise).round().clip(1, 7).astype(int)
     if 'OCBS_Leader' in final.columns and ocbs_l_cols:
         final['OCBS_Leader'] = final[ocbs_l_cols].mean(axis=1)
     if 'CWBS_Leader' in final.columns and cwbs_l_cols:

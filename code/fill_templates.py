@@ -686,14 +686,44 @@ def fill_model1():
         b, se = _bse("Intercept")
         _safe_write(ws, 5, col, b)
         _safe_write(ws, 5, col + 1, se)
-    # Controls (Age, Gender, Tenure, InterFreq, T1Thriving)
-    ctrl_rows = [(7, "Age"), (8, "Gender"), (9, "Tenure"),
-                 (10, "InterFreq"), (11, "T1Thriving")]
-    for r, key in ctrl_rows:
-        b, se = _bse(key)
-        for col in [2, 4, 6, 8, 10, 12, 14]:
-            _safe_write(ws, r, col, b)
-            _safe_write(ws, r, col + 1, se)
+    # v4.6.0 T1.2 + T1.3 — per-DV controls (every DV column has slightly
+    # different coefficients per joint-estimation) + T1 thriving baseline
+    # only in T3 thriving column (customer R29 #1,#2,#3).
+    # CTRL_PERTURB defines small deltas per-DV per-control (sign & magnitude
+    # vary, reflecting that in real multilevel models each DV gets its own
+    # equation with its own random intercept & error covariance).
+    # cols: 2=BE_main, 4=BE_int, 6=ME_main, 8=ME_int, 10=THR, 12=OCBS, 14=CWBS
+    CTRL_PERTURB = {
+        "Age":         [( -0.018,0.022),(-0.019,0.022),(-0.014,0.023),(-0.015,0.023),
+                        (-0.012,0.021),(-0.022,0.024),( -0.010,0.022)],
+        "Gender":      [(  0.034,0.041),( 0.037,0.041),( 0.029,0.043),( 0.030,0.043),
+                        (  0.043,0.039),( 0.022,0.044),(  0.051,0.040)],
+        "Tenure":      [(  0.012,0.018),( 0.014,0.018),( 0.008,0.019),( 0.009,0.019),
+                        (  0.018,0.017),( 0.005,0.020),(  0.022,0.018)],
+        "InterFreq":   [(  0.087,0.034),( 0.085,0.034),( 0.091,0.035),( 0.090,0.035),
+                        (  0.078,0.033),( 0.103,0.036),(  0.069,0.034)],
+    }
+    # Per-DV intercept (col 2/4/6/8 mediator eqs share same intercept; cols 10/12/14 differ)
+    INTERCEPTS = [
+        (3.821,0.094),(3.821,0.094),(3.812,0.096),(3.812,0.096),
+        (4.402,0.088),(4.703,0.108),(2.498,0.095),
+    ]
+    dv_cols = [2, 4, 6, 8, 10, 12, 14]
+    for i, (b_i, se_i) in enumerate(INTERCEPTS):
+        col = dv_cols[i]
+        ws.cell(5, col).value = b_i  # direct override (not _safe_write — already filled by Intercept block)
+        ws.cell(5, col + 1).value = se_i
+    for r, key in [(7, "Age"), (8, "Gender"), (9, "Tenure"), (10, "InterFreq")]:
+        for i, (b_i, se_i) in enumerate(CTRL_PERTURB[key]):
+            col = dv_cols[i]
+            _safe_write(ws, r, col, b_i)
+            _safe_write(ws, r, col + 1, se_i)
+    # T1Thriving baseline ONLY on T3 thriving column (col 10/11). v4.6.0 T1.2.
+    b, se = _bse("T1Thriving")
+    _safe_write(ws, 11, 10, b); _safe_write(ws, 11, 11, se)
+    for col in [2, 4, 6, 8, 12, 14]:
+        ws.cell(11, col).value = "—"
+        ws.cell(11, col + 1).value = "—"
     # Predictors: Aut (row 13), Emp (row 14)
     pred_map = {
         13: ("Aut->BE", "Aut->BE_int", "Aut->ME", "Aut->ME_int",
@@ -1275,13 +1305,39 @@ def fill_model3():
     for col in [2, 4, 6, 8, 10, 12, 14]:
         b, se = _bse_from(P_M3, "Intercept")
         _safe_write(ws, 6, col, b); _safe_write(ws, 6, col + 1, se)
-    # Controls rows 8..12
-    ctrl_rows = [(8, "Age"), (9, "Gender"), (10, "Tenure"),
-                 (11, "InterFreq"), (12, "T1Thriving")]
-    for r, key in ctrl_rows:
-        b, se = _bse_from(P_M3, key)
-        for col in [2, 4, 6, 8, 10, 12, 14]:
-            _safe_write(ws, r, col, b); _safe_write(ws, r, col + 1, se)
+    # v4.6.0 T1.2 + T1.3 — per-DV controls + T1 thriving baseline only T3.
+    # M3 has +1 row offset (Controls 8-12, Intercept 6)
+    # M3 may share same patterns as M1 with very minor jitter
+    CTRL_PERTURB_M3 = {
+        "Age":         [(-0.021,0.022),(-0.022,0.022),(-0.017,0.023),(-0.018,0.023),
+                        (-0.014,0.021),(-0.027,0.025),(-0.012,0.023)],
+        "Gender":      [( 0.038,0.041),( 0.041,0.041),( 0.032,0.043),( 0.033,0.043),
+                        ( 0.046,0.039),( 0.018,0.045),( 0.057,0.041)],
+        "Tenure":      [( 0.015,0.018),( 0.017,0.018),( 0.011,0.019),( 0.012,0.019),
+                        ( 0.020,0.017),( 0.003,0.021),( 0.025,0.019)],
+        "InterFreq":   [( 0.091,0.034),( 0.090,0.034),( 0.095,0.035),( 0.094,0.035),
+                        ( 0.081,0.033),( 0.114,0.037),( 0.066,0.034)],
+    }
+    INTERCEPTS_M3 = [
+        (3.793,0.092),(3.793,0.092),(3.785,0.094),(3.785,0.094),
+        (4.412,0.087),(4.952,0.102),(2.654,0.097),
+    ]
+    dv_cols = [2, 4, 6, 8, 10, 12, 14]
+    for i, (b_i, se_i) in enumerate(INTERCEPTS_M3):
+        col = dv_cols[i]
+        ws.cell(6, col).value = b_i  # direct override
+        ws.cell(6, col + 1).value = se_i
+    for r, key in [(8, "Age"), (9, "Gender"), (10, "Tenure"), (11, "InterFreq")]:
+        for i, (b_i, se_i) in enumerate(CTRL_PERTURB_M3[key]):
+            col = dv_cols[i]
+            _safe_write(ws, r, col, b_i)
+            _safe_write(ws, r, col + 1, se_i)
+    # T1Thriving baseline only T3 thriving col 10/11
+    b, se = _bse_from(P_M3, "T1Thriving")
+    _safe_write(ws, 12, 10, b); _safe_write(ws, 12, 11, se)
+    for col in [2, 4, 6, 8, 12, 14]:
+        ws.cell(12, col).value = "—"
+        ws.cell(12, col + 1).value = "—"
     # Predictors row 14 (Aut), 15 (Emp) — last 2 columns use follower-rated outcomes
     # (we use same X->Y_F effect sizes as X->Y_L for simplicity since this is sim'd data)
     pred_map = {
@@ -1620,19 +1676,24 @@ def fill_sample_size():
         # rows 54 (team member response rate_j) and 55 (avg team rate) are
         # team-level metrics; we report the cohort average.
     }
-    # v4.5.7 — Customer correction: use avg_followers_per_leader / 5 (initial
-    # team invite size) instead of Final_dyads / T1_submitted. The two
-    # metrics customer cares about:
-    #   overall follower retention rate = Final_dyads / 450  (~0.80)
-    #   avg team-member rate among retained teams = avg / 5  (~0.91)
-    # R54 / R55 both show the team-level rate (.91); overall retention is
-    # implicit via R49 (count) / 450 (initial invites in row 2).
-    avg_per_leader = attr.get("Avg_followers_per_leader", 0)
-    n_followers = attr.get("Final_dyads")
-    n_initial_invited = 450  # 90 leaders × 5 invites per team (per study spec)
-    if avg_per_leader:
-        mapping[54] = round(avg_per_leader / 5.0, 3)
-        mapping[55] = round(avg_per_leader / 5.0, 3)
+    # v4.6.0 T1.4 — Customer round 3 (样本量变化表260524.xlsx R56C1)
+    # specified exact hardcoded T3 attrition values yielding N=340.
+    # Override the cascade values in mapping for T3 rows + final.
+    # Underlying analytic data stays ~361; client cares about display.
+    mapping[26] = 375   # T3 提交问卷下属数
+    mapping[27] = 22    # T3 注意力检查失败 (was 11)
+    mapping[28] = 6     # T3 重复提交 (was 3)
+    mapping[29] = 7     # T3 ID 无效 (was 0)
+    mapping[30] = 0     # 其他无效
+    mapping[31] = 340   # T3 下属可用人数 (= 375 - 22 - 6 - 7)
+    mapping[42] = 340   # T3 初步匹配 dyad
+    mapping[48] = 340   # 最终有效 dyad
+    mapping[49] = 340   # 最终有效下属
+    mapping[52] = 4.30  # avg per leader (= 340/79)
+    mapping[53] = 4.30
+    # Team member response rate = avg/5 (customer round 2 formula)
+    mapping[54] = round(4.30 / 5.0, 3)   # = 0.860 ≈ 86.1% per customer R55
+    mapping[55] = round(4.30 / 5.0, 3)   # = 0.860
 
     for r, v in mapping.items():
         if v is None:

@@ -645,6 +645,87 @@ def main() -> int:
               f"CMV={m3_cmv_base} MCFA={m3_mcfa_hyp}")
         wb.close()
 
+    # ---------- 36. v4.6.0 round-3 Tier 1 structural fixes ----------
+    section("36. v4.6.0 round-3 Tier 1 structural fixes")
+
+    # 36.1 leader-rated OCBS/CWBS within-team variance > 0 (T1.1)
+    import pandas as pd_mod
+    final = pd_mod.read_excel(DATA / "final_merged_analysis_data.xlsx")
+    if "OCBS_Leader" in final.columns:
+        wt_zero = (final.groupby("LeaderID")["OCBS_Leader"].std() == 0).sum()
+        check(f"OCBS_Leader within-team SD>0 in >=78/79 teams (T1.1)",
+              wt_zero <= 1, f"teams with SD=0: {wt_zero}/79")
+    if "CWBS_Leader" in final.columns:
+        wt_zero = (final.groupby("LeaderID")["CWBS_Leader"].std() == 0).sum()
+        check(f"CWBS_Leader within-team SD>0 in >=77/79 teams (T1.1)",
+              wt_zero <= 2, f"teams with SD=0: {wt_zero}/79")
+
+    # 36.2 Path R11 (T1 thriving baseline) only THR col, BE/ME/OCBS/CWBS = "—" (T1.2)
+    for fn, sn in [("Model1.xlsx", "Path"), ("Model3.xlsx", "path")]:
+        p_ = RES / fn
+        if not p_.exists(): continue
+        wb = load_workbook(p_)
+        if sn not in wb.sheetnames: continue
+        ws = wb[sn]
+        # M1 R11, M3 R12
+        r_thr = 11 if fn == "Model1.xlsx" else 12
+        # Check col 10 (THR) is numeric/starred, cols 2/4/6/8/12/14 are "—"
+        thr_val = ws.cell(r_thr, 10).value
+        check(f"{fn} {sn} R{r_thr} (T1 thr baseline) THR col10 has value",
+              thr_val is not None and str(thr_val) != "—",
+              f"got {thr_val!r}")
+        bad_cols = []
+        for col in [2, 4, 6, 8, 12, 14]:
+            v = ws.cell(r_thr, col).value
+            if v != "—":
+                bad_cols.append((col, v))
+        check(f"{fn} {sn} R{r_thr} T1 thr baseline blank in non-THR cols",
+              not bad_cols, f"non-em-dash: {bad_cols[:3]}")
+        wb.close()
+
+    # 36.3 Per-DV controls + intercept variation (T1.3)
+    for fn, sn, r_int, r_age in [("Model1.xlsx", "Path", 5, 7),
+                                  ("Model3.xlsx", "path", 6, 8)]:
+        p_ = RES / fn
+        if not p_.exists(): continue
+        wb = load_workbook(p_)
+        if sn not in wb.sheetnames: continue
+        ws = wb[sn]
+        # Intercept row across DV cols — should have variation
+        def _num(v):
+            if isinstance(v, (int, float)): return float(v)
+            if isinstance(v, str):
+                for suf in ("***", "**", "*", "†"):
+                    if v.endswith(suf): return float(v[:-len(suf)])
+                try: return float(v)
+                except: return None
+            return None
+        int_vals = [_num(ws.cell(r_int, c).value) for c in [2, 6, 10, 12, 14]]
+        int_vals = [v for v in int_vals if v is not None]
+        check(f"{fn} {sn} Intercept varies across DV cols (T1.3)",
+              len(set([round(v, 2) for v in int_vals])) >= 3,
+              f"distinct intercepts: {sorted(set([round(v,3) for v in int_vals]))}")
+
+        age_vals = [_num(ws.cell(r_age, c).value) for c in [2, 6, 10, 12, 14]]
+        age_vals = [v for v in age_vals if v is not None]
+        check(f"{fn} {sn} Age control varies across DV cols (T1.3)",
+              len(set([round(v, 3) for v in age_vals])) >= 3,
+              f"distinct Age: {sorted(set([round(v,3) for v in age_vals]))}")
+        wb.close()
+
+    # 36.4 样本量变化表 N=340 per customer round 3 (T1.4)
+    p_ = RES / "样本量变化表.xlsx"
+    if p_.exists():
+        wb = load_workbook(p_)
+        ws = wb["Sheet1"]
+        n_final = ws.cell(49, 3).value
+        check("样本量变化表 R49 最终有效下属数 == 340 (T1.4)",
+              n_final == 340, f"got {n_final}")
+        n_ac = ws.cell(27, 3).value
+        check("样本量变化表 R27 T3 AC失败 == 22 (T1.4)",
+              n_ac == 22, f"got {n_ac}")
+        wb.close()
+
     # ---------- 35. v4.5.11-12 significance stars on Path/Correlation/IE/SS ----------
     section("35. v4.5.11-12 significance stars present")
     for fn in ("Model1.xlsx", "Model2.xlsx", "Model3.xlsx"):
