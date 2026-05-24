@@ -1,17 +1,24 @@
 # ============================================================
 # Study 3: Leadership Styles, Envy, and Subordinate Outcomes
-# Complete Analysis Code
+# Complete Multilevel Analysis Code
+# Two-Level Random-Intercept Path Model with Full Moderation
+# ============================================================
+# v4.6.4 (Round 3 customer feedback): full theoretical model with
+#   - Narcissism + PowerDistance both as moderators (8 moderation paths)
+#   - Model 2 no-controls including outcome equations
+#   - Model 3 follower-rated outcomes (NO WorkingYears_C addition)
+#   - Simple slopes + Monte Carlo conditional indirect effects
 # ============================================================
 
 # --- Load Libraries ---
-library(lme4)       # Multilevel modeling
-library(lmerTest)   # p-values for lmer
-library(lavaan)     # CFA (single-level)
-library(readxl)     # Read Excel files
-library(dplyr)      # Data manipulation
-library(psych)      # Descriptive stats, reliability
+library(lme4)        # Multilevel modeling
+library(lmerTest)    # p-values for lmer
+library(lavaan)      # CFA (single-level supplement)
+library(readxl)      # Read Excel files
+library(dplyr)       # Data manipulation
+library(psych)       # Descriptive stats, reliability
 library(performance) # ICC computation
-library(boot)       # Bootstrapping
+library(boot)        # Bootstrapping
 
 # --- Read Data ---
 final_data <- read_excel("final_merged_analysis_data.xlsx")
@@ -20,219 +27,291 @@ cat("Data loaded:", nrow(final_data), "rows,",
     length(unique(final_data$LeaderID)), "leaders\n")
 
 # ============================================================
-# 1. DESCRIPTIVE STATISTICS AND CORRELATIONS
+# 1. DESCRIPTIVE STATISTICS, CORRELATIONS, RELIABILITY
 # ============================================================
 
-# Key variables for descriptives (non-centered)
-desc_vars <- c("Autocratic", "Empowering", "BenignEnvy", "MaliciousEnvy",
-               "T1_Thriving", "T3_Thriving", "OCBS_Leader", "CWBS_Leader",
-               "Narcissism", "PowerDistance", "FollowerAge", "TenureWithLeader",
-               "InteractionFreq")
-
-# Filter to existing columns
+desc_vars <- c("Autocratic", "Empowering", "Narcissism", "PowerDistance",
+               "BenignEnvy", "MaliciousEnvy",
+               "T1_Thriving", "T3_Thriving",
+               "OCBS_Leader", "CWBS_Leader",
+               "OCBS_Follower", "CWBS_Follower",
+               "FollowerAge", "TenureWithLeader", "InteractionFreq")
 desc_vars_exist <- desc_vars[desc_vars %in% names(final_data)]
 
-# Descriptive statistics
 cat("\n=== Descriptive Statistics ===\n")
 describe(final_data[, desc_vars_exist])
 
-# Correlation matrix
 cat("\n=== Correlations ===\n")
 cor_matrix <- cor(final_data[, desc_vars_exist], use = "pairwise.complete.obs")
-round(cor_matrix, 3)
+print(round(cor_matrix, 3))
 
-# Reliability (Cronbach's alpha) for multi-item scales
+# Reliability
 cat("\n=== Reliability (Cronbach's Alpha) ===\n")
-
-# Autocratic Leadership
-aut_items <- paste0("AUT", 1:6)
-if (all(aut_items %in% names(final_data))) {
-  cat("Autocratic:", psych::alpha(final_data[, aut_items])$total$raw_alpha, "\n")
-}
-
-# Benign Envy
-ben_items <- paste0("BEN", 1:5)
-if (all(ben_items %in% names(final_data))) {
-  cat("Benign Envy:", psych::alpha(final_data[, ben_items])$total$raw_alpha, "\n")
-}
-
-# Malicious Envy
-mal_items <- paste0("MAL", 1:5)
-if (all(mal_items %in% names(final_data))) {
-  cat("Malicious Envy:", psych::alpha(final_data[, mal_items])$total$raw_alpha, "\n")
+scale_items <- list(
+  Autocratic    = paste0("AUT", 1:6),
+  Empowering    = paste0("EMP", 1:12),
+  Narcissism    = paste0("NARC", 1:6),
+  PowerDistance = paste0("PD", 1:5),
+  BenignEnvy    = paste0("BEN", 1:5),
+  MaliciousEnvy = paste0("MAL", 1:5),
+  Thriving_T1   = c(paste0("THR", 1:4), "R_THR5", paste0("THR", 6:9), "R_THR10"),
+  OCBS_Leader   = paste0("OCBS_L", 1:6),
+  CWBS_Leader   = paste0("CWBS", 1:5)
+)
+for (s in names(scale_items)) {
+  items <- scale_items[[s]]
+  if (all(items %in% names(final_data))) {
+    a <- psych::alpha(final_data[, items])$total$raw_alpha
+    cat(sprintf("  %s: alpha = %.3f\n", s, a))
+  }
 }
 
 # ============================================================
 # 2. ICC COMPUTATION (NULL MODELS)
 # ============================================================
-
 cat("\n=== ICC from Null Models ===\n")
-
 icc_vars <- c("Autocratic", "Empowering", "BenignEnvy", "MaliciousEnvy",
-              "T1_Thriving", "T3_Thriving", "OCBS_Leader", "CWBS_Leader",
+              "T1_Thriving", "T3_Thriving",
+              "OCBS_Leader", "CWBS_Leader",
+              "OCBS_Follower", "CWBS_Follower",
               "Narcissism", "PowerDistance")
-
 for (v in icc_vars) {
   if (v %in% names(final_data)) {
-    formula_str <- paste0(v, " ~ 1 + (1|LeaderID)")
-    null_model <- lmer(as.formula(formula_str), data = final_data, REML = TRUE)
+    null_model <- lmer(as.formula(paste0(v, " ~ 1 + (1|LeaderID)")),
+                       data = final_data, REML = TRUE)
     vc <- as.data.frame(VarCorr(null_model))
-    between_var <- vc$vcov[1]
-    within_var <- vc$vcov[2]
+    between_var <- vc$vcov[1]; within_var <- vc$vcov[2]
     icc_val <- between_var / (between_var + within_var)
     cat(sprintf("  %s: ICC(1) = %.3f\n", v, icc_val))
   }
 }
 
 # ============================================================
-# 3. MODEL 1: Main Model (with controls)
+# 3. MODEL 1: Main Model (with full controls)
 # ============================================================
+# Two-level random-intercept multilevel path model on follower scale scores.
+# Followers nested within leaders. Random intercepts at leader level.
+# Mediator equations: Auto/Emp -> BE/ME, with Narc + PD as MODERATORS,
+#   and full set of follower-level controls (Age, Gender, Tenure, InterFreq).
+# Outcome equations: Auto/Emp + BE/ME -> {T3 Thriving (with T1 thr baseline),
+#   OCBS_Leader, CWBS_Leader}.
+# ============================================================
+cat("\n=== Model 1: Main Analysis ===\n")
 
-cat("\n=== Model 1: Main Analysis (Two-Level Path Model) ===\n")
+# --- 3a. Mediator equations: BE and ME without interactions (main effects only) ---
+model1_ben_main <- lmer(BenignEnvy ~ Autocratic_C + Empowering_C +
+                          Narcissism_C + PowerDistance_C +
+                          FollowerAge_C + TenureWithLeader_C + InteractionFreq_C +
+                          Gender_Female + (1|LeaderID),
+                        data = final_data, REML = FALSE)
+summary(model1_ben_main)
 
-# Step 1: Autocratic/Empowering -> Benign Envy
-model1_ben <- lmer(BenignEnvy ~ Autocratic_C + Empowering_C +
-                     FollowerAge_C + TenureWithLeader_C + InteractionFreq_C +
-                     Gender_Female + Narcissism_C + PowerDistance_C +
-                     (1|LeaderID),
-                   data = final_data, REML = FALSE)
-summary(model1_ben)
+model1_mal_main <- lmer(MaliciousEnvy ~ Autocratic_C + Empowering_C +
+                          Narcissism_C + PowerDistance_C +
+                          FollowerAge_C + TenureWithLeader_C + InteractionFreq_C +
+                          Gender_Female + (1|LeaderID),
+                        data = final_data, REML = FALSE)
+summary(model1_mal_main)
 
-# Step 2: Autocratic/Empowering -> Malicious Envy
-model1_mal <- lmer(MaliciousEnvy ~ Autocratic_C + Empowering_C +
-                     FollowerAge_C + TenureWithLeader_C + InteractionFreq_C +
-                     Gender_Female + Narcissism_C + PowerDistance_C +
-                     (1|LeaderID),
-                   data = final_data, REML = FALSE)
-summary(model1_mal)
+# --- 3b. Mediator equations with FULL moderation: 4 interactions × 2 mediators = 8 paths ---
+# All 4 leadership × moderator interactions in single model per mediator, so estimates
+# control for each other (customer R29: "完整理论模型必须保留, 即使不显著也要跑").
+model1_ben_mod <- lmer(BenignEnvy ~ Autocratic_C * Narcissism_C +
+                         Autocratic_C * PowerDistance_C +
+                         Empowering_C * Narcissism_C +
+                         Empowering_C * PowerDistance_C +
+                         FollowerAge_C + TenureWithLeader_C + InteractionFreq_C +
+                         Gender_Female + (1|LeaderID),
+                       data = final_data, REML = FALSE)
+summary(model1_ben_mod)
 
-# Step 3: Envy -> T3 Thriving (controlling T1 thriving)
-if ("T1_Thriving_C" %in% names(final_data) & "T3_Thriving" %in% names(final_data)) {
-  # Outcome eq includes leadership direct effects (Auto/Emp -> T3 thr)
-  # plus envy mediators + T1 thriving baseline + standard controls
+model1_mal_mod <- lmer(MaliciousEnvy ~ Autocratic_C * Narcissism_C +
+                         Autocratic_C * PowerDistance_C +
+                         Empowering_C * Narcissism_C +
+                         Empowering_C * PowerDistance_C +
+                         FollowerAge_C + TenureWithLeader_C + InteractionFreq_C +
+                         Gender_Female + (1|LeaderID),
+                       data = final_data, REML = FALSE)
+summary(model1_mal_mod)
+
+# --- 3c. Outcome equations ---
+# T3 Thriving: includes T1 thriving baseline AND envy mediators AND direct leadership effects
+if ("T1_Thriving_C" %in% names(final_data)) {
   model1_thr <- lmer(T3_Thriving ~ Autocratic_C + Empowering_C +
-                       BenignEnvy + MaliciousEnvy +
-                       T1_Thriving_C + FollowerAge_C + TenureWithLeader_C +
-                       InteractionFreq_C + Gender_Female +
-                       (1|LeaderID),
+                       BenignEnvy + MaliciousEnvy + T1_Thriving_C +
+                       FollowerAge_C + TenureWithLeader_C + InteractionFreq_C +
+                       Gender_Female + (1|LeaderID),
                      data = final_data, REML = FALSE)
   summary(model1_thr)
 }
 
-# Step 4: Envy -> OCBS (Leader-rated)
+# OCBS_Leader (T1 thriving baseline NOT included — only thriving outcomes
+# get T1 thriving control per study design)
 model1_ocbs <- lmer(OCBS_Leader ~ Autocratic_C + Empowering_C +
                       BenignEnvy + MaliciousEnvy +
                       FollowerAge_C + TenureWithLeader_C + InteractionFreq_C +
-                      Gender_Female +
-                      (1|LeaderID),
+                      Gender_Female + (1|LeaderID),
                     data = final_data, REML = FALSE)
 summary(model1_ocbs)
 
-# Step 5: Envy -> CWBS (Leader-rated)
+# CWBS_Leader
 model1_cwbs <- lmer(CWBS_Leader ~ Autocratic_C + Empowering_C +
                       BenignEnvy + MaliciousEnvy +
                       FollowerAge_C + TenureWithLeader_C + InteractionFreq_C +
-                      Gender_Female +
-                      (1|LeaderID),
+                      Gender_Female + (1|LeaderID),
                     data = final_data, REML = FALSE)
 summary(model1_cwbs)
 
-# Step 6: Moderation tests. Narcissism is a theoretical moderator on AL/EL -> envy paths.
-model1_mod_pd <- lmer(BenignEnvy ~ Empowering_C * PowerDistance_C +
-                        Autocratic_C + FollowerAge_C + TenureWithLeader_C +
-                        InteractionFreq_C + Gender_Female + Narcissism_C +
-                        (1|LeaderID),
-                      data = final_data, REML = FALSE)
-summary(model1_mod_pd)
+# ============================================================
+# 4. SIMPLE SLOPES at +/- 1 SD of moderator (8 paths)
+# ============================================================
+cat("\n=== Model 1: Simple Slopes (high vs low moderator) ===\n")
+sd_narc <- sd(final_data$Narcissism_C, na.rm = TRUE)
+sd_pd   <- sd(final_data$PowerDistance_C, na.rm = TRUE)
+
+simple_slope <- function(model, x_var, w_var, sd_w) {
+  fe  <- fixef(model)
+  vcm <- vcov(model)
+  inter_term <- paste0(x_var, ":", w_var)
+  if (!(inter_term %in% names(fe))) inter_term <- paste0(w_var, ":", x_var)
+  b_x  <- fe[x_var]; b_xw <- fe[inter_term]
+  # high: slope of X when W = +1 SD
+  hi <- b_x + b_xw * sd_w; lo <- b_x - b_xw * sd_w
+  cat(sprintf("  %s × %s: hi=%.3f, lo=%.3f, diff=%.3f\n",
+              x_var, w_var, hi, lo, hi - lo))
+}
+for (mod in list(model1_ben_mod, model1_mal_mod)) {
+  for (x in c("Autocratic_C", "Empowering_C")) {
+    simple_slope(mod, x, "Narcissism_C",   sd_narc)
+    simple_slope(mod, x, "PowerDistance_C", sd_pd)
+  }
+}
 
 # ============================================================
-# 4. MODEL 2: No Controls
+# 5. INDIRECT + CONDITIONAL INDIRECT EFFECTS (Monte Carlo, 20,000 reps)
 # ============================================================
+cat("\n=== Monte Carlo Confidence Intervals ===\n")
 
-cat("\n=== Model 2: No Controls (Robustness) ===\n")
+monte_carlo_ci <- function(a, se_a, b, se_b, reps = 20000, ci = 0.95) {
+  a_sim <- rnorm(reps, a, se_a); b_sim <- rnorm(reps, b, se_b)
+  ab_sim <- a_sim * b_sim
+  q <- quantile(ab_sim, probs = c((1 - ci) / 2, 1 - (1 - ci) / 2))
+  list(est = a * b, lo = q[1], hi = q[2])
+}
 
-model2_ben <- lmer(BenignEnvy ~ Autocratic_C + Empowering_C + (1|LeaderID),
+# Indirect effects: X -> M -> Y for all combinations
+indirects <- list(
+  list(a_mod = model1_ben_main, a_var = "Autocratic_C",
+       b_mod = model1_thr,      b_var = "BenignEnvy",   y = "Thriving"),
+  list(a_mod = model1_ben_main, a_var = "Empowering_C",
+       b_mod = model1_thr,      b_var = "BenignEnvy",   y = "Thriving"),
+  list(a_mod = model1_mal_main, a_var = "Autocratic_C",
+       b_mod = model1_thr,      b_var = "MaliciousEnvy", y = "Thriving"),
+  list(a_mod = model1_mal_main, a_var = "Empowering_C",
+       b_mod = model1_thr,      b_var = "MaliciousEnvy", y = "Thriving"),
+  list(a_mod = model1_ben_main, a_var = "Autocratic_C",
+       b_mod = model1_ocbs,     b_var = "BenignEnvy",   y = "OCBS"),
+  list(a_mod = model1_ben_main, a_var = "Empowering_C",
+       b_mod = model1_ocbs,     b_var = "BenignEnvy",   y = "OCBS"),
+  list(a_mod = model1_mal_main, a_var = "Autocratic_C",
+       b_mod = model1_ocbs,     b_var = "MaliciousEnvy", y = "OCBS"),
+  list(a_mod = model1_mal_main, a_var = "Empowering_C",
+       b_mod = model1_ocbs,     b_var = "MaliciousEnvy", y = "OCBS"),
+  list(a_mod = model1_ben_main, a_var = "Autocratic_C",
+       b_mod = model1_cwbs,     b_var = "BenignEnvy",   y = "CWBS"),
+  list(a_mod = model1_ben_main, a_var = "Empowering_C",
+       b_mod = model1_cwbs,     b_var = "BenignEnvy",   y = "CWBS"),
+  list(a_mod = model1_mal_main, a_var = "Autocratic_C",
+       b_mod = model1_cwbs,     b_var = "MaliciousEnvy", y = "CWBS"),
+  list(a_mod = model1_mal_main, a_var = "Empowering_C",
+       b_mod = model1_cwbs,     b_var = "MaliciousEnvy", y = "CWBS")
+)
+for (ie in indirects) {
+  a <- fixef(ie$a_mod)[ie$a_var]
+  se_a <- summary(ie$a_mod)$coefficients[ie$a_var, "Std. Error"]
+  b <- fixef(ie$b_mod)[ie$b_var]
+  se_b <- summary(ie$b_mod)$coefficients[ie$b_var, "Std. Error"]
+  r <- monte_carlo_ci(a, se_a, b, se_b)
+  cat(sprintf("  %s -> %s -> %s: %.3f [%.3f, %.3f]\n",
+              ie$a_var, ie$b_var, ie$y, r$est, r$lo, r$hi))
+}
+
+# ============================================================
+# 6. MODEL 2: NO CONTROLS (Robustness)
+# ============================================================
+# Drops all controls (Age, Gender, Tenure, InterFreq) from BOTH mediator
+# AND outcome equations. Per customer round 3 docx: M2 must include
+# outcome equations (T3 thriving, OCBS, CWBS), not just mediators.
+# ============================================================
+cat("\n=== Model 2: No Controls ===\n")
+
+model2_ben <- lmer(BenignEnvy ~ Autocratic_C + Empowering_C +
+                     Narcissism_C + PowerDistance_C + (1|LeaderID),
                    data = final_data, REML = FALSE)
-model2_mal <- lmer(MaliciousEnvy ~ Autocratic_C + Empowering_C + (1|LeaderID),
+model2_mal <- lmer(MaliciousEnvy ~ Autocratic_C + Empowering_C +
+                     Narcissism_C + PowerDistance_C + (1|LeaderID),
                    data = final_data, REML = FALSE)
-summary(model2_ben)
-summary(model2_mal)
+summary(model2_ben); summary(model2_mal)
+
+# Outcome equations (NO controls)
+model2_thr <- lmer(T3_Thriving ~ Autocratic_C + Empowering_C +
+                     BenignEnvy + MaliciousEnvy + (1|LeaderID),
+                   data = final_data, REML = FALSE)
+model2_ocbs <- lmer(OCBS_Leader ~ Autocratic_C + Empowering_C +
+                      BenignEnvy + MaliciousEnvy + (1|LeaderID),
+                    data = final_data, REML = FALSE)
+model2_cwbs <- lmer(CWBS_Leader ~ Autocratic_C + Empowering_C +
+                      BenignEnvy + MaliciousEnvy + (1|LeaderID),
+                    data = final_data, REML = FALSE)
+summary(model2_thr); summary(model2_ocbs); summary(model2_cwbs)
+
+# Also re-test the 4 moderation interactions without controls
+model2_ben_mod <- lmer(BenignEnvy ~ Autocratic_C * Narcissism_C +
+                         Autocratic_C * PowerDistance_C +
+                         Empowering_C * Narcissism_C +
+                         Empowering_C * PowerDistance_C + (1|LeaderID),
+                       data = final_data, REML = FALSE)
+model2_mal_mod <- lmer(MaliciousEnvy ~ Autocratic_C * Narcissism_C +
+                         Autocratic_C * PowerDistance_C +
+                         Empowering_C * Narcissism_C +
+                         Empowering_C * PowerDistance_C + (1|LeaderID),
+                       data = final_data, REML = FALSE)
+summary(model2_ben_mod); summary(model2_mal_mod)
 
 # ============================================================
-# 5. MODEL 3: Alternative Outcome Source (Follower-rated OCBS/CWBS)
+# 7. MODEL 3: ALTERNATIVE OUTCOME SOURCE (Follower-rated OCBS/CWBS)
 # ============================================================
-
+# Per customer round 3 docx: Model 3 ONLY swaps leader-rated -> follower-rated
+# outcomes. Controls match Model 1 (NO WorkingYears_C, NO additional changes).
+# Mediator equations are the SAME as Model 1 (data unchanged).
+# ============================================================
 cat("\n=== Model 3: Follower-Rated Outcomes (Robustness) ===\n")
 
 if ("OCBS_Follower" %in% names(final_data)) {
-  # Model 3 controls = Model 1 + WorkingYears_C (working years only used in Model 3 per spec)
   model3_ocbs <- lmer(OCBS_Follower ~ Autocratic_C + Empowering_C +
                         BenignEnvy + MaliciousEnvy +
                         FollowerAge_C + TenureWithLeader_C + InteractionFreq_C +
-                        Gender_Female + WorkingYears_C +
-                        (1|LeaderID),
+                        Gender_Female + (1|LeaderID),
                       data = final_data, REML = FALSE)
   summary(model3_ocbs)
 }
-
 if ("CWBS_Follower" %in% names(final_data)) {
   model3_cwbs <- lmer(CWBS_Follower ~ Autocratic_C + Empowering_C +
                         BenignEnvy + MaliciousEnvy +
                         FollowerAge_C + TenureWithLeader_C + InteractionFreq_C +
-                        Gender_Female + WorkingYears_C +
-                        (1|LeaderID),
+                        Gender_Female + (1|LeaderID),
                       data = final_data, REML = FALSE)
   summary(model3_cwbs)
 }
 
-# ============================================================
-# 6. MONTE CARLO CI FOR INDIRECT EFFECTS (20,000 reps)
-# ============================================================
-
-cat("\n=== Monte Carlo Confidence Intervals (Indirect Effects) ===\n")
-
-# Function to compute Monte Carlo CI for indirect effect
-monte_carlo_ci <- function(a, se_a, b, se_b, reps = 20000, ci = 0.95) {
-  # Draw from sampling distributions
-  a_sim <- rnorm(reps, mean = a, sd = se_a)
-  b_sim <- rnorm(reps, mean = b, sd = se_b)
-  # Compute product (indirect effect)
-  ab_sim <- a_sim * b_sim
-  # Get CI
-  lower <- (1 - ci) / 2
-  upper <- 1 - lower
-  ci_bounds <- quantile(ab_sim, probs = c(lower, upper))
-  point_est <- a * b
-  return(list(estimate = point_est, lower = ci_bounds[1], upper = ci_bounds[2]))
-}
-
-# Example: Autocratic -> Malicious Envy -> CWBS
-a_path <- fixef(model1_mal)["Autocratic_C"]
-se_a <- summary(model1_mal)$coefficients["Autocratic_C", "Std. Error"]
-b_path <- fixef(model1_cwbs)["MaliciousEnvy"]
-se_b <- summary(model1_cwbs)$coefficients["MaliciousEnvy", "Std. Error"]
-
-mc_result <- monte_carlo_ci(a_path, se_a, b_path, se_b, reps = 20000)
-cat(sprintf("  Autocratic -> Mal Envy -> CWBS: %.3f [%.3f, %.3f]\n",
-            mc_result$estimate, mc_result$lower, mc_result$upper))
-
-# Example: Empowering -> Benign Envy -> Thriving
-a_path2 <- fixef(model1_ben)["Empowering_C"]
-se_a2 <- summary(model1_ben)$coefficients["Empowering_C", "Std. Error"]
-b_path2 <- fixef(model1_thr)["BenignEnvy"]
-se_b2 <- summary(model1_thr)$coefficients["BenignEnvy", "Std. Error"]
-
-mc_result2 <- monte_carlo_ci(a_path2, se_a2, b_path2, se_b2, reps = 20000)
-cat(sprintf("  Empowering -> Ben Envy -> Thriving: %.3f [%.3f, %.3f]\n",
-            mc_result2$estimate, mc_result2$lower, mc_result2$upper))
-
-cat("\nNote: MCFA must be conducted in Mplus (see mcfa_mplus_syntax.inp)\n")
-cat("R's lavaan does not properly support multilevel CFA for this data structure.\n")
+# Note: Mediator equations for M3 are IDENTICAL to M1 (same data, only outcome
+# source swapped) — no need to re-estimate model3_ben / model3_mal.
 
 # ============================================================
-# 7. SAVE RESULTS
+# 8. MCFA — see mcfa_mplus_syntax.inp (Mplus required)
 # ============================================================
+cat("\nNote: Multilevel CFA must be conducted in Mplus.\n")
+cat("See mcfa_mplus_syntax.inp for the corresponding syntax.\n")
+cat("R's lavaan does not properly support clustered MCFA for this design.\n")
 
 cat("\n=== Analysis Complete ===\n")
-cat("Key output files expected from Mplus: MCFA fit indices\n")
-cat("All R-based results printed above.\n")

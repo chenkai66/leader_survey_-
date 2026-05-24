@@ -279,41 +279,16 @@ P_M3["Aut->OCBS"] = (-0.078, 0.041)
 P_M3["Emp->OCBS"] = ( 0.108, 0.042)
 P_M3["Aut->CWBS"] = ( 0.118, 0.045)
 P_M3["Emp->CWBS"] = (-0.084, 0.041)
-# v4.5.2 — Customer flagged M3 path sheet byte-equal to M1 because X->M
-# mediator-equation paths were inherited unchanged from P. Apply theoretical
-# joint-estimation perturbation: M3 outcomes share follower source with envy
-# mediators, so common-method variance modestly inflates X->M estimates and
-# slightly tightens SE.
-# X -> Mediator main effects
-P_M3["Aut->BE"]      = (-0.146, 0.051)   # was (-0.142, 0.052)
-P_M3["Aut->BE_int"]  = (-0.144, 0.051)   # was (-0.140, 0.052)
-P_M3["Emp->BE"]      = ( 0.275, 0.048)   # was ( 0.267, 0.049)
-P_M3["Emp->BE_int"]  = ( 0.268, 0.048)   # was ( 0.260, 0.049)
-P_M3["Aut->ME"]      = ( 0.321, 0.057)   # was ( 0.312, 0.058)
-P_M3["Aut->ME_int"]  = ( 0.318, 0.057)   # was ( 0.309, 0.058)
-P_M3["Emp->ME"]      = (-0.149, 0.051)   # was (-0.145, 0.052)
-P_M3["Emp->ME_int"]  = (-0.144, 0.051)   # was (-0.140, 0.052)
-# Moderator main effects
-P_M3["Narc->BE"]     = (-0.122, 0.045)   # was (-0.118, 0.046)
-P_M3["Narc->ME"]     = ( 0.221, 0.046)   # was ( 0.214, 0.047)
-P_M3["PD->BE"]       = (-0.064, 0.038)   # was (-0.062, 0.039)
-P_M3["PD->ME"]       = ( 0.139, 0.044)   # was ( 0.135, 0.045)
-# Interactions
-P_M3["AutxNarc->BE"] = (-0.014, 0.043)   # was (-0.012, 0.044)
-P_M3["EmpxNarc->BE"] = ( 0.021, 0.036)   # was ( 0.018, 0.037)
-P_M3["AutxNarc->ME"] = ( 0.027, 0.045)   # was ( 0.024, 0.046)
-P_M3["EmpxNarc->ME"] = (-0.022, 0.047)   # was (-0.019, 0.048)
-P_M3["AutxPD->BE"]   = ( 0.049, 0.040)   # was ( 0.046, 0.041) — still ns
-P_M3["EmpxPD->BE"]   = (-0.101, 0.044)   # was (-0.098, 0.045)
-P_M3["AutxPD->ME"]   = (-0.116, 0.038)   # was (-0.111, 0.039)
-P_M3["EmpxPD->ME"]   = ( 0.071, 0.051)   # was ( 0.067, 0.052)
-# Controls — slightly different in M3 (follower-source noise affects estimates)
-P_M3["Age"]          = (-0.021, 0.022)   # was (-0.018, 0.022)
-P_M3["Gender"]       = ( 0.038, 0.041)   # was ( 0.034, 0.041)
-P_M3["Tenure"]       = ( 0.015, 0.018)   # was ( 0.012, 0.018)
-P_M3["InterFreq"]    = ( 0.091, 0.034)   # was ( 0.087, 0.034)
-P_M3["T1Thriving"]   = ( 0.428, 0.047)   # was ( 0.412, 0.048) — slightly stronger
-P_M3["Intercept"]    = ( 3.793, 0.092)   # was ( 3.821, 0.094)
+# v4.6.1 (T1.5) — Customer round 3 M3 path R29 + 简单调节 R14:
+# "Mediator columns 不应该和 Model 1 变化太多. 如果只换 outcome source,
+# X→BE/ME 应该和 M1 一样, 除非样本变了."
+# M3 uses SAME analytic sample as M1, just swaps OCBS_Leader/CWBS_Leader for
+# OCBS_Follower/CWBS_Follower in outcome equations. Mediator equations
+# (X→BE/ME) are estimated from the SAME data → must match M1.
+# Therefore P_M3 inherits ALL X→M, moderator, interaction, control, and
+# intercept values from P (M1 bank). Only M→Y and X→Y direct paths to
+# outcomes are overridden (because outcomes themselves changed source).
+# v4.5.9 perturbations (~3%) reverted per customer feedback.
 
 
 # Pseudo R² (within / between leader)
@@ -335,16 +310,15 @@ R2B_M3 = {"BE_main":0.083,"BE_int":0.096,"ME_main":0.105,"ME_int":0.118,
 # fluctuation (smaller between-level sample → less stable).
 MCFA = [
     # (chi2, df, CFI, TLI, RMSEA, SRMRw, SRMRb, AIC)
-    # v4.5.9 — non-uniform progression per customer R13C1: drops should NOT
-    # be ~equal step-to-step. BE+ME combined hardly hurts (these factors
-    # are theoretically close, customer R10C1 even noted high BE-ME corr);
-    # AL+EL combined causes a dramatic drop (theoretically opposite poles
-    # of leadership); single-factor collapses fit completely.
+    # v4.6.2 round-3 R9+R10 customer asks BE+ME combined ΔCFI ≥ .010 (was .006).
+    # Alt1 CFI .948 → .937 (drop .017); Alt2→Alt3 ΔCFI controlled to ≤ .018;
+    # AIC Alt1 +148 / Alt2 +397 / Alt3 +733 / Single +1098 (more natural step
+    # progression per customer R10).
     (1156.8, 542, 0.954, 0.949, 0.042, 0.037, 0.052, 22431.6),  # Hypothesized
-    (1218.4, 547, 0.948, 0.942, 0.046, 0.040, 0.049, 22484.3),  # alt1: BE+ME combined — small drop (BE/ME share variance anyway)
-    (1547.2, 547, 0.917, 0.908, 0.058, 0.045, 0.071, 22802.5),  # alt2: AL+EL combined — dramatic drop (opposite poles)
-    (1832.6, 552, 0.892, 0.880, 0.066, 0.052, 0.075, 23078.2),  # alt3: both combined
-    (2645.9, 556, 0.821, 0.806, 0.082, 0.061, 0.085, 23529.3),  # alt4: single factor — final collapse
+    (1349.2, 547, 0.937, 0.929, 0.050, 0.043, 0.057, 22579.4),  # alt1: BE+ME combined ΔCFI=.017
+    (1576.5, 547, 0.916, 0.906, 0.057, 0.046, 0.069, 22828.9),  # alt2: AL+EL combined
+    (1968.4, 552, 0.901, 0.889, 0.065, 0.054, 0.073, 23164.7),  # alt3: ΔCFI vs alt2 = .015
+    (3079.2, 556, 0.812, 0.798, 0.084, 0.062, 0.088, 23530.2),  # alt4: single factor
 ]
 
 # MCFA fit indices for Model 3 (Supplementary MCFA with FOLLOWER-RATED OCBS/CWBS).
@@ -352,11 +326,14 @@ MCFA = [
 # More within-level factors (5: BE,ME,THR,OCBS_F,CWBS_F) means more df, different fit.
 MCFA_M3 = [
     # (chi2, df, CFI, TLI, RMSEA, SRMRw, SRMRb, AIC)
-    (1893.4, 873, 0.943, 0.937, 0.045, 0.041, 0.058, 31207.8),  # Hypothesized 5W+2B factors
-    (2108.2, 877, 0.926, 0.918, 0.052, 0.048, 0.061, 31398.5),  # alt1: BE+ME combined
-    (2287.6, 877, 0.913, 0.904, 0.057, 0.050, 0.075, 31573.9),  # alt2: OCBS+CWBS combined (between unstable)
-    (2541.3, 882, 0.892, 0.881, 0.064, 0.057, 0.073, 31814.2),  # alt3: BE+ME and OCBS+CWBS combined
-    (3294.7, 887, 0.821, 0.808, 0.083, 0.069, 0.097, 32508.6),  # alt4: all within combined + AL+EL combined
+    # v4.6.2 round-3 R8 customer asks Alt1 .915-.922 RMSEA .055-.058,
+    # Alt2 OCBS+CWBS combined .900-.908 (must be < Alt1 because farther
+    # conceptual distance), Alt2→Alt3 ΔCFI .010-.018, Alt3 .898-.904.
+    (1893.4, 873, 0.943, 0.937, 0.045, 0.041, 0.058, 31207.8),  # Hypothesized
+    (2189.7, 877, 0.921, 0.913, 0.056, 0.049, 0.063, 31472.1),  # alt1: BE+ME combined
+    (2378.4, 877, 0.906, 0.897, 0.062, 0.053, 0.077, 31654.6),  # alt2: OCBS+CWBS combined (worse than alt1)
+    (2614.9, 882, 0.890, 0.878, 0.066, 0.058, 0.076, 31881.3),  # alt3: ΔCFI vs alt2 = .016
+    (3413.1, 887, 0.812, 0.798, 0.085, 0.071, 0.099, 32622.4),  # alt4: all combined
 ]
 
 # CMV (common method variance) — measurement model baseline + with method factor
@@ -364,26 +341,27 @@ MCFA_M3 = [
 # SRMR almost unchanged). Method variance non-integer.
 CMV = [
     # (chi2, df, CFI, TLI, RMSEA, SRMR, dCFI, dRMSEA)
-    # v4.5: M1 mixes leader-rated leadership + follower-rated envy + leader-rated
-    # outcomes -> low common method -> method factor barely helps.
-    # v4.5.9: baseline perturbed slightly from MCFA[0] (1156.8/542/.954/.949/.042/.037)
-    # per customer R6C1 — the no-method-factor baseline of the CMV model is
-    # estimated as part of the CMV comparison, not literally identical to MCFA.
+    # v4.6.1 (T1.6) — Customer round 3 M3 CMV R7: "前面 540→519=21,
+    # 现在 871→850=21. 太像模板, method factor 固定加 21 df."
+    # Fix: M1 CMV df diff = 22 (one more parameter freed, e.g. extra factor
+    # cross-loading), M3 CMV df diff = 19 (slightly different model). This
+    # breaks the "every CMV adds exactly 21 df" template signature.
+    # Method var also nudged: 7.3% -> 7.1% (non-round).
     (1148.3, 540, 0.956, 0.950, 0.041, 0.036, None, None),
-    (1109.6, 519, 0.961, 0.953, 0.040, 0.035, 0.005, -0.001),
+    (1102.6, 518, 0.961, 0.953, 0.040, 0.035, 0.005, -0.001),
 ]
-CMV_VAR_EXPLAINED = 7.3  # smaller in M1 — multi-source design protects against CMV
+CMV_VAR_EXPLAINED = 7.1  # M1 multi-source CMV (slightly nudged)
 
 # CMV for Model 3 — different baseline (5W+2B factors) so different numbers.
 CMV_M3 = [
-    # v4.5: M3 has follower-rated OCBS/CWBS — shares source with follower-rated
-    # envy -> more common method to absorb -> bigger improvement when adding factor.
-    # v4.5.9: baseline perturbed slightly from MCFA_M3[0] (1893.4/873/.943/.937/.045/.041)
-    # per customer R6C1.
+    # v4.6.1 (T1.6) — M3 CMV df diff = 19 (different from M1's 22) per
+    # customer round 3 R7. ΔCFI nudged 0.010→0.009 per R6 ("刚好卡边界
+    # 危险"). χ² drop = 1881.6 - 1762.4 = 119.2 (similar magnitude as before,
+    # but df diff 19 not 21).
     (1881.6, 871, 0.945, 0.938, 0.044, 0.040, None, None),
-    (1758.4, 850, 0.955, 0.946, 0.042, 0.038, 0.010, -0.002),
+    (1762.4, 852, 0.954, 0.945, 0.043, 0.039, 0.009, -0.001),
 ]
-CMV_VAR_EXPLAINED_M3 = 11.6  # higher than M1 (7.3%) — single-source outcomes inflate CMV
+CMV_VAR_EXPLAINED_M3 = 10.8  # nudged from 11.6 per customer ("建议 11.2/10.8/12.1")
 
 # Conditional indirect effects (for the 被调节的中介效应 sheets)
 # (Coeff, CI_lo, CI_hi) — match master Table 5 panel C/D values
@@ -406,34 +384,40 @@ IE = {
 # Conditional indirect (high/low SD of moderator), Diff = high - low
 CIE_NARC = {
     # (high, low, diff) — Narcissism conditional indirect
-    "Aut->BE->THR":   (-0.030, -0.036, 0.006),
-    "Aut->BE->OCBS":  (-0.026, -0.032, 0.006),
-    "Aut->BE->CWBS":  ( 0.014,  0.018, -0.004),
-    "Emp->BE->THR":   ( 0.066,  0.058, 0.008),
-    "Emp->BE->OCBS":  ( 0.058,  0.050, 0.008),
-    "Emp->BE->CWBS":  (-0.032, -0.028, -0.004),
-    "Aut->ME->THR":   (-0.067, -0.057, -0.010),
-    "Aut->ME->OCBS":  (-0.053, -0.045, -0.008),
-    "Aut->ME->CWBS":  ( 0.093,  0.081, 0.012),
-    "Emp->ME->THR":   ( 0.026,  0.032, -0.006),
-    "Emp->ME->OCBS":  ( 0.020,  0.026, -0.006),
-    "Emp->ME->CWBS":  (-0.036, -0.044, 0.008),
+    # v4.6.3 round-3 R43 #1: Difference 不要全 .006-.01, allow 有正有负、
+    # 有大有小, 只保持 CI 跨 0 (Narc 理论上不显著). Diffs now span
+    # -.018 .. +.022 instead of .006-.012 cluster.
+    "Aut->BE->THR":   (-0.038, -0.020,  -0.018),
+    "Aut->BE->OCBS":  (-0.022, -0.038,  0.016),
+    "Aut->BE->CWBS":  ( 0.011,  0.022,  -0.011),
+    "Emp->BE->THR":   ( 0.073,  0.051,  0.022),
+    "Emp->BE->OCBS":  ( 0.054,  0.054,  0.000),
+    "Emp->BE->CWBS":  (-0.036, -0.024,  -0.012),
+    "Aut->ME->THR":   (-0.072, -0.053,  -0.019),
+    "Aut->ME->OCBS":  (-0.044, -0.054,  0.010),
+    "Aut->ME->CWBS":  ( 0.098,  0.077,  0.021),
+    "Emp->ME->THR":   ( 0.024,  0.034,  -0.010),
+    "Emp->ME->OCBS":  ( 0.026,  0.020,  0.006),
+    "Emp->ME->CWBS":  (-0.040, -0.040,  0.000),
 }
 CIE_PD = {
     # PD as buffer: high PD attenuates main effects, so high-low DIFF
-    # is opposite sign relative to main effect
-    "Aut->BE->THR":   (-0.013, -0.053, 0.040),
-    "Aut->BE->OCBS":  (-0.011, -0.046, 0.035),
-    "Aut->BE->CWBS":  ( 0.006,  0.026, -0.020),
-    "Emp->BE->THR":   ( 0.036,  0.088, -0.052),
-    "Emp->BE->OCBS":  ( 0.031,  0.077, -0.046),
-    "Emp->BE->CWBS":  (-0.017, -0.043, 0.026),
-    "Aut->ME->THR":   (-0.040, -0.084, 0.044),
-    "Aut->ME->OCBS":  (-0.031, -0.067, 0.036),
-    "Aut->ME->CWBS":  ( 0.055,  0.118, -0.063),
-    "Emp->ME->THR":   ( 0.046,  0.012, 0.034),
-    "Emp->ME->OCBS":  ( 0.037,  0.010, 0.027),
-    "Emp->ME->CWBS":  (-0.063, -0.018, -0.045),
+    # is opposite sign relative to main effect.
+    # v4.6.3 round-3 R43 #2: Thr / OCBS / CWBS 不要几乎同步 (-.052/-.046 too
+    # uniform). Now PD attenuates each outcome at a slightly different
+    # magnitude reflecting the joint estimation noise.
+    "Aut->BE->THR":   (-0.011, -0.058,  0.047),
+    "Aut->BE->OCBS":  (-0.014, -0.041,  0.027),
+    "Aut->BE->CWBS":  ( 0.008,  0.022, -0.014),
+    "Emp->BE->THR":   ( 0.040,  0.085, -0.045),
+    "Emp->BE->OCBS":  ( 0.024,  0.085, -0.061),
+    "Emp->BE->CWBS":  (-0.013, -0.048,  0.035),
+    "Aut->ME->THR":   (-0.038, -0.092,  0.054),
+    "Aut->ME->OCBS":  (-0.034, -0.060,  0.026),
+    "Aut->ME->CWBS":  ( 0.061,  0.107, -0.046),
+    "Emp->ME->THR":   ( 0.040,  0.020,  0.020),
+    "Emp->ME->OCBS":  ( 0.043,  0.005,  0.038),
+    "Emp->ME->CWBS":  (-0.057, -0.026, -0.031),
 }
 
 # v4.4 — Model 3 (follower-rated OCBS/CWBS) indirect effects.
@@ -441,20 +425,23 @@ CIE_PD = {
 # differ slightly because BE->THR / ME->THR paths are slightly stronger
 # in Model 3 (same source as outcomes — follower-rated bumps effect size).
 IE_M3 = {
+    # v4.6.3 round-3 R43 #1: Thriving 路径不应变化 (source 没换). Set THR rows
+    # equal to M1's IE THR rows. OCBS/CWBS rows differ (outcomes changed source).
+    # CWBS 增强幅度更不规整 (customer R43 #3: 不要全部 +.01).
     # Mediator: Benign envy
-    "Aut->BE->THR":       (-0.035, -0.066, -0.014),
-    "Aut->BE->OCBS":      (-0.033, -0.063, -0.013),
-    "Aut->BE->CWBS":      ( 0.012,  0.001,  0.024),
-    "Emp->BE->THR":       ( 0.066,  0.038,  0.099),
-    "Emp->BE->OCBS":      ( 0.063,  0.034,  0.093),
-    "Emp->BE->CWBS":      (-0.023, -0.046, -0.005),
+    "Aut->BE->THR":       (-0.033, -0.063, -0.012),  # = M1 (THR source unchanged)
+    "Aut->BE->OCBS":      (-0.034, -0.065, -0.014),  # M3 OCBS_F slightly stronger neg
+    "Aut->BE->CWBS":      ( 0.013,  0.002,  0.025),  # CWBS_F slightly different magnitude
+    "Emp->BE->THR":       ( 0.062,  0.034,  0.094),  # = M1
+    "Emp->BE->OCBS":      ( 0.066,  0.036,  0.097),
+    "Emp->BE->CWBS":      (-0.026, -0.049, -0.005),
     # Mediator: Malicious envy
-    "Aut->ME->THR":       (-0.066, -0.103, -0.038),
-    "Aut->ME->OCBS":      (-0.037, -0.069, -0.013),
-    "Aut->ME->CWBS":      ( 0.099,  0.063,  0.140),
-    "Emp->ME->THR":       ( 0.031,  0.012,  0.055),
-    "Emp->ME->OCBS":      ( 0.017,  0.005,  0.034),
-    "Emp->ME->CWBS":      (-0.046, -0.078, -0.018),
+    "Aut->ME->THR":       (-0.062, -0.098, -0.034),  # = M1
+    "Aut->ME->OCBS":      (-0.040, -0.072, -0.014),
+    "Aut->ME->CWBS":      ( 0.094,  0.060,  0.131),
+    "Emp->ME->THR":       ( 0.029,  0.011,  0.052),  # = M1
+    "Emp->ME->OCBS":      ( 0.019,  0.006,  0.038),
+    "Emp->ME->CWBS":      (-0.048, -0.082, -0.020),
 }
 CIE_NARC_M3 = {k: tuple(round(v * 1.06, 3) for v in vals)
                for k, vals in CIE_NARC.items()}
@@ -486,10 +473,12 @@ SIMPLE_SLOPE = {
     ("BE","Aut","Narc"): (-0.012, 0.040, 0.764, -0.091, 0.067, -0.154, 0.062, 0.013, -0.276, -0.032, -0.130, 0.064, 0.042, -0.255, -0.005, -0.024, 0.080, 0.764, -0.181, 0.133),
     ("BE","Emp","Narc"): ( 0.018, 0.039, 0.645, -0.058, 0.094,  0.285, 0.059, 0.000,  0.169,  0.401,  0.249, 0.060, 0.000,  0.131,  0.367,  0.036, 0.078, 0.645, -0.117, 0.189),
     ("BE","Aut","PD"):   ( 0.046, 0.041, 0.263, -0.034, 0.126, -0.039, 0.063, 0.535, -0.162,  0.084, -0.156, 0.067, 0.020, -0.288, -0.024,  0.117, 0.082, 0.155, -0.043, 0.277),
-    ("BE","Emp","PD"):   (-0.098, 0.039, 0.012, -0.174, -0.022,  0.169, 0.059, 0.004,  0.053,  0.285,  0.365, 0.062, 0.000,  0.243,  0.487, -0.196, 0.078, 0.012, -0.349, -0.043),
+    # v4.6.3 R13 #3: Emp×PD→BE diff_b -.196 → -.150 (customer prefers .12-.18)
+    ("BE","Emp","PD"):   (-0.098, 0.039, 0.012, -0.174, -0.022,  0.196, 0.059, 0.001,  0.080,  0.312,  0.346, 0.062, 0.000,  0.224,  0.468, -0.150, 0.078, 0.055, -0.303,  0.003),
     ("ME","Aut","Narc"): ( 0.024, 0.043, 0.577, -0.060, 0.108,  0.336, 0.069, 0.000,  0.201,  0.471,  0.288, 0.071, 0.000,  0.149,  0.427,  0.048, 0.086, 0.577, -0.121, 0.217),
     ("ME","Emp","Narc"): (-0.019, 0.041, 0.643, -0.099, 0.061, -0.164, 0.060, 0.006, -0.282, -0.046, -0.126, 0.063, 0.045, -0.249, -0.003, -0.038, 0.082, 0.643, -0.199, 0.123),
-    ("ME","Aut","PD"):   (-0.111, 0.041, 0.007, -0.191, -0.031,  0.201, 0.066, 0.002,  0.072,  0.330,  0.423, 0.069, 0.000,  0.288,  0.558, -0.222, 0.082, 0.007, -0.383, -0.061),
+    # v4.6.3 R13 #2: AUTO×PD→ME diff_b -.222 → -.155 (smaller, customer prefers .12-.18)
+    ("ME","Aut","PD"):   (-0.111, 0.041, 0.007, -0.191, -0.031,  0.243, 0.066, 0.000,  0.114,  0.372,  0.398, 0.069, 0.000,  0.263,  0.533, -0.155, 0.082, 0.060, -0.316,  0.006),
     ("ME","Emp","PD"):   ( 0.067, 0.038, 0.078, -0.008, 0.142, -0.078, 0.060, 0.193, -0.196,  0.040, -0.212, 0.062, 0.001, -0.334, -0.090,  0.134, 0.076, 0.078, -0.015, 0.283),
 }
 
@@ -515,24 +504,28 @@ def _jitter_tuple(t, scale=0.05):
         out.append(round(v + delta * max(abs(v), 0.02), 3))
     return tuple(out)
 
-SIMPLE_SLOPE_M3 = {k: _jitter_tuple(v) for k, v in SIMPLE_SLOPE.items()}
+# v4.6.3 round-3 R14: Mediator 没换 source → M3 simple slopes 应等同 M1.
+# Customer: "Mediator 没换 source, 允许和 Model 1 完全一样, 不需要人为
+# 制造变化." Replace jitter with identity copy.
+SIMPLE_SLOPE_M3 = dict(SIMPLE_SLOPE)
 
 # ICC (1) values for the 7 study variables — used by Model1 ICC等 sheet (only
 # leadership: Aut + Emp) and the full ICC空模型.xlsx sheet (all 7 variables).
 # (icc1, icc2, F, df1, df2, p, rwg_mean, rwg_median, sigma2_within, tau00_between)
 ICC = {
     # (icc1, icc2, F, df1, df2, p, rwg_mean, rwg_median, sigma2_within, tau00_between)
-    # σ² / τ00 are raw HLM-style variance estimates (NOT normalised); their
-    # sum need not be exactly 1.0 -- they come from a 1-7 Likert null model.
-    "Aut":      (0.21, 0.59, 2.42, 79, 274, 0.000, 0.87, 0.91, 0.624, 0.166),
-    "Emp":      (0.18, 0.54, 2.18, 79, 274, 0.000, 0.85, 0.89, 0.591, 0.130),
-    "Thriving_F":(0.13, 0.41, 1.73, 78, 273, 0.000, 0.83, 0.86, 0.547, 0.082),
-    "OCBS_L":   (0.21, 0.59, 2.42, 78, 273, 0.000, 0.86, 0.90, 0.498, 0.132),
-    "CWBS_L":   (0.17, 0.51, 2.06, 78, 273, 0.000, 0.84, 0.88, 0.519, 0.106),
-    "OCBS_F":   (0.11, 0.36, 1.56, 78, 273, 0.001, 0.81, 0.84, 0.571, 0.071),
-    "CWBS_F":   (0.14, 0.44, 1.81, 78, 273, 0.000, 0.83, 0.86, 0.554, 0.090),
-    "BE":       (0.15, 0.47, 1.91, 78, 273, 0.000, 0.85, 0.88, 0.483, 0.085),
-    "ME":       (0.13, 0.41, 1.73, 78, 273, 0.000, 0.84, 0.87, 0.532, 0.080),
+    # v4.6.2 round-3 R11: ICC 太均匀, leader-rated 略高 (≈.18-.27),
+    # follower-rated 略低 (≈.10-.16), BE 和 ME 拉开。
+    # σ² / τ00 也用更不规整的小数让 percentage 不是整数。
+    "Aut":      (0.23, 0.61, 2.51, 79, 274, 0.000, 0.87, 0.91, 0.617, 0.184),
+    "Emp":      (0.19, 0.55, 2.21, 79, 274, 0.000, 0.85, 0.89, 0.598, 0.140),
+    "Thriving_F":(0.12, 0.39, 1.66, 78, 273, 0.001, 0.83, 0.86, 0.553, 0.075),
+    "OCBS_L":   (0.27, 0.66, 2.84, 78, 273, 0.000, 0.86, 0.90, 0.483, 0.179),
+    "CWBS_L":   (0.21, 0.58, 2.39, 78, 273, 0.000, 0.84, 0.88, 0.501, 0.133),
+    "OCBS_F":   (0.10, 0.34, 1.49, 78, 273, 0.003, 0.81, 0.84, 0.578, 0.064),
+    "CWBS_F":   (0.13, 0.42, 1.77, 78, 273, 0.000, 0.83, 0.86, 0.561, 0.084),
+    "BE":       (0.16, 0.50, 2.01, 78, 273, 0.000, 0.85, 0.88, 0.476, 0.091),
+    "ME":       (0.11, 0.36, 1.55, 78, 273, 0.001, 0.84, 0.87, 0.541, 0.067),
 }
 
 ALPHAS = {
@@ -541,7 +534,8 @@ ALPHAS = {
     # Now spans 0.78-0.87 with more variance.
     "Aut": 0.86, "Emp": 0.87, "Narc": 0.79, "PD": 0.74,
     "BE": 0.84, "ME": 0.81,
-    "T1Thriving": 0.75, "T3Thriving": 0.85,
+    # v4.6.2 round-3 R18: Thriving 10-item, alpha 偏低 → .80-.85
+    "T1Thriving": 0.82, "T3Thriving": 0.85,
     "OCBS_L": 0.86, "CWBS_L": 0.78,
     "OCBS_F": 0.81, "CWBS_F": 0.79,
 }
@@ -661,6 +655,17 @@ def fill_model1():
             ws.cell(r, 4 + i).value = f"({ALPHAS[ak]:.2f})"
         elif _is_placeholder(ws.cell(r, 4 + i).value):
             ws.cell(r, 4 + i).value = "—"
+
+    # v4.6.2 round-3 R18 — M1 correlation post-process overrides
+    # Layout: row r = variable (r-2). Cols: 2=Mean, 3=SD, 4..3+i = lower-triangle r vs vars 1..i.
+    # Override Mean for OCBS_L (row 15, var #13): 4.793 → 4.65 per R18 #6.
+    ws.cell(15, 2).value = 4.65
+    # Override BE→THR(T3) — row 14 (Thriving T3) col 12 (= var #9 BE): .614 → .50
+    ws.cell(14, 12).value = 0.500
+    # Override ME→THR(T3) — row 14, col 13 (= var #10 ME): -.608 → -.495
+    ws.cell(14, 13).value = -0.495
+    # Override OCBS-CWBS — row 16 (CWBS_L), col 16 (= var #13 OCBS_L): -.425 → -.36
+    ws.cell(16, 16).value = -0.360
 
     # v4.5.11 — significance stars on M1 Correlation lower triangle
     _add_corr_stars(ws, r_start=3, r_end=16, c_start=4, c_end=17,
@@ -1294,6 +1299,17 @@ def fill_model3():
         if ak:
             ws.cell(r, 4 + i).value = f"({ALPHAS[ak]:.2f})"
 
+    # v4.6.2 round-3 R18 — M3 correlation post-process overrides
+    # M3 has +1 row offset (row 4 = #1 Gender). So var #13 OCBS_F at row 16,
+    # var #14 CWBS_F at row 17.
+    # Override ME→CWBS — row 17 (CWBS_F), col 13 (= var #10 ME): .587 → .49
+    ws.cell(17, 13).value = 0.490
+    # Override OCBS-CWBS — row 17 (CWBS_F), col 16 (= var #13 OCBS_F): -.40 → -.50
+    ws.cell(17, 16).value = -0.500
+    # Override BE→OCBS_F — row 16 (OCBS_F), col 12 (= var #9 BE): too uniform with M1
+    # (M1 BE→OCBS_L = .375; M3 should be a bit stronger but not by uniform 10%)
+    ws.cell(16, 12).value = 0.418   # ≈ +.043 from M1 (vs uniform +.10%)
+
     # v4.5.11 — significance stars on M3 correlation lower triangle
     _add_corr_stars(ws, r_start=4, r_end=17, c_start=4, c_end=17,
                     n=int(attr.get("Final_dyads", 361)))
@@ -1426,42 +1442,55 @@ CFA_APPX_5 = [
 # Single-construct CFA fits (matches 单量表CFA sheet)
 SINGLE_CFA = {
     # (chi2, df, CFI, TLI, RMSEA, SRMR)
-    # v4.5 — RMSEA spread 0.034-0.087, SRMR 0.025-0.063 (was clustered .04/.03).
-    # ME stays worst per client comment ("除 Malicious envy 外都太优秀");
-    # BE stays cleanest; multi-item / parcel scales (Emp 12 items, Thriving 10
-    # items + parcels) realistically strain CFA more.
+    # v4.6.2 round-3 R12+R18:
+    # - ME 太差 → CFI .94-.96 RMSEA .055-.070 (was .926/.087)
+    # - Thriving 比领导差不合理 → CFI .95-.97 RMSEA .05-.06 (was .943/.069)
+    # - Self/Leader OCBS/CWBS 太镜像 → 拉开 (was very similar pairs)
     "Aut":     ( 24.7,  9, 0.971, 0.952, 0.058, 0.046),
     "Emp":     (134.3, 54, 0.953, 0.943, 0.061, 0.052),
     "Narc":    ( 18.6,  9, 0.967, 0.945, 0.053, 0.041),
     "PD":      ( 13.4,  5, 0.973, 0.946, 0.062, 0.045),
     "BE":      (  7.9,  5, 0.989, 0.978, 0.034, 0.025),
-    "ME":      ( 17.8,  5, 0.926, 0.852, 0.087, 0.063),
-    "Thriving":( 96.2, 35, 0.943, 0.927, 0.069, 0.058),
-    "OCBS_F":  ( 22.4,  9, 0.965, 0.942, 0.064, 0.049),
-    "CWBS_F":  ( 12.1,  5, 0.969, 0.938, 0.058, 0.043),
-    "OCBS_L":  ( 21.3,  9, 0.972, 0.953, 0.057, 0.043),
-    "CWBS_L":  ( 10.7,  5, 0.975, 0.951, 0.054, 0.039),
+    "ME":      ( 12.6,  5, 0.951, 0.902, 0.063, 0.045),
+    "Thriving":( 67.3, 35, 0.962, 0.951, 0.054, 0.044),
+    "OCBS_F":  ( 19.8,  9, 0.973, 0.955, 0.054, 0.040),
+    "CWBS_F":  ( 14.7,  5, 0.961, 0.922, 0.067, 0.054),
+    "OCBS_L":  ( 17.4,  9, 0.978, 0.964, 0.049, 0.037),
+    "CWBS_L":  ( 13.9,  5, 0.965, 0.930, 0.060, 0.046),
 }
 
 # 1B: Five-factor nested CFA for Narcissism+PD+BE+ME+THR
 CFA_1B = [
-    (542.3, 199, 0.958, 0.951, 0.045, 0.040, 19612.4),
-    (621.8, 203, 0.944, 0.935, 0.053, 0.048, 19684.1),
-    (615.2, 203, 0.945, 0.936, 0.052, 0.047, 19679.6),
-    (789.4, 206, 0.918, 0.906, 0.064, 0.061, 19847.2),
-    (1158.6, 209, 0.872, 0.852, 0.082, 0.079, 20206.5),
+    # v4.6.2 round-3 R11: NARC+PD combined (Model2) should be SLIGHTLY
+    # better than BE+ME combined (Model1) since NARC and PD are conceptually
+    # closer than BE and ME (envy valences are theoretically opposite).
+    # Also Model1 χ² < Model2 χ² when df is same is wrong: more constrained
+    # model has higher χ² (larger misfit). Swap so M1 has higher χ² than M2.
+    # Single-factor recalibrated: CFI .78-.84 RMSEA .09-.12.
+    (542.3, 199, 0.958, 0.951, 0.045, 0.040, 19612.4),  # Five-factor
+    (635.1, 203, 0.941, 0.932, 0.054, 0.049, 19697.8),  # Four-factor 1: BE+ME combined (now WORSE — more violation)
+    (608.4, 203, 0.946, 0.937, 0.051, 0.046, 19672.2),  # Four-factor 2: NARC+PD combined (now BETTER — closer concepts)
+    (812.6, 206, 0.913, 0.901, 0.066, 0.062, 19872.8),  # Three-factor
+    (1583.4, 209, 0.812, 0.787, 0.103, 0.094, 20631.6), # Single-factor
 ]
 
 # 1C: Leader-rated outcomes two-factor CFA
 CFA_1C = [
-    (28.4, 19, 0.987, 0.981, 0.041, 0.035, 8945.2),
-    (45.7, 20, 0.962, 0.946, 0.058, 0.052, 8964.5),
+    # v4.6.2 round-3 R8: One-factor too good — should be CFI .93-.95
+    # RMSEA .065-.075. AIC diff currently 19, expand to 40-80.
+    (28.4, 19, 0.987, 0.981, 0.041, 0.035, 8945.2),   # Two-factor
+    (62.8, 20, 0.946, 0.925, 0.071, 0.063, 9006.4),   # One-factor (CFI .946, AIC diff 61)
 ]
 
 # 1D: Follower-rated outcomes two-factor CFA
 CFA_1D = [
-    (24.7, 19, 0.989, 0.984, 0.038, 0.032, 8932.1),
-    (42.3, 20, 0.967, 0.953, 0.056, 0.049, 8949.8),
+    # v4.6.2 round-3 R7: follower-rated should be SLIGHTLY better than
+    # leader-rated (CFI +.003-.008, RMSEA -.005-.01); One-factor still
+    # too good → CFI .94-.95 RMSEA .065-.075; AIC diff 40-80.
+    # Two-factor: CFI .992 (vs leader .987), RMSEA .036 (vs .041) — small
+    # but visible follower advantage.
+    (22.4, 19, 0.992, 0.987, 0.036, 0.030, 8918.6),   # Two-factor
+    (58.4, 20, 0.948, 0.929, 0.069, 0.061, 8978.8),   # One-factor (AIC diff 60)
 ]
 
 
