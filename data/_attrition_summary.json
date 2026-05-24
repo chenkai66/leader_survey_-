@@ -16,13 +16,13 @@
   "T2_ac_fail_cascade": 12,
   "T2_usable_followers": 401,
   "T2_usable_leaders": 85,
-  "T3f_invited": 372,
-  "T3f_submitted": 375,
-  "T3f_ac_fail": 11,
+  "T3f_invited": 373,
+  "T3f_submitted": 376,
+  "T3f_ac_fail": 12,
   "T3f_id_mismatch_cascade": 0,
   "T3f_dups_cascade": 3,
   "T3f_ac_fail_cascade": 11,
-  "T3f_usable": 361,
+  "T3f_usable": 362,
   "T3l_invited": 79,
   "T3l_submitted": 81,
   "T3l_ac_fail": 0,
@@ -30,7 +30,7 @@
   "T3l_dups_cascade": 1,
   "T3l_ac_fail_cascade": 0,
   "T3l_usable": 79,
-  "Final_dyads": 361,
+  "Final_dyads": 362,
   "Final_leaders": 79,
-  "Avg_followers_per_leader": 4.57
+  "Avg_followers_per_leader": 4.58
 }
