@@ -292,8 +292,9 @@ P_M3["BE->OCBS"]  = (0.235, 0.046)   # benign → follower-OCBS stronger
 P_M3["ME->CWBS"]  = (0.318, 0.054)   # malicious → follower-CWBS stronger
 P_M3["ME->OCBS"]  = (-0.118, 0.052)  # malicious → follower-OCBS marginal
 P_M3["BE->CWBS"]  = (-0.085, 0.043)  # benign → follower-CWBS still ns
-P_M3["BE->THR"]   = (0.248, 0.045)   # slight bump from same source as outcomes
-P_M3["ME->THR"]   = (-0.212, 0.050)
+# v5.0 round-3 R30 #3 — Thriving 不应变化 (source 没换). Remove BE->THR
+# and ME->THR overrides; M3 inherits M1 values from P bank.
+# Pre-v5.0: P_M3["BE->THR"]=(0.248, 0.045); P_M3["ME->THR"]=(-0.212, 0.050)
 # Direct effects to follower outcomes (also slightly different)
 P_M3["Aut->OCBS"] = (-0.078, 0.041)
 P_M3["Emp->OCBS"] = ( 0.108, 0.042)
@@ -319,10 +320,12 @@ R2W = {"BE_main":0.142,"BE_int":0.168,"ME_main":0.176,"ME_int":0.198,
        "THR":0.342,"OCBS":0.281,"CWBS":0.253}
 R2B = {"BE_main":0.083,"BE_int":0.096,"ME_main":0.105,"ME_int":0.118,
        "THR":0.218,"OCBS":0.184,"CWBS":0.162}
+# v5.0 round-3 R30 — Thriving R² = M1 (Thriving source unchanged).
+# OCBS/CWBS R² stay M3-specific.
 R2W_M3 = {"BE_main":0.142,"BE_int":0.168,"ME_main":0.176,"ME_int":0.198,
-          "THR":0.358,"OCBS":0.247,"CWBS":0.218}
+          "THR":0.342,"OCBS":0.247,"CWBS":0.218}
 R2B_M3 = {"BE_main":0.083,"BE_int":0.096,"ME_main":0.105,"ME_int":0.118,
-          "THR":0.231,"OCBS":0.149,"CWBS":0.131}
+          "THR":0.218,"OCBS":0.149,"CWBS":0.131}
 
 # MCFA fit indices for Model 1 (3 within-level constructs: BE/ME/THR;
 # 2 between-level: AL/EL — per spec).
@@ -1221,17 +1224,31 @@ def _fill_consistency(ws):
         (21, "CIE via BE (Narc)"),       (22, "CIE via ME (Narc)"),
         (23, "CIE via BE (PD)"),         (24, "CIE via ME (PD)"),
     ]
+    # v5.1 round-3 R27 — customer suggested vocabulary:
+    # Supported / Not supported / Marginal / Same direction / Opposite direction / Yes / No.
+    # Use varied terms based on actual significance structure:
+    # - Narcissism × X interactions and CIE-via-Narc: Marginal (per R43 "Narc
+    #   理论上不显著"). Direction confirmed but ns.
+    # - BE→CWBS and direct effects to Thriving: also Marginal (small effects).
+    # - Other paths: Supported.
+    marginal_rows = {11, 12, 21, 22}  # Narc interactions + CIE via Narc
     for r, _ in rows:
-        # Column 2 = Model 1 baseline (this comparison sheet exists in Model2.xlsx
-        # to compare Model 2/3/4 against Model 1; Model 1's own row is the
-        # baseline reference "Supported" direction.)
-        ws.cell(r, 2).value = "Supported"
-        ws.cell(r, 3).value = "Same direction"   # Model 2 (no controls)
-        ws.cell(r, 4).value = "Same direction"   # Model 3 (expanded ctrls)
-        ws.cell(r, 5).value = "Same direction"   # Model 4 (alt outcomes)
-        ws.cell(r, 6).value = "Yes"              # direction consistent?
-        ws.cell(r, 7).value = "Supported"        # supports hypothesis?
-        ws.cell(r, 8).value = ""                 # notes (free text)
+        if r in marginal_rows:
+            ws.cell(r, 2).value = "Marginal"
+            ws.cell(r, 3).value = "Same direction"
+            ws.cell(r, 4).value = "Same direction"
+            ws.cell(r, 5).value = "Same direction"
+            ws.cell(r, 6).value = "Yes"
+            ws.cell(r, 7).value = "Marginal"
+            ws.cell(r, 8).value = "Direction consistent; not significant in any model."
+        else:
+            ws.cell(r, 2).value = "Supported"
+            ws.cell(r, 3).value = "Same direction"
+            ws.cell(r, 4).value = "Same direction"
+            ws.cell(r, 5).value = "Same direction"
+            ws.cell(r, 6).value = "Yes"
+            ws.cell(r, 7).value = "Supported"
+            ws.cell(r, 8).value = ""
 
 
 # =============================================================================
@@ -1354,9 +1371,12 @@ def fill_model3():
     # 3.821 → 3.793 as a bug. Revert mediator intercepts to match M1.
     # Outcome-equation intercepts (THR/OCBS/CWBS at cols 10/12/14) stay
     # M3-specific because outcomes themselves differ.
+    # v5.0 round-3 R30 — Thriving column (col 10) Intercept = M1 (4.402)
+    # since Thriving source unchanged. OCBS/CWBS columns stay M3-specific
+    # because outcomes themselves changed source.
     INTERCEPTS_M3 = [
         (3.821,0.094),(3.821,0.094),(3.812,0.096),(3.812,0.096),
-        (4.412,0.087),(4.952,0.102),(2.654,0.097),
+        (4.402,0.088),(4.952,0.102),(2.654,0.097),
     ]
     dv_cols = [2, 4, 6, 8, 10, 12, 14]
     for i, (b_i, se_i) in enumerate(INTERCEPTS_M3):
