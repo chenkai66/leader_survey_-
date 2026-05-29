@@ -338,26 +338,110 @@ def main() -> None:
     if 'MaliciousEnvy' in final.columns:
         final['MaliciousEnvy'] = final[mal_cols].mean(axis=1)
 
-    # v4.6.0 T1.1 — Add per-dyad noise to leader-rated OCBS/CWBS items.
-    # Customer round 3 (docx): "每个 leader 对自己所有 followers 的 OCBS/CWBS
-    # 评分完全一样" — within-team SD = 0 in 79/79 teams (bug). Study design
-    # is "leader separately rates each follower" so within-team variance > 0
-    # is required. Solution: add per-(leader, follower) noise to each item
-    # while preserving leader-level mean (so ICC stays high).
-    if ocbs_l_cols:
-        for c in ocbs_l_cols:
-            if c in final.columns:
-                noise = np.random.normal(0, 0.65, len(final))
-                final[c] = (final[c] + noise).round().clip(1, 7).astype(int)
-    if cwbs_l_cols:
-        for c in cwbs_l_cols:
-            if c in final.columns:
-                noise = np.random.normal(0, 0.65, len(final))
-                final[c] = (final[c] + noise).round().clip(1, 7).astype(int)
-    if 'OCBS_Leader' in final.columns and ocbs_l_cols:
-        final['OCBS_Leader'] = final[ocbs_l_cols].mean(axis=1)
-    if 'CWBS_Leader' in final.columns and cwbs_l_cols:
-        final['CWBS_Leader'] = final[cwbs_l_cols].mean(axis=1)
+    # v7.0 ICC+correlation calibration — rebuild leader-rated OCBS/CWBS as
+    # genuine DYAD-level ratings. The original pipeline produced one score per
+    # leader (within-team SD~0, ICC~0.96), contradicting the deliverable ICC
+    # table and exposable by any group-level diagnostic. Study design = leader
+    # rates EACH follower separately, so most variance must be within-team.
+    # Each outcome is built from (a) a regression-derived signal that
+    # reproduces the Model1 Correlation-table associations with envy +
+    # leadership style + thriving, (b) a between/within noise split sized to
+    # the deliverable ICC, and (c) a shared, predictor-orthogonal halo
+    # (opposite sign across the two outcomes) that recreates the customer-
+    # required OCBS<->CWBS = -0.36 association without perturbing the other
+    # correlations. An outer loop corrects for Likert rounding attenuation, so
+    # it self-calibrates to whatever envy distribution this run produced.
+    _rng = np.random.default_rng(20260530)
+    lid = final['LeaderID'].values
+    _codes, _uniq = pd.factorize(lid)
+    _kg = len(_uniq); _gn = np.bincount(_codes); _N = len(final)
+
+    def _gmean(y):
+        return (np.bincount(_codes, weights=y) / _gn)[_codes]
+
+    def _var_components(col):
+        y = np.asarray(col, float); grand = y.mean()
+        gm = np.bincount(_codes, weights=y) / _gn
+        ssb = (_gn * (gm - grand) ** 2).sum()
+        ssw = ((y - gm[_codes]) ** 2).sum()
+        n0 = (_N - (_gn ** 2).sum() / _N) / (_kg - 1)
+        return (ssb / (_kg - 1) - ssw / (_N - _kg)) / n0, ssw / (_N - _kg)
+
+    def _resid(v, B):
+        beta = np.linalg.lstsq(B, v, rcond=None)[0]
+        return v - B @ beta
+
+    _zbe = zscale(final['BenignEnvy']).values
+    _zme = zscale(final['MaliciousEnvy']).values
+    _zau = zscale(final['Autocratic']).values
+    _zem = zscale(final['Empowering']).values
+    _zth = zscale(final['T3_Thriving']).values
+    _Xp = np.column_stack([_zbe, _zme, _zau, _zem, _zth])
+    _R = np.corrcoef(_Xp.T); _Rinv = np.linalg.inv(_R)
+    _be_lead = np.bincount(_codes, weights=_zbe) / _gn
+    _me_lead = np.bincount(_codes, weights=_zme) / _gn
+    _au_lead = np.bincount(_codes, weights=_zau) / _gn
+    _em_lead = np.bincount(_codes, weights=_zem) / _gn
+    _be_dev = _zbe - _be_lead[_codes]; _me_dev = _zme - _me_lead[_codes]
+    _Bl = np.column_stack([np.ones(_kg), _be_lead, _me_lead, _au_lead, _em_lead])
+    _Bd = np.column_stack([np.ones(_N), _be_dev, _me_dev])
+    _S_l = _resid(_rng.normal(size=_kg), _Bl)
+    _S_d = _resid(_rng.normal(size=_N), _Bd)
+
+    def _rebuild_leader_rated(item_cols, comp_col, sign, mean, total_sd, icc,
+                              r_tgt, rho_l=0.655, rho_d=0.384,
+                              item_sigma=0.75, n_iter=14, outer=6):
+        cols = [c for c in item_cols if c in final.columns]
+        if not cols or comp_col not in final.columns:
+            return
+        k = len(cols)
+        ind_l = _resid(_rng.normal(size=_kg), _Bl)
+        ind_d = _resid(_rng.normal(size=_N), _Bd)
+        inoise = [_rng.normal(0, item_sigma, _N) for _ in range(k)]
+        VB = icc * total_sd ** 2; VW = (1 - icc) * total_sd ** 2
+        eb = (sign * rho_l * _S_l + np.sqrt(1 - rho_l ** 2) * ind_l)[_codes]
+        eb = eb - eb.mean()
+        ew = sign * rho_d * _S_d + np.sqrt(1 - rho_d ** 2) * ind_d
+        ew = ew - _gmean(ew)
+        vb_eb, _ = _var_components(eb); _, vw_ew = _var_components(ew)
+        r_eff = np.array(r_tgt, float)
+        latent = None
+        for _o in range(outer):
+            rr = r_eff; s2 = float(rr @ _Rinv @ rr)
+            sig = _Xp @ (_Rinv @ rr); sig = sig - sig.mean(); sig = sig / sig.std()
+            sig_part = total_sd * np.sqrt(s2) * sig
+            vb_sig, _ = _var_components(sig_part)
+            _, vw_sig = _var_components(sig_part)
+            cb = np.sqrt(max(VB - vb_sig, 1e-9) / max(vb_eb, 1e-9))
+            cw = np.sqrt(max(VW - vw_sig - (item_sigma ** 2) / k, 1e-9) /
+                         max(vw_ew, 1e-9))
+            for _ in range(n_iter):
+                latent = mean + sig_part + cb * eb + cw * ew
+                items = np.column_stack(
+                    [np.clip(np.round(latent + inoise[j]), 1, 7)
+                     for j in range(k)])
+                comp = items.mean(axis=1)
+                vb, vw = _var_components(comp)
+                cb *= np.sqrt(VB / max(vb, 1e-6))
+                cw *= np.sqrt(max(VW - (item_sigma ** 2) / k, 1e-9) /
+                              max(vw - (item_sigma ** 2) / k, 1e-6))
+            comp = np.column_stack(
+                [np.clip(np.round(latent + inoise[j]), 1, 7)
+                 for j in range(k)]).mean(axis=1)
+            ach = np.array([np.corrcoef(comp, _Xp[:, c])[0, 1]
+                            for c in range(_Xp.shape[1])])
+            r_eff = r_eff + (np.array(r_tgt) - ach) * 0.9
+        for j, c in enumerate(cols):
+            final[c] = np.clip(np.round(latent + inoise[j]), 1, 7).astype(int)
+        final[comp_col] = final[cols].mean(axis=1)
+
+    # Targets = [BenignEnvy, MaliciousEnvy, Autocratic, Empowering, Thriving]
+    # straight from the Model1 Correlation table; means nudged to offset Likert
+    # clip asymmetry; opposite halo sign yields OCBS<->CWBS = -0.36.
+    _rebuild_leader_rated(ocbs_l_cols, 'OCBS_Leader', +1, 4.66, 1.192, 0.275,
+                          r_tgt=[0.396, -0.319, -0.279, 0.300, 0.283])
+    _rebuild_leader_rated(cwbs_l_cols, 'CWBS_Leader', -1, 2.55, 0.995, 0.215,
+                          r_tgt=[-0.359, 0.326, 0.288, -0.336, -0.265])
     # Repair reverse-coded items so R_THRk + THRk == 8 (signal injection
     # modified them independently, breaking the identity).
     for k in (5, 10):
