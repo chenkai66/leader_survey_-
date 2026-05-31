@@ -111,8 +111,27 @@ def main() -> int:
           f"got {t3f['LeaderID'].nunique()}")
     check("final leaders == 79", final["LeaderID"].nunique() == 79,
           f"got {final['LeaderID'].nunique()}")
-    check("final dyads >= 237 (79 × 3)", len(final) >= 237, f"got {len(final)}")
-    check("final dyads <= 395 (79 × 5)", len(final) <= 395, f"got {len(final)}")
+    # round-4 T1.4: final dyads MUST equal the sample-size table's final N (340),
+    # not just sit loosely in [237, 395]. The previous loose bound let 361 pass
+    # while the 样本量变化表 said 340 — exactly the customer's complaint that the
+    # merged data and the sample table "对不上".
+    check("final dyads == 340 (matches 样本量变化表)", len(final) == 340,
+          f"got {len(final)}")
+    _p_ss = RES / "样本量变化表.xlsx"
+    if _p_ss.exists():
+        _wb = load_workbook(_p_ss); _ws = _wb["Sheet1"]
+        _r49 = _ws.cell(49, 3).value
+        check("len(final) == 样本量变化表 R49 (data↔table cross-check)",
+              len(final) == _r49, f"final={len(final)}, R49={_r49}")
+        _wb.close()
+    # round-4 sample table A57 team-size spec: 3-person×10, 4-person×35, 5-person×34.
+    _tsd = final.groupby("LeaderID").size().value_counts().to_dict()
+    _tsd = {int(k): int(v) for k, v in _tsd.items()}
+    check("team-size distribution == {3:10, 4:35, 5:34}",
+          _tsd == {3: 10, 4: 35, 5: 34}, f"got {dict(sorted(_tsd.items()))}")
+    check("avg followers/leader == 4.3 (340/79)",
+          abs(len(final) / final["LeaderID"].nunique() - 4.30) < 0.01,
+          f"got {len(final)/final['LeaderID'].nunique():.3f}")
 
     # ---------- 2. raw > cleaned ----------
     section("2. Raw > cleaned")
@@ -724,6 +743,23 @@ def main() -> int:
         n_ac = ws.cell(27, 3).value
         check("样本量变化表 R27 T3 AC失败 == 22 (T1.4)",
               n_ac == 22, f"got {n_ac}")
+        wb.close()
+
+    # 36.5 round-4 A11 — 描述性统计 interaction-frequency breakdown must re-tabulate
+    # on the N=340 sample (it summed to 361 in the round-3 deliverable).
+    p_ = RES / "Model1.xlsx"
+    if p_.exists():
+        import re as _re
+        wb = load_workbook(p_)
+        ws = wb["描述性统计"]
+        tot = 0
+        for r in range(1, ws.max_row + 1):
+            for c in range(1, 4):
+                v = ws.cell(r, c).value
+                if isinstance(v, str) and "/wk" in v:
+                    tot += sum(int(m) for m in _re.findall(r": (\d+) \(", v))
+        check("描述性统计 interaction-freq counts sum to 340 (A11)",
+              tot == 340, f"sum={tot}")
         wb.close()
 
     # ---------- 35. v4.5.11-12 significance stars on Path/Correlation/IE/SS ----------

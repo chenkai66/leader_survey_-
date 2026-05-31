@@ -690,8 +690,10 @@ def fill_model1():
     ws.cell(15, 2).value = 4.65
     # Override BE→THR(T3) — row 14 (Thriving T3) col 12 (= var #9 BE): .614 → .50
     ws.cell(14, 12).value = 0.500
-    # Override ME→THR(T3) — row 14, col 13 (= var #10 ME): -.608 → -.495
-    ws.cell(14, 13).value = -0.495
+    # Override ME→THR(T3) — row 14, col 13 (= var #10 ME): -.495 → -.430
+    # (round-4 Model1 Correlation A18 mirror-break: move ME→Thriving one notch
+    #  weaker so the two mediators are not perfectly mirror-symmetric.)
+    ws.cell(14, 13).value = -0.430
     # Override OCBS-CWBS — row 16 (CWBS_L), col 16 (= var #13 OCBS_L): -.425 → -.36
     ws.cell(16, 16).value = -0.360
 

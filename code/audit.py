@@ -376,6 +376,29 @@ def layer5():
             _fail("layer5", f"{w} JSON cascade arithmetic: {calc} != {attr[use_k]}")
     print("  JSON cascade arithmetic reconciles for all 4 wave segments")
 
+    # round-4 T1.4 — the merged analysis data, the cascade JSON Final_dyads, and
+    # the 样本量变化表 final-N cell must ALL agree on 340. Previously only the
+    # table was pinned to 340 while the data drifted to 361.
+    n_final = len(final)
+    if n_final != 340:
+        _fail("layer5", f"final_merged rows = {n_final}, expected 340")
+    if attr.get("Final_dyads") != 340:
+        _fail("layer5", f"JSON Final_dyads = {attr.get('Final_dyads')}, expected 340")
+    if attr.get("Final_dyads") != n_final:
+        _fail("layer5", f"JSON Final_dyads ({attr.get('Final_dyads')}) != "
+              f"len(final) ({n_final})")
+    _wb_ss = load_workbook(RES / "样本量变化表.xlsx"); _ws_ss = _wb_ss["Sheet1"]
+    _r49 = _ws_ss.cell(49, 3).value
+    if _r49 != n_final:
+        _fail("layer5", f"样本量变化表 R49 ({_r49}) != len(final) ({n_final})")
+    _wb_ss.close()
+    _tsd = {int(k): int(v) for k, v in
+            final.groupby("LeaderID").size().value_counts().items()}
+    if _tsd != {3: 10, 4: 35, 5: 34}:
+        _fail("layer5", f"team-size distribution {dict(sorted(_tsd.items()))} "
+              f"!= {{3:10, 4:35, 5:34}}")
+    print("  Data↔JSON↔table all agree on N=340 with team sizes 10/35/34")
+
     wb = load_workbook(RES / "主模型结果填答表.xlsx")
     ws = wb["Table 1A"]
     chi = [ws.cell(r, 2).value for r in range(3, 10)]
