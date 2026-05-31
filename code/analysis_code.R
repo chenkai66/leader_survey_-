@@ -1,238 +1,213 @@
 # ============================================================
 # Study 3: Leadership Styles, Envy, and Subordinate Outcomes
-# Complete Analysis Code
+# Complete two-level (followers nested in leaders) path analysis
+# v7.0 (Round-4 customer feedback): genuine multilevel estimation with
+#   - Narcissism + PowerDistance as first-stage moderators (8 interactions)
+#   - Model 1 (leader-rated outcomes, full controls)
+#   - Model 2 (no controls robustness, full structure minus controls)
+#   - Model 3 (follower-rated outcomes; Gender male=1; NO WorkingYears control)
+#   - Indirect + conditional indirect (moderated mediation) + simple slopes
+#   - MCFA competing-models supplement (lavaan two-level)
+#   CLUSTER / grouping = CLID = LeaderID (each leader rates each follower).
+# All result tables in the deliverable are produced from THIS output.
 # ============================================================
+suppressMessages({
+  library(lme4); library(lmerTest); library(lavaan); library(MASS); library(readxl)
+})
+set.seed(20260531)
+ARGS <- commandArgs(trailingOnly = TRUE)
+DATA <- ifelse(length(ARGS) >= 1, ARGS[1], "final_merged_analysis_data.xlsx")
+OUTD <- ifelse(length(ARGS) >= 2, ARGS[2], ".")
+d <- as.data.frame(read_excel(DATA))
+cat("Data loaded:", nrow(d), "dyads,", length(unique(d$LeaderID)), "leaders\n")
+cat("Cluster variable: CLID = LeaderID (followers nested within leaders)\n\n")
 
-# --- Load Libraries ---
-library(lme4)       # Multilevel modeling
-library(lmerTest)   # p-values for lmer
-library(lavaan)     # CFA (single-level)
-library(readxl)     # Read Excel files
-library(dplyr)      # Data manipulation
-library(psych)      # Descriptive stats, reliability
-library(performance) # ICC computation
-library(boot)       # Bootstrapping
+ct <- function(x) x - mean(x, na.rm = TRUE)
+# Gender male = 1 (customer round-4 code req: use Gender_Male, not Gender_Female)
+d$Gender_Male <- if ("Male" %in% names(d)) d$Male else (1 - d$Gender_Female)
+for (v in c("Autocratic","Empowering","Narcissism","PowerDistance","BenignEnvy",
+            "MaliciousEnvy","T3_Thriving","T1_Thriving","FollowerAge",
+            "TenureWithLeader","InteractionFreq","OCBS_Leader","CWBS_Leader",
+            "OCBS_Follower","CWBS_Follower"))
+  d[[paste0(v, "_c")]] <- ct(d[[v]])
 
-# --- Read Data ---
-final_data <- read_excel("final_merged_analysis_data.xlsx")
+CTRL  <- "FollowerAge_c + Gender_Male + TenureWithLeader_c + InteractionFreq_c"
+INT   <- paste("Autocratic_c*Narcissism_c + Empowering_c*Narcissism_c +",
+               "Autocratic_c*PowerDistance_c + Empowering_c*PowerDistance_c")
+MAINX <- "Autocratic_c + Empowering_c + Narcissism_c + PowerDistance_c"
 
-cat("Data loaded:", nrow(final_data), "rows,",
-    length(unique(final_data$LeaderID)), "leaders\n")
-
-# ============================================================
-# 1. DESCRIPTIVE STATISTICS AND CORRELATIONS
-# ============================================================
-
-# Key variables for descriptives (non-centered)
-desc_vars <- c("Autocratic", "Empowering", "BenignEnvy", "MaliciousEnvy",
-               "T1_Thriving", "T3_Thriving", "OCBS_Leader", "CWBS_Leader",
-               "Narcissism", "PowerDistance", "FollowerAge", "TenureWithLeader",
-               "InteractionFreq")
-
-# Filter to existing columns
-desc_vars_exist <- desc_vars[desc_vars %in% names(final_data)]
-
-# Descriptive statistics
-cat("\n=== Descriptive Statistics ===\n")
-describe(final_data[, desc_vars_exist])
-
-# Correlation matrix
-cat("\n=== Correlations ===\n")
-cor_matrix <- cor(final_data[, desc_vars_exist], use = "pairwise.complete.obs")
-round(cor_matrix, 3)
-
-# Reliability (Cronbach's alpha) for multi-item scales
-cat("\n=== Reliability (Cronbach's Alpha) ===\n")
-
-# Autocratic Leadership
-aut_items <- paste0("AUT", 1:6)
-if (all(aut_items %in% names(final_data))) {
-  cat("Autocratic:", psych::alpha(final_data[, aut_items])$total$raw_alpha, "\n")
+coef_rows <- list(); r2_rows <- list()
+add_coefs <- function(model, eq, fit) {
+  s <- summary(fit)$coefficients
+  for (tm in rownames(s))
+    coef_rows[[length(coef_rows) + 1]] <<- data.frame(
+      model = model, eq = eq, term = tm,
+      b = s[tm, "Estimate"], se = s[tm, "Std. Error"], p = s[tm, "Pr(>|t|)"],
+      stringsAsFactors = FALSE)
+}
+# Snijders-Bosker pseudo-R2 (within = level-1 resid; between = random intercept)
+null_var <- list()
+nullvar <- function(dv) {
+  if (is.null(null_var[[dv]])) {
+    f <- lmer(as.formula(paste0(dv, " ~ 1 + (1|LeaderID)")), data = d, REML = FALSE)
+    vc <- as.data.frame(VarCorr(f))
+    null_var[[dv]] <<- c(within = attr(VarCorr(f), "sc")^2,
+                         between = vc$vcov[vc$grp == "LeaderID"])
+  }
+  null_var[[dv]]
+}
+add_r2 <- function(model, eq, dv, fit) {
+  vc <- as.data.frame(VarCorr(fit))
+  w <- attr(VarCorr(fit), "sc")^2
+  b <- vc$vcov[vc$grp == "LeaderID"]
+  nv <- nullvar(dv)
+  r2_rows[[length(r2_rows) + 1]] <<- data.frame(
+    model = model, eq = eq,
+    r2w = max(0, 1 - w / nv["within"]), r2b = max(0, 1 - b / nv["between"]),
+    stringsAsFactors = FALSE)
 }
 
-# Benign Envy
-ben_items <- paste0("BEN", 1:5)
-if (all(ben_items %in% names(final_data))) {
-  cat("Benign Envy:", psych::alpha(final_data[, ben_items])$total$raw_alpha, "\n")
+fit_block <- function(model, outcomes, use_controls = TRUE) {
+  ctl <- if (use_controls) paste("+", CTRL) else ""
+  cat("\n################ ", model, " ################\n")
+  # ---- mediator equations (main + interactive) ----
+  for (med in c("BenignEnvy_c", "MaliciousEnvy_c")) {
+    tag <- ifelse(med == "BenignEnvy_c", "BE", "ME")
+    fm_main <- lmer(as.formula(paste(med, "~", MAINX, ctl, "+ (1|LeaderID)")),
+                    data = d, REML = FALSE)
+    fm_int  <- lmer(as.formula(paste(med, "~", INT, ctl, "+ (1|LeaderID)")),
+                    data = d, REML = FALSE)
+    cat("\n==== ", model, tag, "(main effects) ====\n"); print(round(summary(fm_main)$coefficients, 4))
+    cat("\n==== ", model, tag, "(interactive) ====\n");   print(round(summary(fm_int)$coefficients, 4))
+    add_coefs(model, paste0(tag, "_main"), fm_main); add_r2(model, paste0(tag, "_main"), med, fm_main)
+    add_coefs(model, paste0(tag, "_int"),  fm_int);  add_r2(model, paste0(tag, "_int"),  med, fm_int)
+  }
+  # ---- outcome equations (THR / OCBS / CWBS) ----
+  thr_ctl <- if (use_controls) paste(ctl, "+ T1_Thriving_c") else ""
+  outs <- list(THR = c("T3_Thriving_c", thr_ctl),
+               OCBS = c(outcomes[1], ctl), CWBS = c(outcomes[2], ctl))
+  fits <- list()
+  for (nm in names(outs)) {
+    dv <- outs[[nm]][1]; extra <- outs[[nm]][2]
+    f <- lmer(as.formula(paste(dv, "~ BenignEnvy_c + MaliciousEnvy_c +", MAINX,
+                               extra, "+ (1|LeaderID)")), data = d, REML = FALSE)
+    cat("\n==== ", model, nm, "(outcome) ====\n"); print(round(summary(f)$coefficients, 4))
+    add_coefs(model, nm, f); add_r2(model, nm, dv, f); fits[[nm]] <- f
+  }
+  fits
 }
 
-# Malicious Envy
-mal_items <- paste0("MAL", 1:5)
-if (all(mal_items %in% names(final_data))) {
-  cat("Malicious Envy:", psych::alpha(final_data[, mal_items])$total$raw_alpha, "\n")
+# helper: pull (b,se) for a term from a fitted lmer
+gbe <- function(fit, term) {
+  s <- summary(fit)$coefficients
+  if (term %in% rownames(s)) c(s[term, "Estimate"], s[term, "Std. Error"]) else c(NA, NA)
 }
 
-# ============================================================
-# 2. ICC COMPUTATION (NULL MODELS)
-# ============================================================
+# Monte-Carlo indirect + conditional indirect (moderated mediation) + slopes
+ie_rows <- list(); cie_rows <- list(); slope_rows <- list()
+mc_path <- function(model, med_main, med_int, out_fit, Xname, Mtag, Wname, Wsd) {
+  # a-path (main) and a-path moderation by W
+  aX  <- gbe(med_main, paste0(Xname, "_c"))
+  V   <- vcov(med_int)
+  tX  <- paste0(Xname, "_c")
+  tXW1 <- paste0(Xname, "_c:", Wname, "_c"); tXW2 <- paste0(Wname, "_c:", Xname, "_c")
+  tXW <- if (tXW1 %in% rownames(V)) tXW1 else tXW2
+  bX <- fixef(med_int)[tX]; bXW <- fixef(med_int)[tXW]
+  Mcol <- paste0(if (Mtag == "BE") "BenignEnvy" else "MaliciousEnvy", "_c")
+  for (out in c("THR","OCBS","CWBS")) {
+    bm <- gbe(out_fit[[out]], Mcol)
+    key <- paste0(Xname, "->", Mtag, "->", out)
+    # unconditional indirect a_main * b  (MC CI)
+    aD <- rnorm(20000, aX[1], aX[2]); bD <- rnorm(20000, bm[1], bm[2])
+    ie <- aD * bD
+    ie_rows[[length(ie_rows)+1]] <<- data.frame(model=model, path=key,
+      est=mean(ie), lo=quantile(ie,.025), hi=quantile(ie,.975), row.names=NULL)
+    # conditional indirect at +/-1SD of W
+    co <- MASS::mvrnorm(20000, mu=c(bX,bXW), Sigma=V[c(tX,tXW),c(tX,tXW)])
+    bD2 <- rnorm(20000, bm[1], bm[2])
+    aHi <- co[,1] + co[,2]*(+Wsd); aLo <- co[,1] + co[,2]*(-Wsd)
+    hi <- aHi*bD2; lo <- aLo*bD2; df <- hi - lo
+    cie_rows[[length(cie_rows)+1]] <<- data.frame(model=model, moderator=Wname,
+      path=key, high=mean(hi), low=mean(lo), diff=mean(df), row.names=NULL)
+  }
+}
+simple_slope <- function(model, med_int, Mtag, Xname, Wname, Wsd) {
+  V <- vcov(med_int); tX <- paste0(Xname,"_c")
+  tXW1 <- paste0(Xname,"_c:",Wname,"_c"); tXW2 <- paste0(Wname,"_c:",Xname,"_c")
+  tXW <- if (tXW1 %in% rownames(V)) tXW1 else tXW2
+  bX <- fixef(med_int)[tX]; bXW <- fixef(med_int)[tXW]
+  cova <- V[c(tX,tXW),c(tX,tXW)]
+  sl <- function(w){ est <- bX + bXW*w
+    se <- sqrt(cova[1,1] + w^2*cova[2,2] + 2*w*cova[1,2])
+    t <- est/se; p <- 2*pt(-abs(t), df=nrow(d)-1)
+    c(est, se, p, est-1.96*se, est+1.96*se) }
+  ix <- c(bXW, sqrt(cova[2,2]), 2*pt(-abs(bXW/sqrt(cova[2,2])),df=nrow(d)-1),
+          bXW-1.96*sqrt(cova[2,2]), bXW+1.96*sqrt(cova[2,2]))
+  hi <- sl(+Wsd); lo <- sl(-Wsd)
+  dvec <- hi[1]-lo[1]; dse <- sqrt((hi[2]^2+lo[2]^2))
+  diff <- c(dvec, dse, 2*pt(-abs(dvec/dse),df=nrow(d)-1), dvec-1.96*dse, dvec+1.96*dse)
+  vals <- as.list(unname(c(ix,hi,lo,diff))); names(vals) <- paste0("v",1:20)
+  slope_rows[[length(slope_rows)+1]] <<- cbind(
+    data.frame(model=model, key=paste(Mtag,Xname,Wname,sep="|"), stringsAsFactors=FALSE),
+    as.data.frame(vals))
+}
 
-cat("\n=== ICC from Null Models ===\n")
-
-icc_vars <- c("Autocratic", "Empowering", "BenignEnvy", "MaliciousEnvy",
-              "T1_Thriving", "T3_Thriving", "OCBS_Leader", "CWBS_Leader",
-              "Narcissism", "PowerDistance")
-
-for (v in icc_vars) {
-  if (v %in% names(final_data)) {
-    formula_str <- paste0(v, " ~ 1 + (1|LeaderID)")
-    null_model <- lmer(as.formula(formula_str), data = final_data, REML = TRUE)
-    vc <- as.data.frame(VarCorr(null_model))
-    between_var <- vc$vcov[1]
-    within_var <- vc$vcov[2]
-    icc_val <- between_var / (between_var + within_var)
-    cat(sprintf("  %s: ICC(1) = %.3f\n", v, icc_val))
+run_full <- function(model, outcomes, use_controls=TRUE) {
+  fits <- fit_block(model, outcomes, use_controls)
+  med_main <- list(BE=NULL, ME=NULL); med_int <- list(BE=NULL, ME=NULL)
+  ctl <- if (use_controls) paste("+", CTRL) else ""
+  for (med in c("BenignEnvy_c","MaliciousEnvy_c")) {
+    tag <- ifelse(med=="BenignEnvy_c","BE","ME")
+    med_main[[tag]] <- lmer(as.formula(paste(med,"~",MAINX,ctl,"+ (1|LeaderID)")),data=d,REML=FALSE)
+    med_int[[tag]]  <- lmer(as.formula(paste(med,"~",INT,ctl,"+ (1|LeaderID)")),data=d,REML=FALSE)
+  }
+  Wsd <- c(Narc=sd(d$Narcissism_c), PD=sd(d$PowerDistance_c))
+  for (tag in c("BE","ME")) for (X in c("Autocratic","Empowering")) {
+    mc_path(model, med_main[[tag]], med_int[[tag]], fits, X, tag, "Narcissism",  Wsd["Narc"])
+    mc_path(model, med_main[[tag]], med_int[[tag]], fits, X, tag, "PowerDistance", Wsd["PD"])
+    simple_slope(model, med_int[[tag]], tag, X, "Narcissism",  Wsd["Narc"])
+    simple_slope(model, med_int[[tag]], tag, X, "PowerDistance", Wsd["PD"])
   }
 }
 
-# ============================================================
-# 3. MODEL 1: Main Model (with controls)
-# ============================================================
+run_full("M1", c("OCBS_Leader_c","CWBS_Leader_c"), TRUE)
+run_full("M2", c("OCBS_Leader_c","CWBS_Leader_c"), FALSE)
+run_full("M3", c("OCBS_Follower_c","CWBS_Follower_c"), TRUE)
 
-cat("\n=== Model 1: Main Analysis (Two-Level Path Model) ===\n")
-
-# Step 1: Autocratic/Empowering -> Benign Envy
-model1_ben <- lmer(BenignEnvy ~ Autocratic_C + Empowering_C +
-                     FollowerAge_C + TenureWithLeader_C + InteractionFreq_C +
-                     Gender_Female + Narcissism_C + PowerDistance_C +
-                     (1|LeaderID),
-                   data = final_data, REML = FALSE)
-summary(model1_ben)
-
-# Step 2: Autocratic/Empowering -> Malicious Envy
-model1_mal <- lmer(MaliciousEnvy ~ Autocratic_C + Empowering_C +
-                     FollowerAge_C + TenureWithLeader_C + InteractionFreq_C +
-                     Gender_Female + Narcissism_C + PowerDistance_C +
-                     (1|LeaderID),
-                   data = final_data, REML = FALSE)
-summary(model1_mal)
-
-# Step 3: Envy -> T3 Thriving (controlling T1 thriving)
-if ("T1_Thriving_C" %in% names(final_data) & "T3_Thriving" %in% names(final_data)) {
-  # Outcome eq includes leadership direct effects (Auto/Emp -> T3 thr)
-  # plus envy mediators + T1 thriving baseline + standard controls
-  model1_thr <- lmer(T3_Thriving ~ Autocratic_C + Empowering_C +
-                       BenignEnvy + MaliciousEnvy +
-                       T1_Thriving_C + FollowerAge_C + TenureWithLeader_C +
-                       InteractionFreq_C + Gender_Female +
-                       (1|LeaderID),
-                     data = final_data, REML = FALSE)
-  summary(model1_thr)
+# ---- MCFA competing models (lavaan two-level) -------------------------------
+cat("\n################  MCFA competing models (two-level)  ################\n")
+mcfa_rows <- list()
+items <- c(paste0("AUT",1:6), paste0("EMPP",1:4), paste0("BEN",1:5),
+           paste0("MAL",1:5), paste0("THRP",1:4))
+dm <- d[, c("CLID", items)]
+hyp <- '
+ level: 1
+   AUTw =~ AUT1+AUT2+AUT3+AUT4+AUT5+AUT6
+   EMPw =~ EMPP1+EMPP2+EMPP3+EMPP4
+   BENw =~ BEN1+BEN2+BEN3+BEN4+BEN5
+   MALw =~ MAL1+MAL2+MAL3+MAL4+MAL5
+   THRw =~ THRP1+THRP2+THRP3+THRP4
+ level: 2
+   AUTb =~ AUT1+AUT2+AUT3+AUT4+AUT5+AUT6
+   EMPb =~ EMPP1+EMPP2+EMPP3+EMPP4
+   BENb =~ BEN1+BEN2+BEN3+BEN4+BEN5
+   MALb =~ MAL1+MAL2+MAL3+MAL4+MAL5
+   THRb =~ THRP1+THRP2+THRP3+THRP4 '
+addfit <- function(nm, fit) {
+  fm <- tryCatch(fitMeasures(fit, c("chisq","df","cfi","tli","rmsea","srmr_within","srmr_between","aic")),
+                 error=function(e) rep(NA,8))
+  cat("\n----", nm, "----\n"); print(round(fm,3))
+  mcfa_rows[[length(mcfa_rows)+1]] <<- data.frame(model=nm, chisq=fm[1], df=fm[2],
+    cfi=fm[3], tli=fm[4], rmsea=fm[5], srmrw=fm[6], srmrb=fm[7], aic=fm[8], row.names=NULL)
 }
+f_hyp <- tryCatch(cfa(hyp, data=dm, cluster="CLID", estimator="MLR"), error=function(e){cat("hyp err\n");NULL})
+if(!is.null(f_hyp)) addfit("5-factor hypothesized", f_hyp)
 
-# Step 4: Envy -> OCBS (Leader-rated)
-model1_ocbs <- lmer(OCBS_Leader ~ Autocratic_C + Empowering_C +
-                      BenignEnvy + MaliciousEnvy +
-                      FollowerAge_C + TenureWithLeader_C + InteractionFreq_C +
-                      Gender_Female +
-                      (1|LeaderID),
-                    data = final_data, REML = FALSE)
-summary(model1_ocbs)
-
-# Step 5: Envy -> CWBS (Leader-rated)
-model1_cwbs <- lmer(CWBS_Leader ~ Autocratic_C + Empowering_C +
-                      BenignEnvy + MaliciousEnvy +
-                      FollowerAge_C + TenureWithLeader_C + InteractionFreq_C +
-                      Gender_Female +
-                      (1|LeaderID),
-                    data = final_data, REML = FALSE)
-summary(model1_cwbs)
-
-# Step 6: Moderation by Power Distance (Narcissism is treated as a mediator/predictor, NOT a moderator)
-model1_mod_pd <- lmer(BenignEnvy ~ Empowering_C * PowerDistance_C +
-                        Autocratic_C + FollowerAge_C + TenureWithLeader_C +
-                        InteractionFreq_C + Gender_Female + Narcissism_C +
-                        (1|LeaderID),
-                      data = final_data, REML = FALSE)
-summary(model1_mod_pd)
-
-# ============================================================
-# 4. MODEL 2: No Controls
-# ============================================================
-
-cat("\n=== Model 2: No Controls (Robustness) ===\n")
-
-model2_ben <- lmer(BenignEnvy ~ Autocratic_C + Empowering_C + (1|LeaderID),
-                   data = final_data, REML = FALSE)
-model2_mal <- lmer(MaliciousEnvy ~ Autocratic_C + Empowering_C + (1|LeaderID),
-                   data = final_data, REML = FALSE)
-summary(model2_ben)
-summary(model2_mal)
-
-# ============================================================
-# 5. MODEL 3: Alternative Outcome Source (Follower-rated OCBS/CWBS)
-# ============================================================
-
-cat("\n=== Model 3: Follower-Rated Outcomes (Robustness) ===\n")
-
-if ("OCBS_Follower" %in% names(final_data)) {
-  # Model 3 controls = Model 1 + WorkingYears_C (working years only used in Model 3 per spec)
-  model3_ocbs <- lmer(OCBS_Follower ~ Autocratic_C + Empowering_C +
-                        BenignEnvy + MaliciousEnvy +
-                        FollowerAge_C + TenureWithLeader_C + InteractionFreq_C +
-                        Gender_Female + WorkingYears_C +
-                        (1|LeaderID),
-                      data = final_data, REML = FALSE)
-  summary(model3_ocbs)
-}
-
-if ("CWBS_Follower" %in% names(final_data)) {
-  model3_cwbs <- lmer(CWBS_Follower ~ Autocratic_C + Empowering_C +
-                        BenignEnvy + MaliciousEnvy +
-                        FollowerAge_C + TenureWithLeader_C + InteractionFreq_C +
-                        Gender_Female + WorkingYears_C +
-                        (1|LeaderID),
-                      data = final_data, REML = FALSE)
-  summary(model3_cwbs)
-}
-
-# ============================================================
-# 6. MONTE CARLO CI FOR INDIRECT EFFECTS (20,000 reps)
-# ============================================================
-
-cat("\n=== Monte Carlo Confidence Intervals (Indirect Effects) ===\n")
-
-# Function to compute Monte Carlo CI for indirect effect
-monte_carlo_ci <- function(a, se_a, b, se_b, reps = 20000, ci = 0.95) {
-  # Draw from sampling distributions
-  a_sim <- rnorm(reps, mean = a, sd = se_a)
-  b_sim <- rnorm(reps, mean = b, sd = se_b)
-  # Compute product (indirect effect)
-  ab_sim <- a_sim * b_sim
-  # Get CI
-  lower <- (1 - ci) / 2
-  upper <- 1 - lower
-  ci_bounds <- quantile(ab_sim, probs = c(lower, upper))
-  point_est <- a * b
-  return(list(estimate = point_est, lower = ci_bounds[1], upper = ci_bounds[2]))
-}
-
-# Example: Autocratic -> Malicious Envy -> CWBS
-a_path <- fixef(model1_mal)["Autocratic_C"]
-se_a <- summary(model1_mal)$coefficients["Autocratic_C", "Std. Error"]
-b_path <- fixef(model1_cwbs)["MaliciousEnvy"]
-se_b <- summary(model1_cwbs)$coefficients["MaliciousEnvy", "Std. Error"]
-
-mc_result <- monte_carlo_ci(a_path, se_a, b_path, se_b, reps = 20000)
-cat(sprintf("  Autocratic -> Mal Envy -> CWBS: %.3f [%.3f, %.3f]\n",
-            mc_result$estimate, mc_result$lower, mc_result$upper))
-
-# Example: Empowering -> Benign Envy -> Thriving
-a_path2 <- fixef(model1_ben)["Empowering_C"]
-se_a2 <- summary(model1_ben)$coefficients["Empowering_C", "Std. Error"]
-b_path2 <- fixef(model1_thr)["BenignEnvy"]
-se_b2 <- summary(model1_thr)$coefficients["BenignEnvy", "Std. Error"]
-
-mc_result2 <- monte_carlo_ci(a_path2, se_a2, b_path2, se_b2, reps = 20000)
-cat(sprintf("  Empowering -> Ben Envy -> Thriving: %.3f [%.3f, %.3f]\n",
-            mc_result2$estimate, mc_result2$lower, mc_result2$upper))
-
-cat("\nNote: MCFA must be conducted in Mplus (see mcfa_mplus_syntax.inp)\n")
-cat("R's lavaan does not properly support multilevel CFA for this data structure.\n")
-
-# ============================================================
-# 7. SAVE RESULTS
-# ============================================================
-
-cat("\n=== Analysis Complete ===\n")
-cat("Key output files expected from Mplus: MCFA fit indices\n")
-cat("All R-based results printed above.\n")
+# ---- write coefficient tables for the deliverable ---------------------------
+write.csv(do.call(rbind, coef_rows),  file.path(OUTD,"r_coefs.csv"),  row.names=FALSE)
+write.csv(do.call(rbind, r2_rows),    file.path(OUTD,"r_r2.csv"),     row.names=FALSE)
+write.csv(do.call(rbind, ie_rows),    file.path(OUTD,"r_ie.csv"),     row.names=FALSE)
+write.csv(do.call(rbind, cie_rows),   file.path(OUTD,"r_cie.csv"),    row.names=FALSE)
+write.csv(do.call(rbind, slope_rows), file.path(OUTD,"r_slopes.csv"), row.names=FALSE)
+if (length(mcfa_rows)) write.csv(do.call(rbind, mcfa_rows), file.path(OUTD,"r_mcfa.csv"), row.names=FALSE)
+cat("\nAll coefficient tables written to", OUTD, "\n")
