@@ -1004,12 +1004,15 @@ def _fill_descriptives(ws, final, attr):
                 pct = n / n_l * 100
                 ws.cell(41 + i, 1).value = f"- {edu_labels[edu_i]}: {n} ({pct:.1f}%)"
             ws.cell(45, 1).value = f"- {edu_labels[1]}: 0 (0.0%)"
-        # Job level not collected for leaders in this study -> single message
-        # on row 48, mark the remaining 4 template placeholder rows with em-dash
-        # rather than None so the visual structure stays intact.
-        ws.cell(48, 1).value = "- Job level not collected in this study"
-        for r in range(49, 53):
-            ws.cell(r, 1).value = "—"
+        # Leader job level (LeaderJobLevel IS collected — by design, leader > follower
+        # by 1-2 levels, so leaders fall in {3, 4, 5}). Rows 48..52 hold the
+        # 5-level breakdown; levels with 0 leaders still printed for symmetry.
+        if "LeaderJobLevel" in t3l.columns:
+            col_l = t3l["LeaderJobLevel"].dropna().astype(int)
+            for i in range(1, 6):
+                n = int((col_l == i).sum())
+                pct = n / n_l * 100 if n_l else 0
+                ws.cell(47 + i, 1).value = f"- {job_labels.get(i, str(i))}: {n} ({pct:.1f}%)"
     except Exception as e:
         print(f"  warn: leader descriptives skipped ({e})")
 
