@@ -1733,3 +1733,213 @@ def smote(X, y, target_balance=0.5, k=5, rng=None):
     X_new = np.vstack([X] + new_rows)
     y_new = np.concatenate([y, np.full(n_new, minc)])
     return X_new, y_new
+
+
+# ============================================================================
+# DEEPENING round 6: spatial / HMM / Hawkes / Bayesian / recsys / low-rank /
+# adversarial-label-noise / Anderson-Darling
+# ============================================================================
+
+# ----- Spatial -----
+def spatial_points(n, region=(0, 1, 0, 1), pattern="poisson", cluster_params=None, rng=None):
+    """Generate 2D point pattern in [x0,x1]×[y0,y1].
+    pattern: 'poisson' (CSR), 'cluster' (Thomas process: parents + offspring),
+    'regular' (perturbed lattice)."""
+    rng = rng or np.random.default_rng()
+    x0, x1, y0, y1 = region
+    if pattern == "poisson":
+        return np.column_stack([rng.uniform(x0, x1, n), rng.uniform(y0, y1, n)])
+    if pattern == "cluster":
+        cp = cluster_params or {"n_centers": max(1, n // 20), "spread": 0.03}
+        centers = np.column_stack([rng.uniform(x0, x1, cp["n_centers"]),
+                                   rng.uniform(y0, y1, cp["n_centers"])])
+        idx = rng.integers(0, cp["n_centers"], n)
+        return centers[idx] + rng.normal(0, cp["spread"], (n, 2))
+    if pattern == "regular":
+        side = int(np.ceil(np.sqrt(n)))
+        gx, gy = np.meshgrid(np.linspace(x0, x1, side), np.linspace(y0, y1, side))
+        pts = np.column_stack([gx.ravel(), gy.ravel()])[:n]
+        return pts + rng.normal(0, 0.5 / side, pts.shape)
+    raise ValueError(pattern)
+
+
+def spatial_field(grid_size, range_param=0.2, sill=1.0, nugget=0.0, rng=None):
+    """Gaussian random field on a (grid_size × grid_size) regular grid using
+    exponential covariance C(h)=sill·exp(-h/range)+nugget·I (Matern ν→∞ limit).
+    Returns 2D array of values."""
+    rng = rng or np.random.default_rng()
+    n = grid_size; coords = np.array([(i, j) for i in range(n) for j in range(n)], float) / n
+    d = np.linalg.norm(coords[:, None] - coords[None, :], axis=2)
+    K = sill * np.exp(-d / max(range_param, 1e-6)) + nugget * np.eye(len(coords))
+    Z = np.linalg.cholesky(nearest_pd(K)) @ rng.standard_normal(len(coords))
+    return Z.reshape(n, n)
+
+
+def morans_i(values, coords, k_neighbors=8):
+    """Moran's I global spatial autocorrelation. coords: (n,2). Uses k-NN
+    binary weights. Returns I in roughly [-1, +1]; +1=strong clustering."""
+    v = np.asarray(values, float); coords = np.asarray(coords, float)
+    n = len(v); v = v - v.mean()
+    W = np.zeros((n, n))
+    d2 = ((coords[:, None] - coords[None, :]) ** 2).sum(-1)
+    np.fill_diagonal(d2, np.inf)
+    nn = np.argsort(d2, axis=1)[:, :k_neighbors]
+    for i in range(n): W[i, nn[i]] = 1.0
+    W = (W + W.T) / 2                                  # symmetrize
+    S0 = W.sum()
+    return float(n / S0 * (v @ W @ v) / (v @ v + 1e-12))
+
+
+# ----- HMM (Hidden Markov Model) -----
+def hmm_data(n, transition, emission_means, emission_sds, init=None, rng=None):
+    """Gaussian-emission HMM: latent state evolves by `transition` (K×K),
+    observation_t ~ N(emission_means[state], emission_sds[state]).
+    Returns (states, observations)."""
+    rng = rng or np.random.default_rng()
+    P = np.asarray(transition, float); P = P / P.sum(1, keepdims=True)
+    K = P.shape[0]
+    means = np.asarray(emission_means, float); sds = np.asarray(emission_sds, float)
+    init = np.full(K, 1 / K) if init is None else np.asarray(init) / np.sum(init)
+    s = np.empty(n, int); x = np.empty(n)
+    s[0] = rng.choice(K, p=init)
+    for t in range(1, n): s[t] = rng.choice(K, p=P[s[t - 1]])
+    for t in range(n):    x[t] = rng.normal(means[s[t]], sds[s[t]])
+    return s, x
+
+
+# ----- Hawkes process (self-exciting events) -----
+def hawkes_process(T_max, mu=1.0, alpha=0.5, beta=1.0, rng=None):
+    """Simulate a univariate Hawkes process by thinning (Ogata's algorithm).
+    Intensity λ(t) = μ + Σ α·exp(-β(t - t_i)) over past events t_i.
+    Stationary if alpha/beta < 1. Returns array of event times."""
+    rng = rng or np.random.default_rng()
+    events = []; t = 0.0
+    while t < T_max:
+        lam_bar = mu + alpha * sum(np.exp(-beta * (t - ti)) for ti in events)
+        t += rng.exponential(1 / lam_bar)
+        if t >= T_max: break
+        lam_t = mu + alpha * sum(np.exp(-beta * (t - ti)) for ti in events)
+        if rng.random() < lam_t / lam_bar: events.append(t)
+    return np.array(events)
+
+
+# ----- Bayesian: prior sampling + simple Metropolis posterior -----
+def prior_dataset(n, prior_specs, rng=None):
+    """Sample columns from independent priors. prior_specs: dict
+       {col_name: (dist_name, params_dict)} — uses sample_dist under the hood."""
+    import pandas as pd
+    rng = rng or np.random.default_rng()
+    return pd.DataFrame({c: sample_dist(d, n, rng=rng, **p) for c, (d, p) in prior_specs.items()})
+
+
+def metropolis_posterior(log_post, x0, n_iter=5000, proposal_sd=0.3, burn=500, rng=None):
+    """Generic 1-D random-walk Metropolis sampler for posterior exploration.
+    log_post(x) -> log-posterior. Returns chain (n_iter-burn,).
+    For multi-D, wrap each coordinate or use component-wise."""
+    rng = rng or np.random.default_rng()
+    x = float(x0); lp = log_post(x); chain = []
+    for _ in range(n_iter):
+        xp = x + rng.normal(0, proposal_sd)
+        lpp = log_post(xp)
+        if np.log(rng.random()) < lpp - lp:
+            x, lp = xp, lpp
+        chain.append(x)
+    return np.array(chain[burn:])
+
+
+# ----- Recommendation system data -----
+def recsys_explicit(n_users, n_items, latent_dim=10, signal_sd=1.0, noise_sd=0.5,
+                    sparsity=0.95, rng=None):
+    """Explicit-rating recsys (e.g. 1-5 stars): R = U @ V.T + noise, then
+    keep a `1-sparsity` fraction observed (MCAR). Returns (R_dense, mask, U, V).
+    Recovers rank `latent_dim` for matrix-factorization benchmarks."""
+    rng = rng or np.random.default_rng()
+    U = signal_sd * rng.standard_normal((n_users, latent_dim))
+    V = signal_sd * rng.standard_normal((n_items, latent_dim))
+    R = U @ V.T + rng.normal(0, noise_sd, (n_users, n_items))
+    mask = rng.random((n_users, n_items)) > sparsity
+    return R, mask, U, V
+
+
+def recsys_implicit(n_users, n_items, n_interactions, popularity_skew=1.5,
+                    user_activity_skew=1.5, rng=None):
+    """Implicit-feedback (click/purchase) interaction list. Both item popularity
+    and user activity follow power laws (skew>1 = heavier tail)."""
+    import pandas as pd
+    rng = rng or np.random.default_rng()
+    p_item = rng.pareto(popularity_skew, n_items) + 1; p_item /= p_item.sum()
+    p_user = rng.pareto(user_activity_skew, n_users) + 1; p_user /= p_user.sum()
+    users = rng.choice(n_users, n_interactions, p=p_user)
+    items = rng.choice(n_items, n_interactions, p=p_item)
+    return pd.DataFrame({"user": users, "item": items}).drop_duplicates().reset_index(drop=True)
+
+
+# ----- Low-rank / cluster (embedding-style) -----
+def low_rank_data(n, p, rank, signal_strength=1.0, noise_sd=0.5, rng=None):
+    """n×p matrix with intrinsic rank `rank` plus iid noise. For PCA/SVD recovery
+    benchmarks: top `rank` singular values are large, rest small."""
+    rng = rng or np.random.default_rng()
+    U = rng.standard_normal((n, rank))
+    V = rng.standard_normal((p, rank))
+    return signal_strength * (U @ V.T) + rng.normal(0, noise_sd, (n, p))
+
+
+def cluster_data(n, n_clusters=3, n_features=2, separation=2.0, cluster_sds=None, rng=None):
+    """Gaussian-mixture clusters for clustering / classification. Cluster centers
+    on a circle scaled by `separation`. Returns (X, y)."""
+    rng = rng or np.random.default_rng()
+    angles = np.linspace(0, 2 * np.pi, n_clusters, endpoint=False)
+    centers = np.column_stack([np.cos(angles), np.sin(angles)] +
+                              [np.zeros(n_clusters)] * (n_features - 2)) * separation
+    sds = np.ones(n_clusters) if cluster_sds is None else np.asarray(cluster_sds)
+    y = rng.integers(0, n_clusters, n)
+    X = centers[y] + rng.normal(0, sds[y][:, None], (n, n_features))
+    return X, y
+
+
+# ----- Adversarial perturbation + label noise -----
+def adversarial_perturb(X, epsilon=0.1, norm="inf", direction=None, rng=None):
+    """Apply ε-bounded perturbation. `direction` is a per-row unit vector (e.g.
+    gradient of a model) — None = random direction. norm='inf' (uniform per dim)
+    or '2' (radius-ε ball)."""
+    rng = rng or np.random.default_rng()
+    X = np.asarray(X, float)
+    if direction is None: direction = rng.standard_normal(X.shape)
+    direction = np.asarray(direction, float)
+    if norm == "inf":
+        return X + epsilon * np.sign(direction)
+    norms = np.linalg.norm(direction, axis=1, keepdims=True) + 1e-12
+    return X + epsilon * direction / norms
+
+
+def label_noise(y, noise_rate, n_classes=None, rng=None):
+    """Flip a fraction of labels uniformly at random to a different class.
+    n_classes inferred from y if not given."""
+    rng = rng or np.random.default_rng()
+    y = np.asarray(y).copy()
+    if n_classes is None: n_classes = int(y.max() + 1) if y.dtype.kind in "iu" else len(set(y))
+    flips = rng.random(len(y)) < noise_rate
+    for i in np.where(flips)[0]:
+        alt = [c for c in range(n_classes) if c != y[i]]
+        y[i] = rng.choice(alt)
+    return y
+
+
+# ----- More diagnostics -----
+def anderson_darling_normal(x):
+    """Anderson-Darling test statistic for normality (no scipy). Higher = worse
+    fit. Critical values at α=0.05: A²>0.752 reject. Standardizes with sample
+    mean/sd (so sensitive to ANY deviation from normal)."""
+    x = np.sort(np.asarray(x, float)); n = len(x)
+    z = (x - x.mean()) / (x.std(ddof=1) or 1.0)
+    F = _phi(z); F = np.clip(F, 1e-12, 1 - 1e-12)
+    i = np.arange(1, n + 1)
+    A2 = -n - (1 / n) * ((2 * i - 1) * (np.log(F) + np.log(1 - F[::-1]))).sum()
+    return float(A2)
+
+
+def chi_square_gof(observed, expected):
+    """Pearson chi-square goodness-of-fit statistic: Σ (obs-exp)²/exp.
+    Returns (stat, df). Compare to χ²(df) critical value."""
+    o = np.asarray(observed, float); e = np.asarray(expected, float)
+    return float(((o - e) ** 2 / np.maximum(e, 1e-12)).sum()), len(o) - 1

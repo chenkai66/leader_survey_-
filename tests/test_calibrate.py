@@ -366,6 +366,68 @@ chk("SCD type-2 versions per entity > 1 on average", len(hist) > 10)
 Xs = rng.standard_normal((600,5)); ys = np.concatenate([np.zeros(540,int), np.ones(60,int)])
 Xn, yn = C.smote(Xs, ys, target_balance=0.5, rng=rng)
 chk("SMOTE balanced", abs((yn==1).mean() - 0.5) < 0.05)
+print(f"  ({sum(PASS)}/{len(PASS)} so far)\n")
+
+# ---------- round-6: spatial / HMM / Hawkes / Bayesian / recsys / low-rank / adversarial / AD/GoF ----------
+# spatial
+pts = C.spatial_points(500, pattern="cluster", rng=rng)
+chk("spatial cluster shape", pts.shape == (500, 2))
+field = C.spatial_field(12, range_param=0.3, rng=rng)
+mi = C.morans_i(field.ravel(), np.array([(i,j) for i in range(12) for j in range(12)], float))
+chk("morans_i field high autocorr", mi > 0.3)
+mi_noise = C.morans_i(rng.standard_normal(144), np.array([(i,j) for i in range(12) for j in range(12)], float))
+chk("morans_i noise ≈ 0", abs(mi_noise) < 0.15)
+
+# HMM
+states, obs = C.hmm_data(2000, np.array([[0.9,0.1],[0.2,0.8]]),
+                         emission_means=[0,3], emission_sds=[1,1], rng=rng)
+chk("HMM emission means differ by state", abs(obs[states==1].mean() - obs[states==0].mean()) > 2)
+
+# Hawkes
+events = C.hawkes_process(50, mu=1.0, alpha=0.4, beta=1.0, rng=rng)
+chk("Hawkes more events than base μ·T", len(events) > 50)
+
+# Bayesian
+ps = C.prior_dataset(1000, dict(mu=("normal",{"mean":0,"sd":1}),
+                                 sigma=("gamma",{"shape":2,"scale":1})), rng=rng)
+chk("prior_dataset cols generated", set(ps.columns) == {"mu","sigma"})
+chain = C.metropolis_posterior(lambda x: -0.5*(x-2)**2, x0=0.0, n_iter=3000,
+                                proposal_sd=0.5, burn=500, rng=rng)
+chk("metropolis posterior mean ≈ 2", abs(chain.mean() - 2) < 0.2)
+
+# recsys
+R, mask, U, V = C.recsys_explicit(80, 40, latent_dim=5, sparsity=0.9, rng=rng)
+chk("recsys explicit shape", R.shape == (80,40) and mask.sum() < R.size)
+inter = C.recsys_implicit(80, 40, n_interactions=600, rng=rng)
+chk("recsys implicit has unique interactions", 0 < len(inter) <= 600)
+
+# low-rank
+M = C.low_rank_data(150, 40, rank=5, noise_sd=0.3, rng=rng)
+sv = np.linalg.svd(M, compute_uv=False)
+chk("low_rank singular value gap", sv[0] / sv[5] > 5)
+
+# cluster
+Xc, yc = C.cluster_data(300, n_clusters=3, n_features=2, separation=3.0, rng=rng)
+chk("cluster has 3 classes", len(set(yc)) == 3)
+
+# adversarial
+X0 = rng.standard_normal((100, 5))
+Xp = C.adversarial_perturb(X0, epsilon=0.1, norm="inf", rng=rng)
+chk("adversarial inf-norm bounded", abs(np.abs(Xp-X0).max() - 0.1) < 1e-6)
+Xp2 = C.adversarial_perturb(X0, epsilon=0.1, norm="2", rng=rng)
+chk("adversarial 2-norm bounded", np.linalg.norm(Xp2-X0, axis=1).max() < 0.11)
+
+# label noise
+y = np.random.randint(0, 3, 1000); yn = C.label_noise(y, noise_rate=0.1, n_classes=3, rng=rng)
+chk("label_noise rate ≈ 0.1", abs((y!=yn).mean() - 0.1) < 0.03)
+
+# Anderson-Darling
+chk("AD normal data low A²", C.anderson_darling_normal(rng.standard_normal(500)) < 1.5)
+chk("AD exponential data high A²", C.anderson_darling_normal(rng.exponential(1, 500)) > 5)
+
+# chi-square GoF
+cs, df_g = C.chi_square_gof([20,30,50], [25,25,50])
+chk("chi-square GoF returns stat + df", cs > 0 and df_g == 2)
 
 print(f"\nFINAL: {sum(PASS)}/{len(PASS)} passed")
 sys.exit(0 if all(PASS) else 1)
