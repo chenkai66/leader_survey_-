@@ -1,0 +1,23 @@
+from _common import chk, summary
+import numpy as np, calibrate as C
+rng = np.random.default_rng(7)
+e = C.graph_er(50, 0.1, rng=rng)
+chk("ER edges ≈ expected", 80 < len(e) < 170)
+e = C.graph_ba(100, 3, rng=rng); deg = np.zeros(100, int)
+for u,v in e: deg[u]+=1; deg[v]+=1
+chk("BA degree max > 15 (heavy-tailed)", deg.max() > 15)
+e = C.graph_ws(40, 4, 0.1, rng=rng)
+chk("WS edges close to n*k/2", abs(len(e) - 40*2) < 5)
+e, b = C.graph_sbm([20, 20], 0.5, 0.05, rng=rng)
+within = sum(1 for u,v in e if b[u]==b[v])
+chk("SBM within > between", within > len(e) - within)
+pts = C.spatial_points(500, pattern="cluster", rng=rng)
+chk("spatial cluster shape", pts.shape == (500, 2))
+field = C.spatial_field(15, range_param=0.3, rng=rng)
+mi = C.morans_i(field.ravel(), np.array([(i,j) for i in range(15) for j in range(15)], float))
+chk("Moran's I on field > 0.3", mi > 0.3)
+kg = C.knowledge_graph_triples(100, 5, 500, rng=rng)
+chk("KG unique triples", len(kg) > 0 and not kg.duplicated().any())
+tn = C.temporal_network(15, 10, edge_rate=0.1, rng=rng)
+chk("temporal_network 10 periods", tn.t.nunique() == 10)
+summary()

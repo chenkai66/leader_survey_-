@@ -88,7 +88,8 @@ modules/                  按目标分类的深度文档（按需 Read，不要�
   diagnostics-privacy.md 诊断 / 隐私 / 重加权 / 缺失/异常注入 / 异方差
   domain-specific.md     行业特定：MMM 营销组合 / 离散选择 / 遗传 SNP+LD / LDA / 神经元 spike
 scripts/calibrate.py     130+ 函数，仅 numpy + Python stdlib（无 scipy）
-tests/test_calibrate.py  129+ 断言（每方法实测达标）
+tests/test_calibrate.py     monolithic 129+ 断言（向后兼容）
+tests/per_module/           按模块拆分的 13 个聚焦测试 + run_all.py（112+ 断言）
 examples/                3 个端到端场景脚本（nonnormal / model_targets / scenarios）
 ```
 
@@ -123,7 +124,11 @@ spec = {"n": 2000,
         "constraints":  [{"type":"range","col":"age","lo":18,"hi":80}]}
 df = C.generate_from_spec(spec)
 
-# E. 复测命中（验数据 vs spec）
+# E. 先验 spec（生成前 lint，避免无效 spec 浪费时间）
+errs = C.validate_spec(spec)         # [] = OK；非空 = 错误清单（含 'did you mean'）
+df = C.generate_from_spec(spec)      # 自动调 validate_spec；不合法抛 SpecError
+
+# F. 复测命中（验数据 vs spec）
 print(C.validate(df, spec))          # 每条 PASS/FAIL + N/T 摘要
 
 # F. 全局可复现种子

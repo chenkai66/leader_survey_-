@@ -2806,3 +2806,238 @@ def _cli(argv=None):
 
 if __name__ == "__main__":
     _cli()
+
+
+# ============================================================================
+# HARNESS round 2: spec schema validation, friendlier errors, more recipes
+# ============================================================================
+
+class SpecError(ValueError):
+    """Raised when generate_from_spec receives an invalid spec; message contains
+    actionable hints (which key is wrong + what's allowed)."""
+
+
+_VALID_DISTS = {"normal","lognormal","exponential","gamma","beta","weibull",
+                "pareto","t","chi2","poisson","negbin","geometric","uniform","truncnormal"}
+_REQUIRED_PARAMS = {
+    "normal":   ["mean","sd"],   "lognormal":   ["mu","sigma"],
+    "exponential": ["scale"],    "gamma":       ["shape"],
+    "beta":     ["a","b"],       "weibull":     ["shape"],
+    "pareto":   ["shape"],       "t":           ["df"],
+    "chi2":     ["df"],          "poisson":     ["lam"],
+    "negbin":   ["mean"],        "geometric":   ["p"],
+    "uniform":  [],              "truncnormal": ["mean","sd"],
+}
+
+
+def validate_spec(spec):
+    """Validate a `generate_from_spec` spec. Returns list of error messages
+    (empty = OK). Use to lint specs before generation."""
+    errs = []
+    if not isinstance(spec, dict):
+        return ["spec must be a dict"]
+    if "n" not in spec or not isinstance(spec["n"], int) or spec["n"] <= 0:
+        errs.append("spec['n'] must be a positive int")
+    cols = spec.get("columns", [])
+    if not isinstance(cols, list) or len(cols) == 0:
+        errs.append("spec['columns'] must be a non-empty list of {name, dist, ...} dicts")
+    names = []
+    for i, c in enumerate(cols):
+        if not isinstance(c, dict) or "name" not in c:
+            errs.append(f"columns[{i}] must be a dict with 'name'"); continue
+        names.append(c["name"])
+        dist = c.get("dist", "normal")
+        if dist not in _VALID_DISTS:
+            from difflib import get_close_matches
+            sug = get_close_matches(dist, list(_VALID_DISTS), n=2)
+            errs.append(f"columns[{i}] ({c['name']!r}): unknown dist {dist!r}"
+                        + (f"; did you mean {sug}?" if sug else f"; valid: {sorted(_VALID_DISTS)}"))
+            continue
+        missing = [p for p in _REQUIRED_PARAMS.get(dist, []) if p not in c]
+        if missing:
+            errs.append(f"columns[{i}] ({c['name']!r}, dist={dist!r}): missing required params {missing}")
+    if len(set(names)) != len(names):
+        errs.append(f"duplicate column names in spec: {[n for n in names if names.count(n) > 1]}")
+    for pair, r in (spec.get("correlations") or {}).items():
+        if not isinstance(pair, (tuple, list)) or len(pair) != 2:
+            errs.append(f"correlations key {pair!r} must be a (col_a, col_b) tuple")
+            continue
+        if pair[0] not in names or pair[1] not in names:
+            errs.append(f"correlations references unknown column(s): {pair} (have: {names})")
+        if not -1 < float(r) < 1:
+            errs.append(f"correlations[{pair}] = {r} must be in (-1, 1)")
+    for j, cs in enumerate(spec.get("constraints", [])):
+        t = cs.get("type")
+        if t not in {"monotone", "range", "predicate"}:
+            errs.append(f"constraints[{j}].type {t!r} must be one of monotone/range/predicate")
+            continue
+        if t == "monotone":
+            for k in ("before","after"):
+                if cs.get(k) not in names:
+                    errs.append(f"constraints[{j}] monotone: {k}={cs.get(k)!r} not in columns")
+        elif t == "range":
+            if cs.get("col") not in names:
+                errs.append(f"constraints[{j}] range: col={cs.get('col')!r} not in columns")
+    return errs
+
+
+# Wrap generate_from_spec to validate first (graceful)
+_generate_from_spec_raw = generate_from_spec
+def generate_from_spec(spec, rng=None, strict=True):
+    """Declarative data generation; validates spec first. On invalid spec
+    raises SpecError with hints. Pass strict=False to skip validation."""
+    if strict:
+        errs = validate_spec(spec)
+        if errs:
+            raise SpecError("Invalid spec:\n  - " + "\n  - ".join(errs))
+    return _generate_from_spec_raw(spec, rng=rng)
+
+
+# ---------- Friendlier errors for primitives ----------
+def _check_pd(R, name="matrix"):
+    """Check positive-definiteness; return helpful message if not."""
+    eig = np.linalg.eigvalsh(R)
+    if eig.min() <= 0:
+        return (f"{name} is not positive-definite (min eigenvalue = {eig.min():.4f}). "
+                f"Use nearest_pd({name}) to project to nearest PD, or reduce off-diagonal "
+                f"magnitudes (currently max |off-diag| = {abs(R - np.diag(np.diag(R))).max():.3f}).")
+    return None
+
+
+# ---------- More recipes (round 2) ----------
+RECIPES.update({
+    "target_skew_kurt": dict(desc="单列命中精确偏度+峰度（Fleishman）", code='''
+import numpy as np, calibrate as C
+rng = np.random.default_rng(0)
+y = C.fleishman(rng.standard_normal(5000), skew=1.5, kurt=4.0)
+print(f"achieved skew={C._skew(y):.2f} kurt={C._kurt(y):.2f}")
+'''),
+    "panel_did_event_study": dict(desc="DiD + event-study 验证 pre-trend", code='''
+import calibrate as C
+df = C.did_data(500, n_periods=4, treatment_time=2, treatment_effect=0.7)
+# event-study: 估各 lag/lead 的均值差
+delta = df.pivot_table(index=["unit","treated"], columns="time", values="y").reset_index()
+for t in range(4):
+    d = delta[delta.treated==1][t].mean() - delta[delta.treated==0][t].mean()
+    print(f"  t={t}: treat-ctrl diff = {d:.3f} (post if t>=2: should be ≈0.7)")
+'''),
+    "recsys_cold_start_eval": dict(desc="Cold-start vs warm 推荐对比", code='''
+import calibrate as C
+U, V, obs, aff = C.cold_start_recsys(50, 30, user_dim=4, item_dim=4, history_per_user=3)
+# 对每用户预测 affinity 用 U,V 内积；实际 affinity 在 aff 矩阵
+pred = U @ V.T
+print(f"corr(pred, true affinity) = {((pred - pred.mean()) * (aff - aff.mean())).sum() / (((pred - pred.mean())**2).sum() * ((aff - aff.mean())**2).sum())**.5:.3f}")
+'''),
+    "mmm_adstock_response": dict(desc="MMM 数据 → 估各渠道贡献", code='''
+import calibrate as C
+df = C.marketing_mix_data(52, channels={"tv":{"spend_sd":10,"beta":5.0},"social":{"spend_sd":5,"beta":3.0}})
+# adstock_tv 已被构造；用线性回归估 contribution
+from numpy.linalg import lstsq
+import numpy as np
+X = df[["adstock_tv","adstock_social"]].values
+b = lstsq(np.column_stack([np.ones(len(df)), X]), df.y.values, rcond=None)[0]
+print(f"baseline≈{b[0]:.1f}  tv coef≈{b[1]:.2f}  social coef≈{b[2]:.2f}")
+'''),
+    "irt_difficulty_recovery": dict(desc="IRT 2PL 数据 → 估题项难度", code='''
+import calibrate as C
+import numpy as np
+b_true = np.linspace(-2, 2, 20)
+X, theta = C.irt_2pl_data(1000, b_true, np.full(20, 1.5))
+# 简单点估：b_hat ≈ Phi^-1(1 - p_correct)（在恒定 a, theta~N(0,1)）
+p = X.mean(0); from statistics import NormalDist
+nd = NormalDist()
+b_hat = np.array([-nd.inv_cdf(p_) for p_ in p])
+print(f"corr(b_true, b_hat) = {np.corrcoef(b_true, b_hat)[0,1]:.3f}")
+'''),
+    "snp_gwas_simulation": dict(desc="SNP + 简单表型 → 单点关联", code='''
+import calibrate as C
+import numpy as np
+G = C.snp_genotypes(500, 50, maf=[0.3]*50, ld_strength=0.3)
+# 表型 = beta · SNP_10 + 噪声
+y = 0.5 * G[:, 10] + np.random.default_rng(0).standard_normal(500)
+# 单点 t 统计
+from numpy.linalg import lstsq
+ts = []
+for j in range(50):
+    b = lstsq(np.column_stack([np.ones(500), G[:, j]]), y, rcond=None)[0]
+    se = np.sqrt(((y - G[:, j]*b[1] - b[0])**2).sum() / (500-2) / (((G[:, j] - G[:, j].mean())**2).sum() or 1))
+    ts.append(abs(b[1] / se))
+print(f"top SNP (true causal=10): rank={np.argsort(ts)[::-1][0]} (top-1 should be 10)")
+'''),
+    "conformal_regression_interval": dict(desc="Conformal 回归预测区间 + 覆盖率", code='''
+import calibrate as C
+import numpy as np
+rng = np.random.default_rng(0)
+y_true = rng.standard_normal(500); y_pred = y_true + rng.normal(0, 0.5, 500)
+q = C.conformal_calibration_set(y_pred, y_true, alpha=0.1, mode="regression")
+cov = ((np.abs(y_true - y_pred) <= q).mean())
+print(f"q={q:.3f}, empirical coverage = {cov:.3f} (target ≥ 0.9)")
+'''),
+    "drift_detector_psi_threshold": dict(desc="PSI 漂移检测：临界阈值评估", code='''
+import calibrate as C
+import numpy as np
+rng = np.random.default_rng(0)
+ref = rng.standard_normal(2000)
+for shift in [0, 0.2, 0.5, 1.0]:
+    cur = rng.standard_normal(2000) + shift
+    print(f"shift={shift}: PSI={C.psi(ref, cur):.3f} → "
+          + ("稳定" if C.psi(ref, cur) < 0.1 else "中度" if C.psi(ref, cur) < 0.25 else "严重"))
+'''),
+    "cluster_rct_power_sim": dict(desc="Cluster RCT 经验功效仿真（考虑 ICC 设计效应）", code='''
+import calibrate as C
+import numpy as np
+rng = np.random.default_rng(0)
+hits = 0
+for _ in range(200):
+    df = C.cluster_rct(20, 25, treatment_effect=0.3, icc=0.1, rng=rng)
+    means = df.groupby(["cluster","treated"]).y.mean().reset_index().groupby("treated").y.mean()
+    se = (df.groupby(["cluster","treated"]).y.mean().reset_index().groupby("treated").y.std() / np.sqrt(10)).fillna(1)
+    if abs(means[1] - means[0]) / (se[0] + se[1]) > 1.96: hits += 1
+print(f"empirical power = {hits/200:.0%}")
+'''),
+    "bayesian_metropolis_normal": dict(desc="Metropolis 后验：N(2, 1) toy", code='''
+import calibrate as C
+import numpy as np
+chain = C.metropolis_posterior(lambda x: -0.5*(x-2)**2, x0=0, n_iter=5000, proposal_sd=0.5)
+print(f"posterior mean={chain.mean():.2f} (target 2), sd={chain.std():.2f} (target 1)")
+'''),
+    "hawkes_aftershock": dict(desc="Hawkes 自激点过程：地震-余震模拟", code='''
+import calibrate as C
+events = C.hawkes_process(T_max=100, mu=1.0, alpha=0.4, beta=1.0)
+gaps = events[1:] - events[:-1]
+print(f"# events = {len(events)} (μT=100 base), median gap = {sorted(gaps)[len(gaps)//2]:.2f}")
+'''),
+    "lda_topic_recovery": dict(desc="LDA 文档 → 测主题恢复", code='''
+import calibrate as C
+import numpy as np
+dtm, dt = C.lda_documents(200, 3, 80, doc_lengths=None)
+# 简单 NMF 类近似：取 dtm 的前 3 个 SVD 分量
+U, S, V = np.linalg.svd(dtm.astype(float), full_matrices=False)
+print(f"top 3 SV: {S[:3].round(1)}, ratio to next: {S[2]/S[3]:.1f}")
+'''),
+    "knowledge_graph_with_schema": dict(desc="KG 三元组按 schema 限定类型", code='''
+import calibrate as C
+schema = {0: ({0}, {1}), 1: ({1}, {2}), 2: ({0,1}, {2})}
+kg = C.knowledge_graph_triples(100, 3, 500, schema=schema)
+print(f"# triples (schema-respecting): {len(kg)}, relations used: {sorted(kg.relation.unique())}")
+'''),
+    "multilevel_factor_with_icc": dict(desc="多层 ICC + Likert 题项 + halo cross-corr", code='''
+# leader_survey_v2 中的工作流（icc_rebuild + 同 _S 共享 + 相反 sign）
+print("详见 modules/multilevel.md §3 与 modules/engine.md §4，"
+      "或 leader_survey_v2/code/rebuild_340.py")
+'''),
+    "synthesize_then_audit_realism": dict(desc="合成数据 → 用 discriminability 审真实度", code='''
+import calibrate as C
+import pandas as pd, numpy as np
+rng = np.random.default_rng(0)
+real = pd.DataFrame({"a": rng.lognormal(0, 1, 1500),
+                     "b": rng.gamma(2, 2, 1500) + 0.4 * rng.lognormal(0, 1, 1500)})
+syn = C.fit_from_reference(real, rng=rng)(1500)
+print(f"discriminability AUC = {C.discriminability(real, syn):.3f}  (~0.50 = ✓)")
+'''),
+})
+
+
+def all_recipes():
+    """Return dict of all recipes including round-2 additions."""
+    return dict(RECIPES)

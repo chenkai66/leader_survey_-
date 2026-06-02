@@ -1,0 +1,18 @@
+from _common import chk, summary
+import numpy as np, calibrate as C
+rng = np.random.default_rng(7)
+mm = C.marketing_mix_data(52, channels={"tv":{"spend_sd":10,"beta":5.0}}, rng=rng)
+chk("MMM adstock accumulates", mm.adstock_tv.max() > mm.spend_tv.max())
+A = np.array([[1.0,0.5],[2.0,1.0],[0.5,2.0]])
+dc = C.discrete_choice(2000, 3, A, coefs=[0.8, -0.3], rng=rng)
+chk("discrete_choice all 3 alts used", set(dc.choice.unique()) == {0,1,2})
+G = C.snp_genotypes(300, 10, maf=[0.3]*10, ld_strength=0.4, rng=rng)
+chk("SNP in {0,1,2}", set(np.unique(G)) <= {0,1,2})
+chk("SNP MAF ≈ 0.3", abs(G.mean()/2 - 0.3) < 0.05)
+chk("SNP LD: adjacent SNPs correlate", np.corrcoef(G[:,0], G[:,1])[0,1] > 0.1)
+dtm, dt = C.lda_documents(30, 3, 50, rng=rng)
+chk("LDA dtm shape + nonneg", dtm.shape == (30, 50) and (dtm >= 0).all())
+chk("LDA doc_topic rows sum to 1", np.allclose(dt.sum(1), 1))
+trains = C.spike_train(5, 5.0, base_rate=20, refractory_ms=2.0, rng=rng)
+chk("spike count near expected", abs(sum(len(t) for t in trains) - 5*5*20)/(5*5*20) < 0.3)
+summary()

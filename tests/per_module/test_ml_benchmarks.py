@@ -1,0 +1,40 @@
+from _common import chk, summary
+import numpy as np, pandas as pd, calibrate as C
+from numpy.linalg import lstsq
+rng = np.random.default_rng(7)
+cd = C.classification_dataset(3000, n_features=4, target_auc=0.8, class_balance=0.3, rng=rng)
+W = lstsq(np.column_stack([np.ones(len(cd))]+[cd[f"x{i+1}"].values.reshape(-1,1) for i in range(4)]), cd.y.values, rcond=None)[0]
+pred = cd[[f"x{i+1}" for i in range(4)]].values @ W[1:] + W[0]
+o = np.argsort(pred); ys = cd.y.values[o]; npos = ys.sum(); nneg = len(ys)-npos
+auc = (np.arange(1,len(ys)+1)[ys==1].sum() - npos*(npos+1)/2) / (npos*nneg)
+chk("classification_dataset AUC ≈ 0.8", abs(auc - 0.8) < 0.04)
+chk("classification balance ≈ 0.3", abs(cd.y.mean() - 0.3) < 0.02)
+df = C.regression_benchmark(2000, 5, target_r2=0.6, noise_type="normal", rng=rng)
+chk("regression_benchmark has y", "y" in df.columns)
+bf, af = C.concept_drift_data(2000, drift_type="covariate", drift_magnitude=1.0, rng=rng)
+chk("concept_drift covariate shift > 0.5", af.x1.mean() - bf.x1.mean() > 0.5)
+ad = C.anomaly_dataset(2000, contamination=0.05, rng=rng)
+chk("anomaly contamination ≈ 0.05", abs(ad.label.mean() - 0.05) < 0.005)
+Xs = rng.standard_normal((500, 5)); ys = np.concatenate([np.zeros(450, int), np.ones(50, int)])
+Xn, yn = C.smote(Xs, ys, target_balance=0.5, rng=rng)
+chk("SMOTE balanced", abs((yn==1).mean() - 0.5) < 0.05)
+R, mask, U, V = C.recsys_explicit(60, 30, latent_dim=5, sparsity=0.9, rng=rng)
+chk("recsys explicit shape", R.shape == (60, 30))
+M = C.low_rank_data(150, 40, rank=5, noise_sd=0.3, rng=rng)
+chk("low_rank SV gap", np.linalg.svd(M, compute_uv=False)[0]/np.linalg.svd(M, compute_uv=False)[5] > 5)
+X0 = rng.standard_normal((100, 5))
+Xp = C.adversarial_perturb(X0, epsilon=0.1, norm="inf", rng=rng)
+chk("adversarial inf-norm bounded", abs(np.abs(Xp-X0).max() - 0.1) < 1e-6)
+chk("label_noise rate ≈ 0.1", abs((np.random.default_rng(1).integers(0,3,1000) != C.label_noise(np.random.default_rng(1).integers(0,3,1000), 0.1, n_classes=3, rng=rng)).mean() - 0.1) < 0.05)
+chain = C.metropolis_posterior(lambda x: -0.5*(x-2)**2, x0=0.0, n_iter=3000, proposal_sd=0.5, burn=500, rng=rng)
+chk("metropolis posterior ≈ 2", abs(chain.mean() - 2) < 0.2)
+df_rl = C.rl_trajectories(10, 5, 3, max_steps=20, rng=rng)
+chk("RL episodes generated", df_rl.episode.nunique() == 10)
+df_b = C.bandit_data(1000, 4, 5, policy="greedy_oracle", rng=rng)
+chk("bandit oracle 0 regret", abs(df_b.regret.mean()) < 1e-9)
+n_c = 500
+true_p = rng.dirichlet([1,1,1], n_c); y_c = np.array([rng.choice(3, p=p) for p in true_p])
+preds = np.clip(true_p + rng.normal(0, 0.1, true_p.shape), 0.01, 0.99); preds /= preds.sum(1, keepdims=True)
+q_c = C.conformal_calibration_set(preds, y_c, alpha=0.1, mode="classification")
+chk("conformal coverage ≥ 0.88", (1 - preds[np.arange(n_c), y_c] <= q_c).mean() >= 0.88)
+summary()

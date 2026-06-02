@@ -1,0 +1,15 @@
+from _common import chk, summary
+import numpy as np, calibrate as C
+rng = np.random.default_rng(7)
+chk("sample_dist normal mean OK", abs(C.sample_dist("normal", 5000, rng=rng, mean=10, sd=2).mean() - 10) < 0.1)
+chk("sample_dist lognormal positive", (C.sample_dist("lognormal", 1000, rng=rng, mu=0, sigma=1) > 0).all())
+chk("truncated_normal bounded", (C.truncated_normal(2000, mean=0, sd=1, lo=-1, hi=1, rng=rng).max() <= 1))
+gm = C.gaussian_mixture(3000, [0.5,0.5], [-2, 2], [0.5, 0.5], rng=rng)
+chk("gaussian_mixture bimodal sd > 1.5", gm.std() > 1.5)
+zi = C.zero_inflated_continuous(2000, 0.4, lambda n,r: r.lognormal(1, 0.5, n), rng=rng)
+chk("zero_inflated has zeros", 0.35 < np.mean(zi == 0) < 0.45)
+y = C.fleishman(rng.standard_normal(3000), 1.0, 2.0)
+chk("fleishman skew ≈ 1", abs(C._skew(y) - 1.0) < 0.2)
+chk("multinomial exact prop", list(np.unique(C.multinomial_dataset(1000, [0.6, 0.3, 0.1], rng=rng), return_counts=True)[1]) == [600, 300, 100])
+chk("dirichlet rows sum 1", np.allclose(C.dirichlet_compositional(100, [2, 3, 5], rng=rng).sum(1), 1))
+summary()
