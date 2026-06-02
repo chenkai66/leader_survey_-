@@ -36,6 +36,20 @@ description: 目标导向的数据调整/标定/造数通用技术 skill。当�
 | 从**因子/SEM 结构**生成题项（载荷/信度/因子相关） | 因子模型 X=FΛ'+E | §6.9 | `factor_model_sample` |
 | **模仿真实数据集**合成（增强/脱敏/测试） | 经验边缘+copula 拟合再抽样 | §6.10 | `fit_from_reference` |
 | 检验是否命中（拟合优度/诊断） | KS 距离 / 诊断报告 | §11 | `ks_stat`/`report` |
+| 时间序列（AR/MA/趋势/季节） | AR(p) + trend + seasonal | §6.11 | `ts_ar` |
+| **面板/纵向数据**（个体×时间，ICC+AR） | 单元固定效应 + 时间 + AR1 | §6.12 | `panel_data` |
+| **生存/事件时间**（目标 HR + 截尾率） | Exp/Weibull + Cox-PH | §6.13 | `survival_data` |
+| **马尔可夫序列**（目标转移矩阵） | 链式抽样 / 从数据估转移 | §6.14 | `markov_chain`/`fit_markov` |
+| **计数数据**（Poisson/NB/零膨胀） | 对应分布抽样 | §6.15 | `count_data` |
+| **因果/SCM**（混淆/中介/对撞，按 DAG 生成） | 结构因果模型 | §6.16 | `dag_sample` |
+| **A/B 测试**（power / 效应/方差/类型） | 双臂抽样 | §6.17 | `ab_test_data` |
+| **分类基准**（目标 AUC + 类不平衡） | 信号+噪声+阈值标定 | §6.18 | `classification_dataset` |
+| **混合类型联合**（连续+二分+定序，目标相关） | latent Gaussian copula | §6.19 | `mixed_copula` |
+| **异方差噪声**（SD 依赖 X） | 加权 N(0, sd(x)) | §6.20 | `heteroscedastic_noise` |
+| **IPW / propensity 权重** | t/p + (1-t)/(1-p) | §8.2 | `ipw_weights` |
+| **组分数据**（行和=1） | Dirichlet | §7.10 | `dirichlet_compositional` |
+| **bootstrap 扰动** | 有放回重抽 | §9.2 | `bootstrap_perturb` |
+| **合成数据真实度**（vs 真实数据） | 判别力 AUC | §11 | `discriminability` |
 | 计数/比例/有界变量 | 对应分布抽样（Poisson/NB/Beta）或映射 | §4.3 | `match_marginal` |
 | 分类变量目标占比 | 按比例抽样/重排 | §4.4 | `categorical_to_freq` |
 | 日期/时间（趋势/季节/工作时段） | 基线+趋势+周期+噪声 | §4.5 | — |
@@ -48,7 +62,6 @@ description: 目标导向的数据调整/标定/造数通用技术 skill。当�
 | 组间效应 Cohen's d / ANOVA | 按组平移 + 池化 SD 标定 | §6.3 | `shift_group_effect` |
 | 类不平衡 / 目标患病率 | 重抽样 / 阈值 / 抽样权重 | §6.4 | — |
 | 中介/交互/调节 | full-mediation 设计 + 循环内乘积注入 | §6.5 | `rebuild_block` |
-| 时间序列自相关/AR | AR(p) 生成或滤波 | §6.6 | — |
 | 多层 ICC（组内组间） | 方差拆分 + 内层迭代 | §6.7 | `icc_rebuild` |
 | Likert 题项 + 信度 α | per-item 噪声 + 外层校正 | §6.8 | `likertize`/`rebuild_block` |
 | 求和约束 / 比率 / 排序 / 逻辑规则 | 投影/重排/重算（§7） | §7 | — |
@@ -173,8 +186,8 @@ def iman_conover(X, target_corr, rng):
 - **交互**：把 `coef*zscale(z_x*z_w)` 加进潜变量（`rebuild_block(extra=)`），**循环内注入**；lme4 交互 b≈coef/(sd_x sd_w)。只注入要显著的，其余保 null。
 - **间接效应 IE=a·b 必须与路径表一致**，改完抽查。
 
-### 6.6 时间序列 / 面板
-AR(p)：`x_t = Σφ_i x_{t-i} + ε`，φ 控自相关；趋势+季节+ε 叠加。面板=个体固定效应 + 时间 + within 噪声。
+### 6.6 时间序列 / 面板（占位 → 见 §6.11/§6.12 的工具化实现）
+AR(p)：`x_t = Σφ_i x_{t-i} + ε`，φ 控自相关；趋势+季节+ε 叠加。面板=个体固定效应 + 时间 + within 噪声。直接用 `ts_ar`（§6.11）/ `panel_data`（§6.12）。
 
 ### 6.7 多层 ICC（组内 vs 组间）
 `ICC=τ00/(τ00+σ²)`；方差拆 `VB=icc·SD², VW=(1-icc)·SD²`；组级共享分量 + 个体分量。**取整非线性压缩组间方差 + 组大小不等 → 实测分量后内层迭代 rescale**，别信解析一次到位。警惕组内 SD=0（ICC≈0.96 是造假信号）。→ `icc_rebuild`（含正交 halo 控两结果列 cross-corr）。
@@ -187,6 +200,36 @@ composite=mean(题项)；`item_sigma` 控题项间相关=α 来源（k=5,α≈0.
 
 ### 6.10 模仿真实数据集合成（fit → sample）
 有真实数据、要造"长得像它"的合成数据（数据增强 / 脱敏 / 测试 / 扩样）：抓每列**经验边缘**(分位) + **秩相关**(正态分上的 copula 相关)，再抽样。→ `fit_from_reference(ref_df)` 返回 `sampler(n)`，产出边缘与依赖都匹配的合成行。比硬设目标更省事，且自动继承真实分布形状。隐私场景配合 §9。
+
+### 6.11 时间序列（AR/趋势/季节）
+`ts_ar(n, ar=(φ₁,φ₂,...), trend=k, seasonal=(period,amp), sd, mean)`：AR(p) 过程 + 线性趋势 + 正弦季节。lag-1 自相关 ≈ φ₁（对 AR(1)）。多列共享/相关冲击 → 用 `build_latents` 造 shocks 再走 AR。
+
+### 6.12 面板 / 纵向数据（个体×时间）
+`panel_data(n_units, n_periods, icc, ar1, noise_sd, time_trend)`：长格式 `unit/time/y`，含 unit fixed effect（控 ICC）+ 时间趋势 + within-unit AR(1)。常用于多层、固定效应面板模型、DiD 仿真。
+
+### 6.13 生存 / 事件时间（目标 HR）
+`survival_data(n, baseline_rate, hazard_ratios, X, censor_rate, dist='exp'|'weibull')`：Cox-PH 风险结构 λ(x)=λ₀·exp(βx)，T~Exp 或 Weibull；独立 Exp 截尾。`hazard_ratios=[2.0,...]` 即 exp(β)。返回 `time/event/x_*`。
+
+### 6.14 马尔可夫序列
+`markov_chain(n, transition, init, states)` 由转移阵生成序列；`fit_markov(sequences)` 反向估计。适合 NLP/n-gram、用户路径、状态机仿真。
+
+### 6.15 计数数据（Poisson / NB / 零膨胀）
+`count_data(n, mean, dispersion=None, zero_prob=0)`：`dispersion=None`→Poisson；`>0`→NegBin（方差 = μ + μ²/k，k 越小越过散）；`zero_prob>0` 加零膨胀混合。
+
+### 6.16 因果 / 结构因果模型（DAG）
+`dag_sample(n, nodes)`：按拓扑顺序生成；每个 node = `(name, fn(data_dict, n, rng) -> array)`。一次造出含**混淆 / 中介 / 对撞 / 工具变量**的合成数据，**用来测试因果推断方法**（IPW / 工具变量 / 匹配 / DML）的偏差与覆盖率。比手搓数据生成更可控也更接近论文里的 SCM 写法。
+
+### 6.17 A/B 测试模拟（功效分析）
+`ab_test_data(n_per_arm, baseline, effect, sd, metric='continuous'|'binary'|'count')`：直接产 `arm/y`。结合 §3 `tune_scalar` 解 N 使 power 达标，或多次 simulate 算 type-II 率。
+
+### 6.18 分类基准（目标 AUC + 类不平衡）
+`classification_dataset(n, n_features, target_auc, class_balance, feature_corr)`：feature → 噪声线性 score → 阈值定标签；自动标定 SNR 命中 AUC、阈值命中类比例。ML 教学/基准/调优测试的趁手数据。
+
+### 6.19 混合类型联合（连续 + 二分 + 定序，目标相关）
+`mixed_copula(n, columns, target_corr)`：每列指定 `type` 与参数（continuous→ppf、binary→p、ordinal→cuts），共享一个 latent MVN 相关，按类型转换。注意离散化后边缘相关会**衰减**（二分尤其），目标设大一点（用 §3 `tune_scalar` 找补也可）。
+
+### 6.20 异方差噪声
+`heteroscedastic_noise(x_pred, base_sd, slope)`：sd 随 |x_pred| 增长。配合 §6.1 的结构方程：`y = b*x + heteroscedastic_noise(x,...)` 造异方差回归数据；用于 robust SE / WLS 仿真。
 
 ---
 
@@ -242,10 +285,16 @@ composite=mean(题项)；`item_sigma` 控题项间相关=α 来源（k=5,α≈0.
 
 ## 12. 工具箱 scripts/calibrate.py
 
-通用：`tune_scalar`（§3 单旋钮标定）、`match_marginal`（§4.2 分位映射任意分布/参考）、`fleishman`（§4.6 精确偏度峰度）、`iman_conover`（§5.3 分布无关保边缘改相关）、`gaussian_copula`（§5.4 给定边缘+相关）、`nonnormal_data`（§5.5 Vale-Maurelli 多元非正态+corr）、`rescale`、`shift_group_effect`（§6.3 Cohen's d）、`inject_missing`（§7.5）、`inject_outliers`（§7.6）、`rake`（§8 IPF 权重）、`dp_noise`（§9 Laplace）。
-模型结构生成：`factor_model_sample`（§6.9 因子/CFA 结构）、`fit_from_reference`（§6.10 拟合真实数据再合成）。
-量表/多层特化：`build_latents`（§5.1 β=R⁻¹r）、`likertize`（§6.8 题项+交互+反向）、`rebuild_block`（外层校正一组 composite）、`icc_rebuild`（§6.7 多层 ICC+halo）。
-辅助/诊断：`zscale` / `nearest_pd` / `resid_against` / `verify` / `cronbach_alpha` / `report`（§11 全列诊断）/ `ks_stat`（§11 拟合优度）。
+边缘 & 通用：`rescale`、`match_marginal`（§4.2）、`fleishman`（§4.6）、`tune_scalar`（§3 万能标定）。
+依赖：`build_latents`（§5.1 β=R⁻¹r）、`iman_conover`（§5.3 保边缘改秩相关）、`gaussian_copula`（§5.4）、`nonnormal_data`（§5.5 Vale-Maurelli）、`mixed_copula`（§6.19 混合类型）。
+模型/结构：`factor_model_sample`（§6.9 CFA）、`shift_group_effect`（§6.3 Cohen's d）、`classification_dataset`（§6.18 target AUC）、`ab_test_data`（§6.17）、`dag_sample`（§6.16 SCM）、`heteroscedastic_noise`（§6.20）。
+时间/序列/事件：`ts_ar`（§6.11）、`panel_data`（§6.12）、`survival_data`（§6.13）、`markov_chain`/`fit_markov`（§6.14）、`count_data`（§6.15 Poisson/NB/ZI）。
+量表/多层特化：`likertize`、`rebuild_block`、`icc_rebuild`。
+约束/缺失/扰动：`inject_missing`（§7.5）、`inject_outliers`（§7.6）、`dirichlet_compositional`（§7.10）、`bootstrap_perturb`（§9.2）、`dp_noise`（§9 Laplace）。
+重加权：`rake`（§8 IPF）、`ipw_weights`（§8.2 propensity）。
+拟合/合成：`fit_from_reference`（§6.10 真实数据→合成 sampler）。
+诊断：`verify`、`report`、`ks_stat`、`cronbach_alpha`、`discriminability`（§11 合成 vs 真实 AUC）。
+基元：`zscale` / `nearest_pd` / `resid_against`。
 
 工作样例：leader_survey_v2 `code/rebuild_340.py`（量表/SEM 特化即本工具箱组合）。
 
@@ -264,3 +313,31 @@ composite=mean(题项)；`item_sigma` 控题项间相关=α 来源（k=5,α≈0.
 9. ❌ 非确定/非幂等管道重跑做微调 → 外科手术（§10）
 10. ❌ 不验可行性硬凑（非正定阵 / r'R⁻¹r≥1 / 互斥约束）→ §10
 11. ❌ 改完不复测每个目标 + 不变量 + 破绽（§11）
+
+---
+
+## 14. 场景速查 cookbook（常见造数需求 → 用哪些函数）
+
+| 场景 | 配方 |
+|---|---|
+| **A/B 测试功效仿真** | `ab_test_data(n_per_arm, baseline, effect, sd, metric)`；外层用 `tune_scalar` 找 n 使 power=0.8（多次 simulate 算 reject 率） |
+| **观察性研究测 IPW/匹配** | `dag_sample` 造混淆→treatment→outcome；估 propensity；`ipw_weights` / `propensity_match`；比较未调整 vs IPW 估计 |
+| **中介/调节方法学仿真** | `dag_sample` 显式写 X→M→Y + W 调节；或 `rebuild_block` + `extra=` 注入交互 |
+| **多层/嵌套数据**（学生×班级、员工×团队） | `panel_data` 或 `icc_rebuild`；目标 ICC 0.05/0.15/0.30 看方法稳健性 |
+| **纵向/面板回归**（个体×时间） | `panel_data(icc, ar1, time_trend)` |
+| **生存分析 / Cox** | `survival_data(baseline_rate, hazard_ratios, X, censor_rate)`；检验 HR 估计与覆盖率 |
+| **序列 / NLP n-gram / 用户路径** | `markov_chain(transition)` 抽样；`fit_markov(real_seqs)` 反估 |
+| **计数 / 过散 / 零膨胀回归** | `count_data(mean, dispersion, zero_prob)` |
+| **ML 分类基准**（教学/调参/对比） | `classification_dataset(n, n_features, target_auc, class_balance, feature_corr)` |
+| **混合调查数据**（连续+二分+定序联合） | `mixed_copula` |
+| **合成"长得像真实"的数据**（增强/脱敏/测试） | `fit_from_reference(real_df)` → sampler；`discriminability(real, syn)` 验真实度；可叠 `dp_noise` 加隐私 |
+| **方法学非正态稳健性**（SEM/CFA） | `nonnormal_data(corr, skews, kurts)` 或 `fleishman` + `iman_conover` |
+| **量表造数 + 信度 + ICC + 中介** | `factor_model_sample` 或 `rebuild_block` + `likertize` + `icc_rebuild`（即 leader_survey_v2 的工作流） |
+| **保统计性质的脱敏**（同构造数据 release） | `iman_conover`（保边缘乱秩）+ `dp_noise` + `discriminability` 验不可识别 |
+| **总体匹配 / 调查权重** | `rake(margins)` IPF |
+| **组分数据 / 市场份额** | `dirichlet_compositional(alphas)` |
+| **bootstrap 推断 / 不确定性** | `bootstrap_perturb` 重抽 + 重跑分析；置信区间 |
+| **异方差 robust SE 仿真** | 结构方程 + `heteroscedastic_noise` |
+| **任何 "命中 X 指标"**（不在表里） | `tune_scalar` 兜底：写一个 `f(knob)→achieved` 度量函数，剩下交给它 |
+
+每个场景都遵循同一闭环：**指定目标 → 选方法生成 → 复测命中 → 过结构不变量与"破绽"自查**（§11）。

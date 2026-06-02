@@ -71,9 +71,22 @@ sampler = C.fit_from_reference(real_df); synthetic = sampler(5000)
 | target missingness (MCAR/MAR/MNAR) | `inject_missing` |
 | target outlier rate | `inject_outliers` |
 | reweight to population margins (raking/IPF) | `rake` |
+| inverse probability of treatment weights | `ipw_weights` |
 | ε-differential-privacy noise | `dp_noise` |
+| compositional (rows sum to 1) | `dirichlet_compositional` |
+| bootstrap replicates | `bootstrap_perturb` |
+| heteroscedastic noise (sd varies with X) | `heteroscedastic_noise` |
+| time series AR + trend + seasonal | `ts_ar` |
+| panel / longitudinal (unit × time, ICC + AR1) | `panel_data` |
+| survival data with target hazard ratios | `survival_data` |
+| Markov sequences from transition matrix | `markov_chain` / `fit_markov` |
+| count data (Poisson / NB / zero-inflated) | `count_data` |
+| **causal / SCM** (specify DAG, generate respecting it) | `dag_sample` |
+| A/B test simulation (continuous/binary/count) | `ab_test_data` |
+| classification benchmark with target AUC + class balance | `classification_dataset` |
+| **mixed-type joint** (continuous + binary + ordinal, target corr) | `mixed_copula` |
 | mimic a real dataset | `fit_from_reference` |
-| diagnostics / goodness-of-fit | `report`, `ks_stat`, `verify` |
+| diagnostics / goodness-of-fit / synthetic-vs-real realism | `report`, `ks_stat`, `verify`, `discriminability` |
 | **anything with no closed form** | `tune_scalar` (measure → adjust → repeat) |
 
 See `SKILL.md` for the full methodology, feasibility/ordering rules, and the

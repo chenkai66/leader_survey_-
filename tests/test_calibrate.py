@@ -87,5 +87,82 @@ syn = C.fit_from_reference(ref, rng=rng)(3000)
 chk("fit_from_reference keeps spearman sign",
     np.sign(syn.corr(method="spearman").iloc[0, 1]) == np.sign(ref.corr(method="spearman").iloc[0, 1]))
 
-print(f"\n{sum(PASS)}/{len(PASS)} passed")
+print(f"  ({sum(PASS)}/{len(PASS)} so far)\n")
+
+# ---------- new (round-3) functions ----------
+import pandas as _pd
+
+# ts_ar lag-1 autocorr
+xs = C.ts_ar(3000, ar=(0.7,), sd=1.0, rng=rng)
+chk("ts_ar lag-1 acf ≈ 0.7", abs(np.corrcoef(xs[:-1], xs[1:])[0,1] - 0.7) < 0.05)
+
+# panel ICC
+df_p = C.panel_data(200, 20, icc=0.3, ar1=0.4, rng=rng)
+bv = df_p.groupby("unit").y.mean().var(); wv = df_p.groupby("unit").y.var().mean()
+chk("panel_data ICC ≈ 0.3", abs(bv/(bv+wv) - 0.30) < 0.07)
+
+# survival HR=2 → treated half the median time
+X_s = rng.standard_normal((5000, 1))
+ss = C.survival_data(5000, baseline_rate=0.1, hazard_ratios=[2.0], X=X_s,
+                     censor_rate=0.05, rng=rng)
+chk("survival has events", 0.5 < ss.event.mean() < 0.9)
+
+# markov fit recovers transition
+P_t = np.array([[0.7,0.2,0.1],[0.1,0.8,0.1],[0.2,0.2,0.6]])
+seq = C.markov_chain(20000, P_t, states=["A","B","C"], rng=rng)
+Ph, _ = C.fit_markov(seq, states=["A","B","C"])
+chk("markov P estimate within 0.02", np.max(np.abs(Ph - P_t)) < 0.02)
+
+# count NB overdispersed
+v_nb = C.count_data(5000, 3.0, dispersion=1.0, rng=rng)
+chk("NB variance > mean", v_nb.var() > 2 * v_nb.mean())
+
+# DAG confounder unbiased after adjustment
+dfd = C.dag_sample(8000, [
+    ("U", lambda d,n,r: r.standard_normal(n)),
+    ("X", lambda d,n,r: 0.6*d["U"] + r.standard_normal(n)),
+    ("Y", lambda d,n,r: 0.4*d["X"] + 0.5*d["U"] + r.standard_normal(n)),
+])
+b_adj = np.linalg.lstsq(np.column_stack([np.ones(len(dfd)),dfd.X,dfd.U]), dfd.Y, rcond=None)[0][1]
+chk("DAG adjusted b ≈ 0.4", abs(b_adj - 0.4) < 0.03)
+
+# A/B test continuous effect
+ab = C.ab_test_data(2000, baseline=10, effect=1.0, sd=3, rng=rng)
+d = ab.groupby("arm").y.mean(); chk("A/B effect ≈ 1.0", abs(d["treatment"]-d["control"]-1.0) < 0.2)
+
+# classification_dataset hits AUC + balance
+cd = C.classification_dataset(3000, n_features=4, target_auc=0.8, class_balance=0.3, rng=rng)
+from numpy.linalg import lstsq
+W = lstsq(np.column_stack([np.ones(len(cd))]+[cd[f"x{i+1}"].values.reshape(-1,1) for i in range(4)]), cd.y.values, rcond=None)[0]
+pred = cd[[f"x{i+1}" for i in range(4)]].values @ W[1:] + W[0]
+o = np.argsort(pred); ys = cd.y.values[o]; npos = ys.sum(); nneg = len(ys)-npos
+auc = (np.arange(1,len(ys)+1)[ys==1].sum() - npos*(npos+1)/2) / (npos*nneg)
+chk("classification AUC ≈ 0.8", abs(auc - 0.8) < 0.04)
+chk("classification balance ≈ 0.3", abs(cd.y.mean() - 0.3) < 0.02)
+
+# mixed_copula: ordinal column has all 4 cats
+mc = C.mixed_copula(3000, [
+    dict(name="age",  type="continuous", ppf=lambda q: 30 + 10*C._phi_inv(q)),
+    dict(name="male", type="binary",     p=0.5),
+    dict(name="edu",  type="ordinal",    cuts=[0.3, 0.6, 0.85])],
+    target_corr=[[1,0.3,0.4],[0.3,1,0.2],[0.4,0.2,1]], rng=rng)
+chk("mixed_copula has 4 ordinal cats", set(mc.edu.unique()) == {0,1,2,3})
+
+# discriminability: same → ~0.5, shifted → high
+real = _pd.DataFrame({"a": rng.standard_normal(1000)+1, "b": rng.standard_normal(1000)})
+syn_same = _pd.DataFrame({"a": rng.standard_normal(1000)+1, "b": rng.standard_normal(1000)})
+syn_diff = _pd.DataFrame({"a": rng.standard_normal(1000)+3, "b": rng.standard_normal(1000)})
+chk("discriminability same ≈ 0.5", abs(C.discriminability(real, syn_same) - 0.5) < 0.10)
+chk("discriminability shifted >> 0.5", C.discriminability(real, syn_diff) > 0.7)
+
+# dirichlet rows sum to 1
+chk("dirichlet rows sum 1", np.allclose(C.dirichlet_compositional(50, [2,3,5], rng=rng).sum(1), 1))
+
+# ipw weights
+chk("ipw_weights basic", np.allclose(C.ipw_weights([1,0],[0.4,0.6]), [1/0.4, 1/0.4]))
+
+# bootstrap shape
+chk("bootstrap_perturb shape", C.bootstrap_perturb(real, n=500, rng=rng).shape == (500, 2))
+
+print(f"\n{sum(PASS)}/{len(PASS)} passed (extended)")
 sys.exit(0 if all(PASS) else 1)

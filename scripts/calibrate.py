@@ -287,8 +287,12 @@ def tune_scalar(make_and_measure, target, x0=0.0, lo=-5.0, hi=5.0, tol=1e-3, ite
     for _ in range(iters):
         fx = f(x)
         if abs(fx) < tol: return x
-        denom = (fx - fp) or 1e-12
-        x, xp, fp = x - fx * (x - xp) / denom, x, fx
+        denom = fx - fp
+        if abs(denom) < 1e-12:                # secant degenerate -> small step
+            x, xp, fp = x + 0.1, x, fx; continue
+        step = fx * (x - xp) / denom
+        step = float(np.clip(step, -abs(hi - lo), abs(hi - lo)))   # clip
+        x, xp, fp = float(np.clip(x - step, lo, hi)), x, fx
     return x
 
 
@@ -536,3 +540,254 @@ def ks_stat(x, target_ppf, grid=200):
     # empirical CDF of x at tq vs uniform
     ecdf = np.searchsorted(x, tq, side="right") / len(x)
     return float(np.max(np.abs(ecdf - np.linspace(1e-4, 1 - 1e-4, grid))))
+
+
+# ============================================================================
+# Time / sequences / events / causal / experimental / mixed-type
+# ============================================================================
+def ts_ar(n, ar=(0.7,), trend=0.0, seasonal=None, sd=1.0, mean=0.0, rng=None):
+    """AR(p) time series: x_t = Σφ_i x_{t-i} + ε_t, plus optional linear trend
+    (per step) and seasonal=(period,amplitude). Returns (n,) array."""
+    rng = rng or np.random.default_rng()
+    p = len(ar); x = np.zeros(n + p)
+    e = rng.normal(0, sd, n + p)
+    for t in range(p, n + p):
+        x[t] = sum(ar[i] * x[t - 1 - i] for i in range(p)) + e[t]
+    out = x[p:] + mean + trend * np.arange(n)
+    if seasonal:
+        per, amp = seasonal
+        out = out + amp * np.sin(2 * np.pi * np.arange(n) / per)
+    return out
+
+
+def panel_data(n_units, n_periods, icc=0.3, ar1=0.5, noise_sd=1.0,
+               time_trend=0.0, rng=None):
+    """Generate long-format panel: (n_units * n_periods) rows with `unit`,
+    `time`, `y`. y = unit_FE + time_trend*t + AR(1) within-unit shock.
+    Between-unit ICC ≈ `icc`."""
+    import pandas as pd
+    rng = rng or np.random.default_rng()
+    fe_sd = np.sqrt(icc); ws_sd = np.sqrt(max(1 - icc, 1e-6))
+    rows = []
+    for u in range(n_units):
+        a = rng.normal(0, fe_sd); eps = rng.normal(0, ws_sd, n_periods); y_prev = 0
+        for t in range(n_periods):
+            y = a + time_trend * t + ar1 * y_prev + noise_sd * eps[t]
+            rows.append((u, t, y)); y_prev = y - a - time_trend * t
+    return pd.DataFrame(rows, columns=["unit", "time", "y"])
+
+
+def survival_data(n, baseline_rate=0.1, hazard_ratios=None, X=None,
+                  censor_rate=0.2, dist="exp", weibull_shape=1.5, rng=None):
+    """Generate (time, event, X) with target hazard ratios. λ(x)=λ0·exp(βx);
+    T~Exp(λ) or Weibull. Independent Exp censoring at rate `censor_rate`.
+    Returns DataFrame. hazard_ratios per column of X give exp(β)."""
+    import pandas as pd
+    rng = rng or np.random.default_rng()
+    if X is None: X = np.zeros((n, 0))
+    X = np.asarray(X, float).reshape(n, -1)
+    beta = np.log(np.asarray(hazard_ratios, float)) if hazard_ratios is not None else np.zeros(X.shape[1])
+    lam = baseline_rate * np.exp(X @ beta)
+    if dist == "exp":
+        T = rng.exponential(1 / lam)
+    else:
+        U = rng.random(n); T = (-np.log(1 - U) / lam) ** (1 / weibull_shape)
+    C = rng.exponential(1 / max(censor_rate, 1e-9), n)
+    obs = np.minimum(T, C); event = (T <= C).astype(int)
+    out = pd.DataFrame({"time": obs, "event": event})
+    for j in range(X.shape[1]):
+        out[f"x{j+1}"] = X[:, j]
+    return out
+
+
+def markov_chain(n, transition, init=None, states=None, rng=None):
+    """Sample a length-n sequence from a Markov chain with transition matrix P
+    (k,k) and optional initial distribution `init`. `states` labels the states."""
+    rng = rng or np.random.default_rng()
+    P = np.asarray(transition, float); k = P.shape[0]
+    P = P / P.sum(1, keepdims=True)
+    states = list(range(k)) if states is None else list(states)
+    init = np.full(k, 1 / k) if init is None else np.asarray(init) / np.sum(init)
+    seq = np.empty(n, dtype=object)
+    s = rng.choice(k, p=init)
+    for t in range(n):
+        seq[t] = states[s]; s = rng.choice(k, p=P[s])
+    return seq
+
+
+def fit_markov(sequences, states=None):
+    """Estimate transition matrix from one or more sequences (lists/arrays)."""
+    seqs = [list(s) for s in (sequences if isinstance(sequences[0], (list, np.ndarray)) else [sequences])]
+    sset = sorted(set(x for s in seqs for x in s)) if states is None else list(states)
+    idx = {s: i for i, s in enumerate(sset)}; k = len(sset)
+    C = np.zeros((k, k))
+    for s in seqs:
+        for a, b in zip(s[:-1], s[1:]): C[idx[a], idx[b]] += 1
+    R = C.sum(1, keepdims=True); R[R == 0] = 1
+    return C / R, sset
+
+
+def count_data(n, mean, dispersion=None, zero_prob=0.0, rng=None):
+    """Counts with target mean. dispersion=None→Poisson; dispersion>0→NegBin
+    (variance = mean + mean²/dispersion, smaller k = more over-dispersion);
+    zero_prob>0 adds a zero-inflation mixture."""
+    rng = rng or np.random.default_rng()
+    if dispersion is None:
+        x = rng.poisson(mean, n)
+    else:
+        # NegBin via gamma-mixture: λ ~ Gamma(dispersion, mean/dispersion)
+        lam = rng.gamma(dispersion, mean / dispersion, n)
+        x = rng.poisson(lam)
+    if zero_prob > 0:
+        x = np.where(rng.random(n) < zero_prob, 0, x)
+    return x
+
+
+def dag_sample(n, nodes, rng=None):
+    """Structural Causal Model. `nodes`: ordered list of (name, fn) where fn
+    takes a dict of already-generated arrays and returns the new column. The
+    order encodes the DAG (each fn only references earlier names).
+
+    Example:
+        dag_sample(5000, [
+          ("U", lambda d, n, r: r.standard_normal(n)),
+          ("X", lambda d, n, r: 0.6*d["U"] + r.standard_normal(n)),
+          ("Y", lambda d, n, r: 0.4*d["X"] + 0.5*d["U"] + r.standard_normal(n)),
+        ])  # X→Y with confounder U; regressing Y~X without adjusting for U is biased.
+    """
+    import pandas as pd
+    rng = rng or np.random.default_rng()
+    data = {}
+    for name, fn in nodes:
+        data[name] = np.asarray(fn(data, n, rng), float)
+    return pd.DataFrame(data)
+
+
+def ab_test_data(n_per_arm, baseline=0.0, effect=0.2, sd=1.0, metric="continuous",
+                 arm_names=("control", "treatment"), rng=None):
+    """Simulate an A/B test. metric='continuous' (Normal) | 'binary' (Bernoulli
+    with effect=lift in prob) | 'count' (Poisson with effect=lift in mean)."""
+    import pandas as pd
+    rng = rng or np.random.default_rng()
+    rows = []
+    for i, arm in enumerate(arm_names):
+        mu = baseline + (effect if i > 0 else 0)
+        if metric == "continuous":
+            y = rng.normal(mu, sd, n_per_arm)
+        elif metric == "binary":
+            y = (rng.random(n_per_arm) < np.clip(mu, 0, 1)).astype(int)
+        else:
+            y = rng.poisson(max(mu, 1e-6), n_per_arm)
+        for v in y: rows.append((arm, v))
+    return pd.DataFrame(rows, columns=["arm", "y"])
+
+
+def classification_dataset(n, n_features=5, target_auc=0.8, class_balance=0.5,
+                           feature_corr=None, rng=None):
+    """Generate features + binary label with target AUC and class balance. The
+    label is built from a noisy linear score of the features; AUC is measured
+    using the noiseless feature signal (the achievable AUC any classifier sees).
+    Tunes signal-to-noise to hit `target_auc`; threshold pins `class_balance`."""
+    import pandas as pd
+    rng = rng or np.random.default_rng()
+    R = feature_corr if feature_corr is not None else np.eye(n_features)
+    X = rng.standard_normal((n, n_features)) @ np.linalg.cholesky(nearest_pd(R)).T
+    w = rng.standard_normal(n_features); w = w / np.linalg.norm(w)
+    sig = X @ w
+    noise = rng.standard_normal(n)                           # fix noise
+
+    def auc_for_a(a):
+        score_for_y = a * sig + noise
+        thr = np.quantile(score_for_y, 1 - class_balance)
+        y = (score_for_y > thr).astype(int)
+        o = np.argsort(sig); ys = y[o]
+        npos = int(ys.sum()); nneg = len(ys) - npos
+        if npos == 0 or nneg == 0: return 0.5
+        return (np.arange(1, len(ys) + 1)[ys == 1].sum()
+                - npos * (npos + 1) / 2) / (npos * nneg)
+
+    a = tune_scalar(auc_for_a, target_auc, x0=2.0, lo=0.01, hi=30, tol=2e-3)
+    score_for_y = a * sig + noise
+    thr = np.quantile(score_for_y, 1 - class_balance)
+    y = (score_for_y > thr).astype(int)
+    df = pd.DataFrame(X, columns=[f"x{i+1}" for i in range(n_features)])
+    df["y"] = y
+    return df
+
+
+def mixed_copula(n, columns, target_corr, rng=None):
+    """Joint generation for MIXED continuous + binary + ordinal columns with a
+    target latent (rank) correlation matrix. `columns`: list of dicts:
+        {name, type: 'continuous'|'binary'|'ordinal', ppf|p|cuts}
+      continuous → ppf(q)→values; binary → p (positive prob);
+      ordinal → cuts: sorted thresholds in (0,1) giving the cumulative cell probs."""
+    import pandas as pd
+    rng = rng or np.random.default_rng()
+    k = len(columns)
+    Z = rng.standard_normal((n, k)) @ np.linalg.cholesky(nearest_pd(target_corr)).T
+    out = {}
+    for j, c in enumerate(columns):
+        u = _phi(Z[:, j])
+        if c["type"] == "continuous":
+            out[c["name"]] = np.asarray(c["ppf"](u), float)
+        elif c["type"] == "binary":
+            out[c["name"]] = (u >= (1 - c["p"])).astype(int)
+        else:                                              # ordinal: thresholds in (0,1)
+            cuts = list(c["cuts"])
+            cat = np.zeros(n, dtype=int)
+            for ci, thr in enumerate(cuts, start=1):
+                cat[u > thr] = ci
+            out[c["name"]] = cat
+    return pd.DataFrame(out)
+
+
+def bootstrap_perturb(df, n=None, rng=None):
+    """Resample df rows with replacement (preserves joint distribution).
+    Useful for robustness checks / generating bootstrap replicates."""
+    rng = rng or np.random.default_rng()
+    n = n or len(df)
+    return df.iloc[rng.integers(0, len(df), n)].reset_index(drop=True)
+
+
+def discriminability(real_df, synth_df, cols=None, n_iter=400, lr=0.05):
+    """Train a tiny logistic regression to distinguish real from synthetic on
+    `cols`. Returns AUC on a held-out 25% split. AUC ~0.5 = indistinguishable
+    (good synthesis); >>0.6 = the synthesizer is leaking."""
+    rng = np.random.default_rng(0)
+    cols = list(cols or set(real_df.select_dtypes("number").columns) &
+                       set(synth_df.select_dtypes("number").columns))
+    R = real_df[cols].dropna().values; S = synth_df[cols].dropna().values
+    X = np.vstack([R, S]); y = np.concatenate([np.ones(len(R)), np.zeros(len(S))])
+    X = (X - X.mean(0)) / (X.std(0) + 1e-9)
+    X = np.column_stack([np.ones(len(X)), X])
+    perm = rng.permutation(len(X)); sp = int(0.75 * len(X))
+    Xtr, ytr = X[perm[:sp]], y[perm[:sp]]; Xte, yte = X[perm[sp:]], y[perm[sp:]]
+    w = np.zeros(X.shape[1])
+    for _ in range(n_iter):
+        p = 1 / (1 + np.exp(-Xtr @ w))
+        w -= lr * Xtr.T @ (p - ytr) / len(Xtr)
+    s = Xte @ w
+    ord_ = np.argsort(s); ys = yte[ord_]
+    n_pos = ys.sum(); n_neg = len(ys) - n_pos
+    if n_pos == 0 or n_neg == 0: return 0.5
+    return (np.arange(1, len(ys) + 1)[ys == 1].sum() - n_pos * (n_pos + 1) / 2) / (n_pos * n_neg)
+
+
+def heteroscedastic_noise(x_pred, base_sd=1.0, slope=0.5, rng=None):
+    """Noise with sd = base_sd + slope*|x_pred|. Returns array same shape."""
+    rng = rng or np.random.default_rng()
+    sd = base_sd + slope * np.abs(np.asarray(x_pred, float))
+    return rng.normal(0, sd)
+
+
+def ipw_weights(treatment, propensity):
+    """Inverse probability of treatment weights: 1/p for treated, 1/(1-p) for control.
+    Clip tiny propensities to avoid extreme weights."""
+    t = np.asarray(treatment, float); p = np.clip(np.asarray(propensity, float), 0.02, 0.98)
+    return t / p + (1 - t) / (1 - p)
+
+
+def dirichlet_compositional(n, alphas, rng=None):
+    """Compositional data (rows sum to 1) from Dirichlet(alphas). Returns (n,k)."""
+    rng = rng or np.random.default_rng()
+    return rng.dirichlet(np.asarray(alphas, float), size=n)
