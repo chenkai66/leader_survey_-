@@ -1,0 +1,29 @@
+__pycache__/
+*.pyc
+*.pyo
+.DS_Store
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+.ipynb_checkpoints/
+
+# data: keep structure tracked via .gitkeep, but ignore actual large files
+# uncomment the next 2 lines if data are too large for git
+# data/raw/**
+# data/interim/**
+# !data/**/.gitkeep
+
+# generated outputs
+*.tmp
+*.log
+*.pid
+
+# secrets — NEVER commit
+*.env
+.env*
+secrets.json
+credentials*.json
+*.pem
+*.key
