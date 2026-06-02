@@ -7,7 +7,8 @@ failed = []
 for f in test_files:
     name = os.path.basename(f)[5:-3]
     print(f"\n========== {name} ==========")
-    r = subprocess.run([sys.executable, f], capture_output=True, text=True, cwd=HERE)
+    py = sys.executable or "python3"
+    r = subprocess.run([py, f], capture_output=True, text=True, cwd=HERE)
     print(r.stdout, end="")
     # parse "N/M passed" from last line regardless of exit code
     for line in r.stdout.splitlines()[::-1]:
