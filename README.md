@@ -87,6 +87,22 @@ sampler = C.fit_from_reference(real_df); synthetic = sampler(5000)
 | **mixed-type joint** (continuous + binary + ordinal, target corr) | `mixed_copula` |
 | mimic a real dataset | `fit_from_reference` |
 | diagnostics / goodness-of-fit / synthetic-vs-real realism | `report`, `ks_stat`, `verify`, `discriminability` |
+| **simple linear regression with target R² + coefs** | `regression_dataset` |
+| **logistic regression with target coefs** | `logistic_dataset` |
+| 2-way / factorial ANOVA (main + interaction) | `anova_design` |
+| paired pre/post (within-corr + change effect) | `paired_data` |
+| two-group t-test / MW data | `two_sample` |
+| contingency table (margins + OR) | `contingency_table` |
+| K-class label with exact proportions | `multinomial_dataset` |
+| mixed-effects / multilevel regression (random intercept + slope) | `mixed_effects_dataset` |
+| block-structured correlation matrix | `correlation_matrix_block` |
+| partial correlation / collinearity (VIF) | `partial_corr`, `vif` |
+| multi-rater (self / manager / peer) with target inter-rater corr | `multi_rater` |
+| **relational multi-table** (FK, per-parent counts, child cols correlated with parent) | `relational_children` |
+| **temporal state evolution** (panel from iterative rule) | `evolve_panel_state` |
+| funnel / cohort conversion stages | `funnel_data` |
+| **business-rule engine** (report / drop / fix violators) | `enforce_constraints` |
+| **consistency checks** (referential / aggregate / temporal / identity / uniqueness / no-nulls / value-set) | `check_referential_integrity` / `check_aggregate` / `check_temporal` / `check_identity` / `check_uniqueness` / `check_no_nulls` / `check_value_set` |
 | **anything with no closed form** | `tune_scalar` (measure → adjust → repeat) |
 
 See `SKILL.md` for the full methodology, feasibility/ordering rules, and the

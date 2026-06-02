@@ -164,5 +164,105 @@ chk("ipw_weights basic", np.allclose(C.ipw_weights([1,0],[0.4,0.6]), [1/0.4, 1/0
 # bootstrap shape
 chk("bootstrap_perturb shape", C.bootstrap_perturb(real, n=500, rng=rng).shape == (500, 2))
 
-print(f"\n{sum(PASS)}/{len(PASS)} passed (extended)")
+print(f"  ({sum(PASS)}/{len(PASS)} so far)\n")
+
+# ---------- round-4: simple stats / regression / multi-table consistency ----------
+from numpy.linalg import lstsq as _ls
+
+# regression with target R²
+df_r = C.regression_dataset(3000, coefs=[0.5,-0.3,0.2], intercept=1.0, target_r2=0.5, rng=rng)
+b = _ls(np.column_stack([np.ones(3000), df_r[["x1","x2","x3"]].values]), df_r.y.values, rcond=None)[0]
+chk("regression b1 ≈ 0.5", abs(b[1]-0.5) < 0.05)
+chk("regression intercept ≈ 1.0", abs(b[0]-1.0) < 0.1)
+y = df_r.y.values; pred = df_r[["x1","x2","x3"]].values @ b[1:] + b[0]
+r2 = 1 - ((y-pred)**2).sum() / ((y-y.mean())**2).sum()
+chk("regression R² ≈ 0.5", abs(r2-0.5) < 0.05)
+
+# logistic recovers coefs
+dfl = C.logistic_dataset(5000, coefs=[0.8,-0.5], intercept=-0.5, rng=rng)
+Xl = np.column_stack([np.ones(len(dfl)), dfl.x1, dfl.x2]); yl = dfl.y.values
+w_l = np.zeros(3)
+for _ in range(300):
+    p_ = 1/(1+np.exp(-Xl@w_l)); w_l -= 0.1*Xl.T@(p_-yl)/len(Xl)
+chk("logistic b1 recovered ≈ 0.8", abs(w_l[1]-0.8) < 0.1)
+chk("logistic b2 recovered ≈ -0.5", abs(w_l[2]-(-0.5)) < 0.1)
+
+# anova interaction visible (SE shrinks with n; use enough power)
+da = C.anova_design(400, {"A":2,"B":2}, main_effects={"A":[0,1],"B":[0,0.5]},
+                    interaction_effects={("A","B"): [[0,0],[0,0.7]]}, sd=1.0, rng=rng)
+m = da.groupby(["A","B"]).y.mean().unstack()
+ix = (m.loc[1,1] - m.loc[1,0]) - (m.loc[0,1] - m.loc[0,0])
+chk("anova interaction ≈ 0.7", abs(ix - 0.7) < 0.20)
+
+# paired within_corr
+p_p = C.paired_data(2000, change_effect=2, within_corr=0.7, rng=rng)
+chk("paired pre-post corr ≈ 0.7", abs(p_p.pre.corr(p_p.post) - 0.7) < 0.04)
+chk("paired mean change ≈ 2.0", abs(p_p.change.mean() - 2.0) < 0.1)
+
+# contingency 2x2 OR
+ct = C.contingency_table([100,100], [100,100], odds_ratio=2.0, rng=rng)
+or_ = (ct[0,0]*ct[1,1]) / max(ct[0,1]*ct[1,0], 1)
+chk("contingency OR ≈ 2.0", 1.5 < or_ < 3.0)
+
+# multinomial exact
+mn = C.multinomial_dataset(1000, [0.6, 0.3, 0.1], rng=rng)
+uniq, cnt = np.unique(mn, return_counts=True)
+chk("multinomial exact 600/300/100", list(cnt) == [600, 300, 100])
+
+# correlation_matrix_block PD + block structure
+Rb = C.correlation_matrix_block([3,3], 0.6, 0.1)
+chk("block matrix PD", np.all(np.linalg.eigvalsh(Rb) > 0))
+chk("block within > between", Rb[0,1] == 0.6 and Rb[0,3] == 0.1)
+
+# partial_corr removes confounder
+df_pc = pd.DataFrame({"x": rng.standard_normal(2000), "z": rng.standard_normal(2000)})
+df_pc["y"] = 0.7*df_pc.x + 0.5*df_pc.z + rng.standard_normal(2000)
+pc = C.partial_corr(df_pc, "x", "y", ["z"])
+chk("partial_corr ≈ 0.7/sqrt(...) > raw", pc > df_pc.x.corr(df_pc.y) - 0.1)
+
+# vif
+vifs = C.vif(df_pc, ["x","y","z"])
+chk("vif all finite & >=1", all(v >= 0.99 and np.isfinite(v) for v in vifs.values()))
+
+# relational tables + referential integrity check
+parents = pd.DataFrame({"user_id": C.generate_id_column(20, prefix="U"),
+                        "signup_age": rng.integers(20, 60, 20)})
+children = C.relational_children(parents, "user_id",
+    n_per_parent=lambda r: r.poisson(3),
+    child_cols={"amount": lambda p, i, r: 50 + 5*p.signup_age + r.normal(0, 20)},
+    rng=rng)
+ok_ri, _ = C.check_referential_integrity(children, "user_id", parents, "user_id")
+chk("relational FK integrity", ok_ri)
+chk("relational child count varies", children.groupby("user_id").size().nunique() > 1)
+
+# aggregate consistency
+parent2 = pd.DataFrame({"pid":["A","B","C"], "total":[10,20,30]})
+child2 = pd.DataFrame({"pid":["A","A","B","B","C"], "val":[5,5,8,12,30]})
+ok_a, _ = C.check_aggregate(child2, "pid", "val", parent2, "pid", "total", agg="sum")
+chk("aggregate consistency OK", ok_a)
+
+# temporal & identity & enforce_constraints
+chk("temporal monotone", C.check_temporal(pd.DataFrame({"a":[1,2],"b":[2,3]}), "a","b")[0])
+chk("identity a+b==c",
+    C.check_identity(pd.DataFrame({"a":[1,2],"b":[2,3],"c":[3,5]}), lambda r: r.a+r.b-r.c)[0])
+ef, viol = C.enforce_constraints(
+    pd.DataFrame({"x":[1,2,3], "y":[1,0,3]}),
+    [("y_pos", lambda d: d.y > 0)], action="drop", verbose=False)
+chk("enforce_constraints drops bad", len(ef) == 2 and viol["y_pos"] == 1)
+
+# multi-rater inter-rater corr
+mr = C.multi_rater(2000, rater_corr=[[1,0.6,0.4],[0.6,1,0.5],[0.4,0.5,1]], rng=rng)
+chk("multi_rater r12 ≈ 0.6", abs(mr.corr().iloc[0,1] - 0.6) < 0.05)
+
+# funnel monotone non-increasing reach
+fn = C.funnel_data(1000, [0.7, 0.5, 0.3], rng=rng)
+cnts = [fn[f"stage_{i+1}"].sum() for i in range(4)]
+chk("funnel reach monotone non-increasing", all(cnts[i] >= cnts[i+1] for i in range(3)))
+
+# evolve_panel: temporal expansion correct
+init = pd.DataFrame({"id": C.generate_id_column(10, "A"), "balance": np.full(10, 100.0)})
+panel = C.evolve_panel_state(init, 5, lambda s,t,r: s.assign(balance=s.balance+r.normal(0,5,len(s))), rng=rng)
+chk("evolve_panel shape n*T", len(panel) == 50 and panel.time.nunique() == 5)
+
+print(f"\nFINAL: {sum(PASS)}/{len(PASS)} passed")
 sys.exit(0 if all(PASS) else 1)

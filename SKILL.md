@@ -50,6 +50,27 @@ description: 目标导向的数据调整/标定/造数通用技术 skill。当�
 | **组分数据**（行和=1） | Dirichlet | §7.10 | `dirichlet_compositional` |
 | **bootstrap 扰动** | 有放回重抽 | §9.2 | `bootstrap_perturb` |
 | **合成数据真实度**（vs 真实数据） | 判别力 AUC | §11 | `discriminability` |
+| **简单线性回归数据**（指定 b/截距/R²） | y=intercept+Xb+ε，目标 R² 自动定 noise | §6.21 | `regression_dataset` |
+| **logistic 回归数据**（指定 b/截距） | y~Bernoulli(sigmoid(...)) | §6.21 | `logistic_dataset` |
+| **2-way / factorial ANOVA**（主效应+交互） | 平衡设计单元抽样 | §6.21 | `anova_design` |
+| **配对/前后测**（target within-corr + 变化量） | 双变量 MVN | §6.21 | `paired_data` |
+| **两组样本 t/MW** | 双正态 | §6.21 | `two_sample` |
+| **列联表 / Chi-square**（边际+OR） | 解 2x2 一元方程 / IPF | §6.21 | `contingency_table` |
+| **多类标签精确占比** | 确定性分配+洗牌 | §6.21 | `multinomial_dataset` |
+| **混合效应/多层回归**（随机截距+斜率） | 单元随机效应 + within X | §6.21 | `mixed_effects_dataset` |
+| **块状/层次相关阵** | 块内高、块间低 | §6.21 | `correlation_matrix_block` |
+| **partial correlation**（控变量后的相关） | 双向残差化 | §6.21 | `partial_corr` |
+| **共线性诊断 VIF** | 1/(1-R²_j) | §6.21 | `vif` |
+| **关系型多表**（外键、每父几个子、子列相关父属性） | 嵌套生成 | §15 | `relational_children` |
+| **时序状态演化**（按规则一期期推） | 迭代 evolve_fn | §15 | `evolve_panel_state` |
+| **多源/多评分者**（自评+主管+同事，目标 inter-rater corr） | 共享 MVN | §6.22 | `multi_rater` |
+| **漏斗 / cohort 阶段转化** | 分阶段抽样 | §15 | `funnel_data` |
+| **业务规则/逻辑约束生效**（report/drop/fix） | 规则引擎 | §15 | `enforce_constraints` |
+| **外键引用完整性校验** | 集合包含 | §15 | `check_referential_integrity` |
+| **父子聚合一致**（parent.total == sum(child.val)） | groupby agg 对比 | §15 | `check_aggregate` |
+| **时序顺序校验**（created≤updated 等） | 比较列 | §15 | `check_temporal` |
+| **行内恒等式**（a+b==c, 比率=...等） | apply 行函数 | §15 | `check_identity` |
+| **唯一性 / 非空 / 值域校验** | 通用预检 | §15 | `check_uniqueness`/`check_no_nulls`/`check_value_set` |
 | 计数/比例/有界变量 | 对应分布抽样（Poisson/NB/Beta）或映射 | §4.3 | `match_marginal` |
 | 分类变量目标占比 | 按比例抽样/重排 | §4.4 | `categorical_to_freq` |
 | 日期/时间（趋势/季节/工作时段） | 基线+趋势+周期+噪声 | §4.5 | — |
@@ -341,3 +362,96 @@ composite=mean(题项)；`item_sigma` 控题项间相关=α 来源（k=5,α≈0.
 | **任何 "命中 X 指标"**（不在表里） | `tune_scalar` 兜底：写一个 `f(knob)→achieved` 度量函数，剩下交给它 |
 
 每个场景都遵循同一闭环：**指定目标 → 选方法生成 → 复测命中 → 过结构不变量与"破绽"自查**（§11）。
+
+### 6.21 简单统计/回归数据生成（一行式 API）
+最常见的"我要一份回归数据"等需求，直接调一个函数：
+- `regression_dataset(n, coefs, intercept, target_r2|noise_sd, X_corr, X_means, X_sds)` — 线性回归数据。给 `target_r2` 自动定噪声 SD 命中 R²；可选预测变量相关阵/均值/SD。
+- `logistic_dataset(n, coefs, intercept, X_corr)` — 二分 logistic。`coefs` 直接是 log-OR。
+- `multinomial_dataset(n, probs)` — K 类标签，**精确**目标占比（确定性分配+洗牌）。
+- `anova_design(n_per_cell, factor_levels, main_effects, interaction_effects, sd)` — 平衡 factorial 设计（2×2 / 2×3 / 3×3 …），主效应+交互。
+- `paired_data(n, baseline_mean, change_effect, within_corr, baseline_sd, post_sd)` — 前后/配对数据，**目标 within-corr 精确命中**。
+- `two_sample(n1, n2, mean1, mean2, sd1, sd2)` — t-test/MW 现成数据。
+- `contingency_table(row_margins, col_margins, odds_ratio)` — 2×2 给目标 OR 一元解；RxC 用 IPF 命中边际。
+- `mixed_effects_dataset(n_units, n_periods, fixed_effects, random_intercept_sd, random_slope_sd, slope_var, noise_sd)` — 多层混合效应面板。
+- `correlation_matrix_block([s1,s2,...], within_corr, between_corr)` — 块状相关阵（簇/层次）。
+- `partial_corr(df, x, y, controls)` / `vif(df, cols)` — 偏相关、共线性诊断。
+
+### 6.22 多评分者 / 多源数据
+`multi_rater(n, rater_corr, rater_means, rater_sds)`：同一目标被 k 个来源（自评/他评/peer/manager）打分，target inter-rater correlation 精确命中。也可直接用 `mixed_copula` 或 `iman_conover` 造任意类型多评分者数据。
+
+---
+
+## 15. 多维度数据一致性（多表 / 跨时 / 跨源 / 业务规则）
+
+真实数据常是多表、多波、多源的，**列之间、表之间、时间之间必须互相对得上**。这往往比生成统计量更难——单列再"长得像"，跨维一旦不一致就立刻露馅（外键找不到、聚合对不上、created>updated、同一人在不同表年龄不同…）。本节给出**生成器**（按结构造一致数据）+ **校验器**（事后逐条核查）。
+
+### 15.1 关系型多表（外键 + 每父几个子 + 子列相关父属性）
+真实业务：users → orders → order_items；订单数因人而异；订单金额与用户年龄/收入相关。
+```python
+parents = pd.DataFrame({"user_id": generate_id_column(1000, "U"),
+                        "age": rng.integers(18, 70, 1000)})
+orders = relational_children(parents, parent_key="user_id",
+    n_per_parent=lambda r: r.poisson(3),            # 平均 3 个订单/人，可变
+    child_cols={"amount": lambda p, i, r: 50 + 2*p.age + r.normal(0, 20)},
+    child_key_prefix="O")
+# 必拿子表去 check 一致：
+assert check_referential_integrity(orders, "user_id", parents, "user_id")[0]
+```
+要构造多层（祖父→父→孙）只需嵌套调用 `relational_children` 两次。
+
+### 15.2 时序状态演化（按规则一期期推）
+账户余额、状态机、库存：从初始状态出发，每期按规则迭代。规则保证因→果时序、保留前态依赖。
+```python
+init = pd.DataFrame({"id": ids, "balance": np.full(N, 100.0), "status": "active"})
+def evolve(state, t, rng):
+    s = state.copy()
+    s.balance += rng.normal(0, 10, len(s))      # 随机游走
+    s.loc[s.balance < 0, "status"] = "default"  # 派生状态
+    return s
+panel = evolve_panel_state(init, n_periods=12, evolve_fn=evolve)
+```
+返回长格式 `id/time/<state cols>`。时序顺序、派生依赖自然成立。
+
+### 15.3 跨源 / 多评分者 / 同一目标多视角
+同一人被多源（自评/他评/peer/manager）打分；同一事件在不同系统记录。每源 = 真实分 + 源特异偏差 + 噪声；通过 latent 共因驱动 inter-source correlation。`multi_rater(n, rater_corr)` 一次造出。对**同一记录跨表**应通过外键链接（§15.1），稳定属性（DOB、gender）就用同一列复制到多表，时变属性用 `evolve_panel_state`。
+
+### 15.4 业务规则引擎（report / drop / fix）
+逻辑约束（"若已婚则配偶年龄非空"、"y∈{允许值}"、"a+b==c"）：
+```python
+rules = [
+    ("y_positive",    lambda d: d.y > 0),
+    ("a_plus_b_eq_c", lambda d: (d.a + d.b - d.c).abs() < 1e-6),
+    ("married_spouse", lambda d: ~((d.married == 1) & d.spouse_age.isna())),
+]
+out, viol = enforce_constraints(df, rules, action="drop")   # 或 "report" / "fix"
+```
+`action="fix"` 时每条规则可带 `fix_fn(df, bad_mask)->df`。
+
+### 15.5 校验器汇总（生成后必跑）
+| 校验目的 | 函数 |
+|---|---|
+| 外键引用都解析 | `check_referential_integrity(child, fk, parent, pk)` |
+| 父行聚合 == 子表聚合（sum/mean/count/min/max） | `check_aggregate(child, fk, child_val, parent, pk, parent_agg, agg='sum')` |
+| 时序顺序（created ≤ updated 等） | `check_temporal(df, before, after)` |
+| 行内恒等式（a+b==c, 比率守恒…） | `check_identity(df, fn)` |
+| 主键/复合键唯一 | `check_uniqueness(df, cols)` |
+| 必填非空 | `check_no_nulls(df, cols)` |
+| 值在允许集合 | `check_value_set(df, col, allowed)` |
+| 多规则批量执行 | `enforce_constraints(df, rules, action)` |
+
+### 15.6 多维一致性的"破绽" tells（专家一眼就看出来）
+- 外键有悬空（订单 user_id 在 users 找不到）
+- 子表聚合 ≠ 父表汇总字段（订单总额对不上用户总消费）
+- 时间倒流（updated < created；事件 < 注册）
+- 同一 ID 在不同表稳定属性变了（DOB、性别、生日跳动）
+- 行内派生字段不自洽（profit ≠ revenue - cost；比率 ≠ 分子/分母）
+- 跨波同一人变化超出可能（年龄一年涨 5）
+- 父-子表的 cardinality 异常（每用户 1000 个订单或全 0）
+- 时序面板里出现 t+1 之前不可能出现的状态（已死亡的人还有交易）
+
+### 15.7 编排：先造、再校、不过就回头
+完整流程：
+1. 自上而下生成（先 parents → 各级 children → events）。
+2. 派生字段一律**重算**（profit = revenue - cost；total = sum(parts)），别独立生成。
+3. 跑全部 `check_*` 校验；任何失败回头修生成器（不是手补数据）。
+4. 把每条业务约束**编码进 `enforce_constraints` 规则集**，下次生成自动守护（呼应黄金法则 §1.4 + 师傅原则）。

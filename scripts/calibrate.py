@@ -791,3 +791,339 @@ def dirichlet_compositional(n, alphas, rng=None):
     """Compositional data (rows sum to 1) from Dirichlet(alphas). Returns (n,k)."""
     rng = rng or np.random.default_rng()
     return rng.dirichlet(np.asarray(alphas, float), size=n)
+
+
+# ============================================================================
+# Simple regression / ANOVA / contingency one-liners
+# ============================================================================
+def regression_dataset(n, coefs, intercept=0.0, noise_sd=None, target_r2=None,
+                       X_corr=None, X_means=None, X_sds=None, rng=None):
+    """Linear regression sample: y = intercept + X@coefs + N(0, noise_sd).
+    Supply EITHER noise_sd OR target_r2 (tunes noise_sd to hit R²).
+    Returns DataFrame with x1..xk and y."""
+    import pandas as pd
+    rng = rng or np.random.default_rng()
+    coefs = np.asarray(coefs, float); k = len(coefs)
+    R = np.eye(k) if X_corr is None else nearest_pd(X_corr)
+    X = rng.standard_normal((n, k)) @ np.linalg.cholesky(R).T
+    if X_means is not None: X = X + np.asarray(X_means)
+    if X_sds   is not None: X = X * np.asarray(X_sds)
+    signal = X @ coefs
+    if target_r2 is not None:
+        var_s = signal.var()
+        noise_sd = np.sqrt(var_s * (1 - target_r2) / max(target_r2, 1e-9))
+    y = intercept + signal + rng.normal(0, noise_sd if noise_sd is not None else 1.0, n)
+    df = pd.DataFrame(X, columns=[f"x{i+1}" for i in range(k)])
+    df["y"] = y
+    return df
+
+
+def logistic_dataset(n, coefs, intercept=0.0, X_corr=None, rng=None):
+    """Binary logistic: P(y=1) = sigmoid(intercept + X@coefs). Returns df."""
+    import pandas as pd
+    rng = rng or np.random.default_rng()
+    coefs = np.asarray(coefs, float); k = len(coefs)
+    R = np.eye(k) if X_corr is None else nearest_pd(X_corr)
+    X = rng.standard_normal((n, k)) @ np.linalg.cholesky(R).T
+    p = 1 / (1 + np.exp(-(intercept + X @ coefs)))
+    df = pd.DataFrame(X, columns=[f"x{i+1}" for i in range(k)])
+    df["y"] = (rng.random(n) < p).astype(int)
+    return df
+
+
+def multinomial_dataset(n, probs, rng=None):
+    """K-class categorical with exact target proportions (deterministic allocation +
+    shuffle)."""
+    rng = rng or np.random.default_rng()
+    probs = np.asarray(probs, float); probs = probs / probs.sum()
+    counts = np.floor(probs * n).astype(int)
+    counts[-1] += n - counts.sum()
+    labels = np.concatenate([np.full(c, i) for i, c in enumerate(counts)])
+    rng.shuffle(labels)
+    return labels
+
+
+def anova_design(n_per_cell, factor_levels, main_effects=None, interaction_effects=None,
+                 sd=1.0, baseline=0.0, rng=None):
+    """Balanced factorial design. factor_levels: dict {factor_name: n_levels}.
+    main_effects: {factor: [delta per level]}.
+    interaction_effects: {(f1,f2): 2D array [l1, l2]} (or callable).
+    Returns DataFrame with factor columns + y."""
+    import pandas as pd, itertools
+    rng = rng or np.random.default_rng()
+    factors = list(factor_levels.keys())
+    levels = [list(range(factor_levels[f])) for f in factors]
+    rows = []
+    for combo in itertools.product(*levels):
+        mu = baseline
+        if main_effects:
+            for fi, f in enumerate(factors):
+                if f in main_effects:
+                    mu += main_effects[f][combo[fi]]
+        if interaction_effects:
+            for (f1, f2), arr in interaction_effects.items():
+                i1, i2 = factors.index(f1), factors.index(f2)
+                v = arr(combo[i1], combo[i2]) if callable(arr) else arr[combo[i1]][combo[i2]]
+                mu += v
+        ys = rng.normal(mu, sd, n_per_cell)
+        for y in ys:
+            rows.append(list(combo) + [y])
+    return pd.DataFrame(rows, columns=factors + ["y"])
+
+
+def paired_data(n, baseline_mean=0.0, change_effect=0.5, within_corr=0.7,
+                baseline_sd=1.0, post_sd=1.0, rng=None):
+    """Pre/post paired data (within-subject design). target Pearson(pre,post)=within_corr.
+    Returns df with pre, post, change."""
+    import pandas as pd
+    rng = rng or np.random.default_rng()
+    z = rng.standard_normal((n, 2)) @ np.linalg.cholesky([[1, within_corr], [within_corr, 1]]).T
+    pre  = baseline_mean + baseline_sd * z[:, 0]
+    post = baseline_mean + change_effect + post_sd * z[:, 1]
+    return pd.DataFrame({"pre": pre, "post": post, "change": post - pre})
+
+
+def two_sample(n1, n2, mean1=0.0, mean2=0.5, sd1=1.0, sd2=1.0, rng=None):
+    """Two-group sample (t-test ready). Returns df with group, y."""
+    import pandas as pd
+    rng = rng or np.random.default_rng()
+    return pd.DataFrame({"group": ["A"] * n1 + ["B"] * n2,
+                         "y": list(rng.normal(mean1, sd1, n1)) + list(rng.normal(mean2, sd2, n2))})
+
+
+def contingency_table(row_margins, col_margins, odds_ratio=1.0, rng=None):
+    """Generate a 2×2 contingency table matching row/col margins with target OR.
+    For RxC just supply marginals (OR ignored, IPF used). Returns counts table."""
+    rng = rng or np.random.default_rng()
+    r = np.asarray(row_margins, float); c = np.asarray(col_margins, float)
+    if r.sum() != c.sum():
+        raise ValueError("row and column margins must sum to same total")
+    if len(r) == 2 and len(c) == 2 and odds_ratio != 1.0:
+        # solve 2x2: a / (r0-a) / (c0-a) * (r1-c0+a) = OR
+        N = r.sum(); rr, cc = r[0], c[0]
+        def f(a):
+            return (a * (N - rr - cc + a)) / max((rr - a) * (cc - a), 1e-9) - odds_ratio
+        a = tune_scalar(lambda a: f(a) + odds_ratio, odds_ratio,
+                        x0=rr * cc / N, lo=max(0, rr + cc - N) + 1e-6, hi=min(rr, cc) - 1e-6)
+        a = int(round(a))
+        return np.array([[a, int(rr - a)], [int(cc - a), int(N - rr - cc + a)]])
+    # general RxC: IPF
+    T = np.outer(r, c) / r.sum()
+    return np.round(T).astype(int)
+
+
+def mixed_effects_dataset(n_units, n_periods, fixed_effects=None, intercept=0.0,
+                          random_intercept_sd=0.5, random_slope_sd=0.0,
+                          slope_var=None, noise_sd=1.0, rng=None):
+    """Multilevel/mixed-effects panel: y_{it} = intercept + α_i + (β + s_i)·X_{it}
+    + γ_t + ε. fixed_effects: list of fixed slopes β (one per time-varying X).
+    slope_var: index of X getting the random slope (default 0). Returns long df."""
+    import pandas as pd
+    rng = rng or np.random.default_rng()
+    p = len(fixed_effects or [])
+    a_i = rng.normal(0, random_intercept_sd, n_units)
+    s_i = rng.normal(0, random_slope_sd, n_units) if random_slope_sd > 0 else np.zeros(n_units)
+    rows = []
+    for u in range(n_units):
+        X = rng.standard_normal((n_periods, p))
+        slope_eff = (X[:, slope_var or 0] * s_i[u]) if p > 0 else 0
+        y = (intercept + a_i[u] + (X @ np.asarray(fixed_effects)) + slope_eff
+             + rng.normal(0, noise_sd, n_periods))
+        for t in range(n_periods):
+            rows.append([u, t] + list(X[t]) + [y[t]])
+    return pd.DataFrame(rows, columns=["unit", "time"] + [f"x{i+1}" for i in range(p)] + ["y"])
+
+
+def correlation_matrix_block(block_sizes, within_corr=0.5, between_corr=0.1):
+    """Block-structured correlation matrix: high within-block correlation, low
+    between-block. Useful for factor analysis / clustering test data."""
+    k = sum(block_sizes); R = np.full((k, k), between_corr)
+    i = 0
+    for sz in block_sizes:
+        R[i:i + sz, i:i + sz] = within_corr
+        i += sz
+    np.fill_diagonal(R, 1.0)
+    return R
+
+
+def partial_corr(df, x, y, controls):
+    """Partial correlation of x and y controlling for `controls` (list of col names)."""
+    G = np.column_stack([np.ones(len(df))] + [df[c].values for c in controls])
+    rx = resid_against(df[x].values, G); ry = resid_against(df[y].values, G)
+    return float(np.corrcoef(rx, ry)[0, 1])
+
+
+def vif(df, cols):
+    """Variance Inflation Factor per column: VIF_j = 1/(1 - R²_j) where R²_j is
+    from regressing x_j on the other columns. >5 = problematic collinearity."""
+    out = {}
+    for j, c in enumerate(cols):
+        others = [oc for oc in cols if oc != c]
+        G = np.column_stack([np.ones(len(df))] + [df[oc].values for oc in others])
+        r = resid_against(df[c].values, G)
+        r2 = 1 - r.var() / df[c].values.var()
+        out[c] = float(1 / max(1 - r2, 1e-9))
+    return out
+
+
+# ============================================================================
+# Multi-dimensional / multi-table CONSISTENCY (generation + checks)
+# ============================================================================
+def generate_id_column(n, prefix="ID", width=6, start=1):
+    """Unique IDs like 'ID_000001'..'ID_NNNNNN'."""
+    return [f"{prefix}_{i:0{width}d}" for i in range(start, start + n)]
+
+
+def relational_children(parent, parent_key, n_per_parent, child_cols=None,
+                        child_key_prefix="C", rng=None):
+    """Generate a child table referencing `parent`. `n_per_parent` is an
+    integer, an array of counts (one per parent row), or a callable rng->int.
+    `child_cols` = dict {col_name: callable(parent_row, child_index, rng)->value}
+    can use parent attributes for correlated child columns. Foreign-key column
+    is auto-added as `parent_key`."""
+    import pandas as pd
+    rng = rng or np.random.default_rng()
+    rows = []
+    for _, prow in parent.iterrows():
+        if callable(n_per_parent):
+            k = max(0, int(n_per_parent(rng)))
+        elif np.isscalar(n_per_parent):
+            k = int(n_per_parent)
+        else:
+            k = int(n_per_parent[prow.name])
+        for ci in range(k):
+            row = {parent_key: prow[parent_key]}
+            if child_cols:
+                for col, fn in child_cols.items():
+                    row[col] = fn(prow, ci, rng)
+            rows.append(row)
+    df = pd.DataFrame(rows)
+    df.insert(0, "child_id", generate_id_column(len(df), prefix=child_key_prefix))
+    return df
+
+
+def evolve_panel_state(initial_df, n_periods, evolve_fn, id_col="id", rng=None):
+    """Generate temporal panel from an initial state by applying evolve_fn
+    repeatedly: evolve_fn(state_t, t, rng) -> state_{t+1} (DataFrame same cols).
+    Returns long-format df with `id`, `time`, and state columns. Use for any
+    process that must respect temporal order (status changes, balances, etc.)."""
+    import pandas as pd
+    rng = rng or np.random.default_rng()
+    snapshots = []
+    state = initial_df.copy()
+    if id_col not in state.columns:
+        state[id_col] = generate_id_column(len(state))
+    for t in range(n_periods):
+        snap = state.copy(); snap["time"] = t
+        snapshots.append(snap)
+        state = evolve_fn(state, t, rng)
+    return pd.concat(snapshots, ignore_index=True)
+
+
+def multi_rater(n, rater_corr, rater_means=None, rater_sds=None, rng=None):
+    """Multi-source ratings (self/manager/peer): each rater sees a noisy + biased
+    view of the same target. rater_corr: (k,k) target inter-rater correlation.
+    Returns df with rater_1 ... rater_k. Inter-rater correlation matches target."""
+    import pandas as pd
+    rng = rng or np.random.default_rng()
+    k = len(rater_corr)
+    Z = rng.standard_normal((n, k)) @ np.linalg.cholesky(nearest_pd(rater_corr)).T
+    if rater_sds  is not None: Z = Z * np.asarray(rater_sds)
+    if rater_means is not None: Z = Z + np.asarray(rater_means)
+    return pd.DataFrame(Z, columns=[f"rater_{i+1}" for i in range(k)])
+
+
+def funnel_data(n_top, conversion_rates, stage_names=None, rng=None):
+    """Cohort funnel: n_top users enter stage 1; each advances to next with
+    prob conversion_rates[i]. Returns df with user_id + per-stage 0/1 + final
+    stage reached."""
+    import pandas as pd
+    rng = rng or np.random.default_rng()
+    K = len(conversion_rates) + 1
+    names = stage_names or [f"stage_{i+1}" for i in range(K)]
+    reached = np.ones((n_top, K), dtype=int)
+    last = np.ones(n_top, dtype=bool)
+    for i, p in enumerate(conversion_rates):
+        adv = (rng.random(n_top) < p) & last
+        last = adv
+        reached[:, i + 1] = adv.astype(int)
+    df = pd.DataFrame(reached, columns=names)
+    df.insert(0, "user_id", generate_id_column(n_top))
+    df["stage_reached"] = df[names].sum(1)
+    return df
+
+
+# ----------- consistency CHECKS ------------
+def check_referential_integrity(child, child_fk, parent, parent_key):
+    """Every child[child_fk] value must exist in parent[parent_key]. Returns
+    (ok, violators_df)."""
+    bad = ~child[child_fk].isin(parent[parent_key])
+    return (not bad.any()), child[bad]
+
+
+def check_aggregate(child, child_fk, child_value, parent, parent_key, parent_agg,
+                    agg="sum", tol=1e-6):
+    """Verify parent[parent_agg] == agg of child[child_value] grouped by FK.
+    agg in {'sum','mean','count','max','min'}. Returns (ok, mismatches_df)."""
+    import pandas as pd
+    g = getattr(child.groupby(child_fk)[child_value], agg)()
+    merged = parent[[parent_key, parent_agg]].merge(
+        g.rename("__computed"), left_on=parent_key, right_index=True, how="left").fillna(0)
+    diff = (merged[parent_agg] - merged["__computed"]).abs()
+    bad = diff > tol
+    return (not bad.any()), merged[bad]
+
+
+def check_temporal(df, before_col, after_col, allow_equal=True):
+    """before_col <= after_col (or <). Returns (ok, violators)."""
+    bad = df[before_col] > df[after_col] if allow_equal else df[before_col] >= df[after_col]
+    return (not bad.any()), df[bad]
+
+
+def check_identity(df, expr_fn, name="identity", tol=1e-6):
+    """Per-row identity must hold: expr_fn(row) ~ 0 (or boolean True). Returns
+    (ok, violators)."""
+    vals = df.apply(expr_fn, axis=1)
+    if vals.dtype == bool:
+        bad = ~vals
+    else:
+        bad = vals.abs() > tol
+    return (not bad.any()), df[bad]
+
+
+def check_uniqueness(df, cols):
+    """No duplicates on the given key. Returns (ok, duplicates)."""
+    dup = df.duplicated(subset=cols, keep=False)
+    return (not dup.any()), df[dup]
+
+
+def check_no_nulls(df, cols):
+    bad = df[cols].isna().any(axis=1)
+    return (not bad.any()), df[bad]
+
+
+def check_value_set(df, col, allowed):
+    bad = ~df[col].isin(allowed)
+    return (not bad.any()), df[bad]
+
+
+def enforce_constraints(df, rules, action="report", verbose=True):
+    """Apply a list of business rules.
+    rules: list of (name, predicate_fn(df)->boolean_mask_of_GOOD_rows,
+                    optional fix_fn(df, bad_mask)->df).
+    action: 'report' (return violations dict), 'drop' (return df without bad),
+            'fix' (apply fix_fn for each rule). Returns (df_out, violations)."""
+    import pandas as pd
+    out = df.copy(); viols = {}
+    for entry in rules:
+        name, pred, *rest = entry
+        good = pred(out)
+        bad = ~good
+        viols[name] = int(bad.sum())
+        if verbose:
+            print(f"  [{name}] {bad.sum()} violations" + (" (will fix)" if action == "fix" and rest else ""))
+        if action == "drop":
+            out = out[good].reset_index(drop=True)
+        elif action == "fix" and rest:
+            out = rest[0](out, bad)
+    return out, viols
