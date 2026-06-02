@@ -428,6 +428,96 @@ chk("AD exponential data high A²", C.anderson_darling_normal(rng.exponential(1,
 # chi-square GoF
 cs, df_g = C.chi_square_gof([20,30,50], [25,25,50])
 chk("chi-square GoF returns stat + df", cs > 0 and df_g == 2)
+print(f"  ({sum(PASS)}/{len(PASS)} so far)\n")
+
+# ---------- round-7: TS anomalies, KG, RL, HTE, MMM, choice, SNPs, LDA, spike ----------
+# TS anomalies
+base = C.ts_ar(500, ar=(0.5,), sd=1.0, rng=rng)
+xn, lab = C.ts_anomaly_inject(base, point_rate=0.02, level_shift=[(200, 3.0)], rng=rng)
+chk("ts_anomaly level shift detectable", abs(xn[250:300].mean() - xn[100:150].mean()) > 1.5)
+
+# change points
+y_cp, seg = C.change_point_series(500, [100, 300], [0, 3, -1], noise_sd=0.5, rng=rng)
+chk("change_point segments correct", set(seg) == {0, 1, 2} and abs(y_cp[seg==1].mean() - 3) < 0.2)
+
+# KG triples
+kg = C.knowledge_graph_triples(100, 5, 500, rng=rng)
+chk("KG triples shape + uniqueness", len(kg) > 0 and not kg.duplicated().any())
+
+# temporal network
+tn = C.temporal_network(15, 10, edge_rate=0.1, persistence=0.6, rng=rng)
+chk("temporal_network has multiple periods", tn.t.nunique() == 10)
+
+# RL trajectories
+df_rl = C.rl_trajectories(15, 5, 3, max_steps=20, rng=rng)
+chk("RL trajectory has episodes + returns", df_rl.episode.nunique() == 15 and "return" in df_rl.columns)
+
+# contextual bandit oracle has 0 regret
+df_grdy = C.bandit_data(1000, 4, 5, policy="greedy_oracle", rng=rng)
+chk("bandit oracle 0 regret", abs(df_grdy.regret.mean()) < 1e-9)
+df_rand = C.bandit_data(1000, 4, 5, policy="random", rng=rng)
+chk("bandit random has positive regret", df_rand.regret.mean() > 0.5)
+
+# conformal
+n_c = 1000; K = 3
+true_p = rng.dirichlet([1, 1, 1], n_c)
+y_c = np.array([rng.choice(K, p=p) for p in true_p])
+preds_c = np.clip(true_p + rng.normal(0, 0.1, true_p.shape), 0.01, 0.99); preds_c /= preds_c.sum(1, keepdims=True)
+q_c = C.conformal_calibration_set(preds_c, y_c, alpha=0.1, mode="classification")
+cov_c = (1 - preds_c[np.arange(n_c), y_c] <= q_c).mean()
+chk("conformal classification coverage >= 0.9", cov_c >= 0.88)
+
+# HTE
+df_h2 = C.hte_data(3000, n_features=3, rng=rng)
+naive_ate = df_h2[df_h2.treat==1].y.mean() - df_h2[df_h2.treat==0].y.mean()
+chk("HTE naive ATE close to mean CATE", abs(naive_ate - df_h2.true_cate.mean()) < 0.15)
+
+# Synthetic control
+sc = C.synthetic_control_data(20, 30, treated_idx=0, treatment_time=15,
+                              treatment_effect=2.5, rng=rng)
+tr = sc[sc.unit == 0]
+chk("synth control post>pre by treatment_effect",
+    abs((tr[tr.time>=15].y.mean() - tr[tr.time<15].y.mean()) - 2.5) < 0.5)
+
+# Staggered DiD
+sd = C.staggered_did(50, 10, {i: 3+i%5 for i in range(30)}, treatment_effect=0.7, rng=rng)
+chk("staggered_did has variable treatment times", sd.post.sum() > 0 and sd.post.sum() < len(sd))
+
+# Hierarchical Bayes
+df_hb, truth = C.hierarchical_bayes_data(20, 30, hyper_mean=5.0, hyper_sd=1.0,
+                                          within_sd=0.5, rng=rng)
+grp_means = df_hb.groupby("group").y.mean()
+chk("hier_bayes group variance ≈ hyper_sd²", 0.3 < grp_means.var() < 2.0)
+
+# MMM
+mm = C.marketing_mix_data(52, channels={"tv": {"spend_sd":10, "beta":5.0},
+                                         "social": {"spend_sd":5, "beta":3.0}}, rng=rng)
+chk("MMM adstock accumulates", mm.adstock_tv.max() > mm.spend_tv.max())
+
+# Discrete choice
+A = np.array([[1.0, 0.5], [2.0, 1.0], [0.5, 2.0]])
+dc = C.discrete_choice(2000, 3, A, coefs=[0.8, -0.3], rng=rng)
+chk("discrete_choice 3 alternatives all used", set(dc.choice.unique()) == {0,1,2})
+
+# SNPs
+G = C.snp_genotypes(500, 10, maf=[0.3]*10, ld_strength=0.4, rng=rng)
+chk("SNP genotypes in {0,1,2}", set(np.unique(G)) <= {0,1,2})
+chk("SNP MAF ≈ 0.3", abs(G.mean()/2 - 0.30) < 0.05)
+chk("SNP LD: adjacent SNPs correlate", np.corrcoef(G[:,0], G[:,1])[0,1] > 0.1)
+
+# LDA
+dtm, dt = C.lda_documents(30, 3, 80, rng=rng)
+chk("LDA dtm shape + nonneg", dtm.shape == (30, 80) and (dtm >= 0).all())
+chk("LDA doc_topic rows sum to 1", np.allclose(dt.sum(1), 1))
+
+# Spike trains
+trains = C.spike_train(5, 5.0, base_rate=20, refractory_ms=2.0, rng=rng)
+total = sum(len(t) for t in trains)
+chk("spike_train count near base_rate*T*n", abs(total - 5*5*20)/(5*5*20) < 0.3)
+
+# Cold-start recsys
+U, V, obs, aff = C.cold_start_recsys(40, 25, user_dim=4, item_dim=4, history_per_user=3, rng=rng)
+chk("cold-start observed ≤ history*users", len(obs) == 40*3)
 
 print(f"\nFINAL: {sum(PASS)}/{len(PASS)} passed")
 sys.exit(0 if all(PASS) else 1)

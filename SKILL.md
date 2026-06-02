@@ -34,10 +34,11 @@ description: 目标导向的数据调整/标定/造数通用技术 skill。当�
 | **依赖结构**：相关 / 协方差 / copula（Gaussian/t/Clayton）/ Iman-Conover / Vale-Maurelli / 混合类型联合 | `modules/dependence.md` | `build_latents`, `iman_conover`, `gaussian_copula`, `t_copula`, `clayton_copula`, `nonnormal_data`, `mixed_copula`, `correlation_matrix_block`, `partial_corr`, `vif` |
 | **回归 / GLM**：线性 / logistic / Poisson / multinomial / ordinal / quantile + ANOVA / 配对 / 两样本 / 列联表 | `modules/regression.md` | `regression_dataset`, `logistic_dataset`, `poisson_regression_dataset`, `multinomial_logit_dataset`, `ordinal_logit_dataset`, `quantile_regression_dataset`, `anova_design`, `paired_data`, `two_sample`, `contingency_table` |
 | **多层 / 心理测量**：ICC 多层 / Likert+α / 因子模型 / IRT 2PL/GRM / 多评分者 / 中介-调节 | `modules/multilevel.md` | `icc_rebuild`, `likertize`, `rebuild_block`, `factor_model_sample`, `irt_2pl_data`, `irt_grm_data`, `multi_rater`, `mixed_effects_dataset`, `panel_data` |
-| **时间序列 / 序列**：AR / ARMA / GARCH 波动率 / VAR 多元 / Markov / HMM / Hawkes 自激点过程 | `modules/timeseries.md` | `ts_ar`, `ts_arma`, `ts_garch`, `ts_var`, `markov_chain`, `fit_markov`, `hmm_data`, `hawkes_process`, `count_data` |
-| **因果 / 实验**：DAG/SCM / AB / IPW / propensity / DiD / RDD / IV / cluster RCT / 生存 / 竞争风险 / 复发 | `modules/causal.md` | `dag_sample`, `ab_test_data`, `ipw_weights`, `propensity_match`, `did_data`, `rdd_data`, `iv_data`, `cluster_rct`, `survival_data`, `competing_risks_data`, `recurrent_events_data` |
-| **网络 / 空间**：ER / BA / WS / SBM 图 + 空间点模式 / 高斯随机场 / Moran's I | `modules/networks-spatial.md` | `graph_er`, `graph_ba`, `graph_ws`, `graph_sbm`, `spatial_points`, `spatial_field`, `morans_i` |
-| **ML 基准**：classification target AUC + 回归基准 + 概念漂移 + 异常 + SMOTE + 推荐系统 + 低秩 + 聚类 + 对抗 + 标签噪声 + Bayesian | `modules/ml-benchmarks.md` | `classification_dataset`, `regression_benchmark`, `concept_drift_data`, `anomaly_dataset`, `smote`, `recsys_explicit`, `recsys_implicit`, `low_rank_data`, `cluster_data`, `adversarial_perturb`, `label_noise`, `prior_dataset`, `metropolis_posterior` |
+| **时间序列 / 序列**：AR / ARMA / GARCH 波动率 / VAR 多元 / Markov / HMM / Hawkes 自激 / **TS 异常注入** / **变点检测** | `modules/timeseries.md` | `ts_ar`, `ts_arma`, `ts_garch`, `ts_var`, `markov_chain`, `fit_markov`, `hmm_data`, `hawkes_process`, `count_data`, `ts_anomaly_inject`, `change_point_series` |
+| **因果 / 实验**：DAG/SCM / AB / IPW / propensity / DiD / RDD / IV / cluster RCT / 生存 / 竞争风险 / 复发 / **HTE-CATE** / **合成控制** / **staggered DiD** / **层级 Bayes** | `modules/causal.md` | `dag_sample`, `ab_test_data`, `ipw_weights`, `propensity_match`, `did_data`, `rdd_data`, `iv_data`, `cluster_rct`, `survival_data`, `competing_risks_data`, `recurrent_events_data`, `hte_data`, `synthetic_control_data`, `staggered_did`, `hierarchical_bayes_data` |
+| **网络 / 空间**：ER/BA/WS/SBM 图 + 空间点/高斯场/Moran I + **知识图谱三元组** + **时序网络** | `modules/networks-spatial.md` | `graph_er`, `graph_ba`, `graph_ws`, `graph_sbm`, `spatial_points`, `spatial_field`, `morans_i`, `knowledge_graph_triples`, `temporal_network` |
+| **ML 基准**：classification target AUC / 回归基准 / 概念漂移 / 异常 / SMOTE / 推荐系统 / 低秩 / 聚类 / 对抗 / 标签噪声 / Bayesian / **cold-start** / **RL 轨迹** / **上下文 bandit** / **conformal** | `modules/ml-benchmarks.md` | `classification_dataset`, `regression_benchmark`, `concept_drift_data`, `anomaly_dataset`, `smote`, `recsys_explicit`, `recsys_implicit`, `low_rank_data`, `cluster_data`, `adversarial_perturb`, `label_noise`, `prior_dataset`, `metropolis_posterior`, `cold_start_recsys`, `rl_trajectories`, `bandit_data`, `conformal_calibration_set` |
+| **行业特定**：MMM 营销组合 / 离散选择条件 logit / 遗传 SNP+LD / LDA 主题文档 / 神经元 spike trains | `modules/domain-specific.md` | `marketing_mix_data`, `discrete_choice`, `snp_genotypes`, `lda_documents`, `spike_train` |
 | **多表 / 多维一致性**：关系表 / SCD / M:N / 父子聚合 / 时序顺序 / 业务规则 / 7 类校验 | `modules/multitable.md` | `relational_children`, `many_to_many`, `scd_type2`, `evolve_panel_state`, `funnel_data`, `enforce_constraints`, `check_referential_integrity`, `check_aggregate`, `check_temporal`, `check_identity`, `check_uniqueness`, `check_no_nulls`, `check_value_set` |
 | **诊断 / 隐私 / 重加权 / 缺失/异常**：KS / PSI / JS / Mahalanobis / Mardia / AD / chi-square GoF / discriminability / DP / rake / IPW / 缺失模式注入 / outliers | `modules/diagnostics-privacy.md` | `verify`, `report`, `ks_stat`, `psi`, `js_divergence`, `mahalanobis_outliers`, `mardia_normality`, `anderson_darling_normal`, `chi_square_gof`, `discriminability`, `cronbach_alpha`, `dp_noise`, `rake`, `inject_missing`, `inject_outliers`, `shift_group_effect`, `bootstrap_perturb`, `heteroscedastic_noise` |
 | **以上没现成闭式** | `modules/engine.md` §"通用标定循环" | `tune_scalar` 兜底 |
@@ -85,8 +86,9 @@ modules/                  按目标分类的深度文档（按需 Read，不要�
   ml-benchmarks.md       classification/regression/drift/anomaly/SMOTE/recsys/低秩/聚类/对抗/标签噪声/Bayesian
   multitable.md          关系表 / SCD / M:N / 时序演化 / 业务规则 / 7 校验器
   diagnostics-privacy.md 诊断 / 隐私 / 重加权 / 缺失/异常注入 / 异方差
-scripts/calibrate.py     100+ 函数，仅 numpy + Python stdlib（无 scipy）
-tests/test_calibrate.py  108+ 断言（每方法实测达标）
+  domain-specific.md     行业特定：MMM 营销组合 / 离散选择 / 遗传 SNP+LD / LDA / 神经元 spike
+scripts/calibrate.py     130+ 函数，仅 numpy + Python stdlib（无 scipy）
+tests/test_calibrate.py  129+ 断言（每方法实测达标）
 examples/                3 个端到端场景脚本（nonnormal / model_targets / scenarios）
 ```
 

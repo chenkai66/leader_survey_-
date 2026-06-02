@@ -1943,3 +1943,370 @@ def chi_square_gof(observed, expected):
     Returns (stat, df). Compare to χ²(df) critical value."""
     o = np.asarray(observed, float); e = np.asarray(expected, float)
     return float(((o - e) ** 2 / np.maximum(e, 1e-12)).sum()), len(o) - 1
+
+
+# ============================================================================
+# DEEPENING round 7: TS anomalies, KG, RL, bandits, HTE, synth-control, MMM,
+# discrete choice, SNPs, LDA, spike trains, cold-start, conformal calibration
+# ============================================================================
+
+# ----- Time-series anomaly injection -----
+def ts_anomaly_inject(x, point_rate=0.0, level_shift=None, seasonal_anomaly=None,
+                      drift_at=None, drift_slope=0.5, rng=None):
+    """Inject typed anomalies into a time series for anomaly-detection benchmarks.
+      point_rate:       fraction of points pulled to ±k·SD spikes (point anomalies)
+      level_shift:      list of (t, delta) — at time t, level shifts by delta
+      seasonal_anomaly: (t_start, t_end, multiplier) — multiply window by factor
+      drift_at:         start time for linear drift; slope per step thereafter
+    Returns (x_with_anom, labels: 0=normal, 1=anomaly)."""
+    rng = rng or np.random.default_rng()
+    x = np.asarray(x, float).copy(); n = len(x); labels = np.zeros(n, int)
+    if point_rate > 0:
+        idx = rng.choice(n, max(1, int(point_rate * n)), replace=False)
+        sd = x.std() or 1.0
+        x[idx] += np.where(rng.random(len(idx)) < 0.5, -1, 1) * 5 * sd
+        labels[idx] = 1
+    for (t, delta) in (level_shift or []):
+        x[t:] += delta; labels[t:t + 20] = 1                        # mark first 20 post-shift
+    if seasonal_anomaly:
+        t0, t1, m = seasonal_anomaly; x[t0:t1] *= m; labels[t0:t1] = 1
+    if drift_at is not None:
+        x[drift_at:] += drift_slope * np.arange(n - drift_at); labels[drift_at:] = 1
+    return x, labels
+
+
+def change_point_series(n, change_points, level_per_segment, noise_sd=1.0, rng=None):
+    """Piecewise-constant mean with known change points + Gaussian noise. Returns
+    (series, true_segment_id). For change-point detection benchmarks."""
+    rng = rng or np.random.default_rng()
+    seg_id = np.zeros(n, int); cps = [0] + list(change_points) + [n]
+    for k in range(len(cps) - 1): seg_id[cps[k]:cps[k + 1]] = k
+    means = np.asarray(level_per_segment, float)
+    return means[seg_id] + rng.normal(0, noise_sd, n), seg_id
+
+
+# ----- Knowledge graph / triples -----
+def knowledge_graph_triples(n_entities, n_relations, n_triples, schema=None, rng=None):
+    """Sample (head, relation, tail) triples. `schema` optional dict
+    {relation_id: (head_type_set, tail_type_set)} restricts valid combinations
+    (entities partitioned into n_entity_types groups). Returns DataFrame."""
+    import pandas as pd
+    rng = rng or np.random.default_rng()
+    if schema is None:
+        triples = np.column_stack([
+            rng.integers(0, n_entities, n_triples),
+            rng.integers(0, n_relations, n_triples),
+            rng.integers(0, n_entities, n_triples)])
+    else:                                                # respect schema types
+        n_types = max(max(s[0]) for s in schema.values()) + 1
+        entity_type = rng.integers(0, n_types, n_entities)
+        rows = []
+        for _ in range(n_triples):
+            r = rng.integers(0, n_relations); types_h, types_t = schema.get(int(r), ({0}, {0}))
+            h_pool = np.where(np.isin(entity_type, list(types_h)))[0]
+            t_pool = np.where(np.isin(entity_type, list(types_t)))[0]
+            if len(h_pool) == 0 or len(t_pool) == 0: continue
+            rows.append((rng.choice(h_pool), r, rng.choice(t_pool)))
+        triples = np.asarray(rows)
+    df = pd.DataFrame(triples, columns=["head", "relation", "tail"])
+    return df.drop_duplicates().reset_index(drop=True)
+
+
+# ----- Temporal networks (timestamped edges) -----
+def temporal_network(n_nodes, n_periods, edge_rate=0.05, persistence=0.5, rng=None):
+    """Time-stamped edge stream. Each pair has base prob edge_rate per period;
+    `persistence` keeps last period's edges with this prob (correlated dynamics).
+    Returns DataFrame [t, u, v]."""
+    import pandas as pd
+    rng = rng or np.random.default_rng()
+    rows = []; active = set()
+    for t in range(n_periods):
+        new_active = set()
+        for (u, v) in active:                            # persistence
+            if rng.random() < persistence: new_active.add((u, v))
+        for u in range(n_nodes):                         # birth
+            for v in range(u + 1, n_nodes):
+                if (u, v) not in new_active and rng.random() < edge_rate:
+                    new_active.add((u, v))
+        for (u, v) in new_active: rows.append((t, u, v))
+        active = new_active
+    return pd.DataFrame(rows, columns=["t", "u", "v"])
+
+
+# ----- RL trajectories -----
+def rl_trajectories(n_episodes, n_states, n_actions, max_steps=50,
+                    transition=None, reward_means=None, gamma=0.95, policy=None,
+                    rng=None):
+    """Simulate RL episodes in a finite MDP. transition[s,a]→next state distribution
+    (default uniform random); reward_means[s,a]→mean reward (default randn).
+    policy(state, rng)→action (default ε-greedy random). Returns DataFrame with
+    episode/step/s/a/r/s_next/done + per-episode discounted return."""
+    import pandas as pd
+    rng = rng or np.random.default_rng()
+    if transition is None:
+        transition = rng.dirichlet(np.ones(n_states), size=(n_states, n_actions))
+    if reward_means is None:
+        reward_means = rng.standard_normal((n_states, n_actions))
+    if policy is None:
+        policy = lambda s, r: r.integers(0, n_actions)
+    rows = []
+    for ep in range(n_episodes):
+        s = rng.integers(0, n_states); G = 0.0
+        for t in range(max_steps):
+            a = int(policy(s, rng))
+            r = reward_means[s, a] + rng.normal(0, 0.5)
+            s_next = rng.choice(n_states, p=transition[s, a])
+            G += (gamma ** t) * r
+            rows.append((ep, t, s, a, r, s_next, t == max_steps - 1))
+            s = s_next
+    df = pd.DataFrame(rows, columns=["episode", "step", "s", "a", "r", "s_next", "done"])
+    returns = df.groupby("episode").r.apply(
+        lambda r: sum(gamma ** i * v for i, v in enumerate(r))).rename("return")
+    return df.merge(returns, on="episode")
+
+
+# ----- Contextual multi-armed bandit -----
+def bandit_data(n_rounds, n_arms, context_dim, true_thetas=None, noise_sd=1.0,
+                policy="random", rng=None):
+    """Linear contextual bandit. Each round: context x ~ N(0,I)^d; reward of arm a
+    = x · true_thetas[a] + noise. true_thetas (n_arms, context_dim) default
+    random. policy: 'random' (default) | 'greedy_oracle' (best per context).
+    Returns DataFrame [round, context_*, arm, reward, optimal_arm, regret]."""
+    import pandas as pd
+    rng = rng or np.random.default_rng()
+    Theta = true_thetas if true_thetas is not None else rng.standard_normal((n_arms, context_dim))
+    X = rng.standard_normal((n_rounds, context_dim))
+    expected = X @ Theta.T                                          # (n_rounds, n_arms)
+    optimal = expected.argmax(1)
+    if policy == "random":
+        arm = rng.integers(0, n_arms, n_rounds)
+    else:
+        arm = optimal
+    reward = expected[np.arange(n_rounds), arm] + rng.normal(0, noise_sd, n_rounds)
+    regret = expected[np.arange(n_rounds), optimal] - expected[np.arange(n_rounds), arm]
+    df = pd.DataFrame(X, columns=[f"x{i+1}" for i in range(context_dim)])
+    df["arm"] = arm; df["reward"] = reward; df["optimal_arm"] = optimal; df["regret"] = regret
+    return df
+
+
+# ----- Conformal prediction calibration -----
+def conformal_calibration_set(predictions, true_labels, alpha=0.1, mode="classification"):
+    """Split-conformal nonconformity scores. Returns the (1-alpha)-quantile q such
+    that |score| ≤ q forms a valid prediction interval / set.
+      mode='classification': predictions is (n, K) softmax probs; score = 1 - p[true]
+      mode='regression':     predictions is (n,) point pred; score = |y - pred|
+    For new test points, include all classes/values with score ≤ q."""
+    pred = np.asarray(predictions, float); y = np.asarray(true_labels)
+    if mode == "classification":
+        scores = 1 - pred[np.arange(len(y)), y]
+    else:
+        scores = np.abs(y - pred)
+    n = len(scores)
+    return float(np.quantile(scores, np.ceil((n + 1) * (1 - alpha)) / n, method="higher"))
+
+
+# ----- HTE (Heterogeneous Treatment Effect / CATE) -----
+def hte_data(n, n_features=3, treatment_share=0.5, baseline_fn=None,
+             cate_fn=None, noise_sd=1.0, X_corr=None, rng=None):
+    """Generate data with heterogeneous treatment effect: y = baseline_fn(X) +
+    T·cate_fn(X) + ε. cate_fn returns per-row CATE (X[:,0] dominant by default).
+    Useful for causal forests / meta-learners (S-, T-, X-, R-, DR-Learner) tests."""
+    import pandas as pd
+    rng = rng or np.random.default_rng()
+    R = np.eye(n_features) if X_corr is None else nearest_pd(X_corr)
+    X = rng.standard_normal((n, n_features)) @ np.linalg.cholesky(R).T
+    if baseline_fn is None: baseline_fn = lambda X: 0.5 * X[:, 0]
+    if cate_fn is None:     cate_fn = lambda X: 1.0 + 0.8 * X[:, 0]    # heterogeneous in X[:,0]
+    treat = (rng.random(n) < treatment_share).astype(int)
+    cate = cate_fn(X)
+    y = baseline_fn(X) + treat * cate + rng.normal(0, noise_sd, n)
+    df = pd.DataFrame(X, columns=[f"x{i+1}" for i in range(n_features)])
+    df["treat"] = treat; df["y"] = y; df["true_cate"] = cate
+    return df
+
+
+# ----- Synthetic control -----
+def synthetic_control_data(n_units, n_periods, treated_idx=0, treatment_time=None,
+                           treatment_effect=2.0, n_factors=2, noise_sd=0.3, rng=None):
+    """Pre/post panel with a single treated unit and donor pool. Each unit's
+    outcome is loaded on `n_factors` shared time factors → other units can be
+    weighted to reconstruct the treated counterfactual (Abadie). Returns long
+    DataFrame [unit, time, y] + true effect at treated post-time."""
+    import pandas as pd
+    rng = rng or np.random.default_rng()
+    if treatment_time is None: treatment_time = n_periods // 2
+    F = rng.standard_normal((n_periods, n_factors))                  # time factors
+    L = rng.standard_normal((n_units, n_factors))                    # unit loadings
+    Y = L @ F.T + rng.normal(0, noise_sd, (n_units, n_periods))
+    # apply treatment
+    Y[treated_idx, treatment_time:] += treatment_effect
+    rows = [(u, t, Y[u, t]) for u in range(n_units) for t in range(n_periods)]
+    df = pd.DataFrame(rows, columns=["unit", "time", "y"])
+    df["treated"] = (df.unit == treated_idx) & (df.time >= treatment_time)
+    return df
+
+
+# ----- Staggered DiD (multiple treatment timings) -----
+def staggered_did(n_units, n_periods, treatment_times, treatment_effect=0.5,
+                  time_trend=0.05, noise_sd=1.0, baseline=0.0, rng=None):
+    """Staggered adoption DiD: each treated unit gets treated at its own time.
+    treatment_times: dict {unit_idx: t_first_treated} (others never treated).
+    Returns long DataFrame [unit, time, treated, post, treatment_effect, y]."""
+    import pandas as pd
+    rng = rng or np.random.default_rng()
+    fe = rng.normal(0, 0.5, n_units)
+    rows = []
+    for u in range(n_units):
+        t_treat = treatment_times.get(u, None)
+        for t in range(n_periods):
+            post = 1 if (t_treat is not None and t >= t_treat) else 0
+            y = baseline + fe[u] + time_trend * t + treatment_effect * post + rng.normal(0, noise_sd)
+            rows.append((u, t, int(t_treat is not None), post, treatment_effect * post, y))
+    return pd.DataFrame(rows, columns=["unit", "time", "ever_treated", "post", "true_effect", "y"])
+
+
+# ----- Hierarchical Bayes (random-effects shrinkage) -----
+def hierarchical_bayes_data(n_groups, n_per_group, hyper_mean=0.0, hyper_sd=1.0,
+                            within_sd=1.0, varying_n=None, rng=None):
+    """Two-level model: θ_g ~ N(hyper_mean, hyper_sd²); y_{gi} ~ N(θ_g, within_sd²).
+    Group means shrink toward hyper_mean (partial pooling). varying_n: optional
+    per-group sample size dict or array (else n_per_group for all). Returns long
+    DataFrame [group, y] + true group means."""
+    import pandas as pd
+    rng = rng or np.random.default_rng()
+    theta = rng.normal(hyper_mean, hyper_sd, n_groups)
+    rows = []
+    for g in range(n_groups):
+        ng = int(varying_n[g]) if varying_n is not None else n_per_group
+        for _ in range(ng):
+            rows.append((g, rng.normal(theta[g], within_sd)))
+    df = pd.DataFrame(rows, columns=["group", "y"])
+    truth = pd.DataFrame({"group": range(n_groups), "true_theta": theta})
+    return df, truth
+
+
+# ----- Marketing Mix Model (MMM) -----
+def marketing_mix_data(n_periods, channels, adstock_decay=0.5, saturation_alpha=2.0,
+                       saturation_gamma=0.5, baseline=10.0, noise_sd=1.0, rng=None):
+    """Simulate MMM: y_t = baseline + Σ_ch Hill(adstock(spend_ch)) + noise.
+    channels: dict {name: {'spend_sd': float, 'beta': float}} — beta = max effect.
+    adstock = geometric decay; Hill saturation = β·s^α/(s^α + γ^α).
+    Returns DataFrame [t, spend_<ch>..., y, adstock_<ch>...]."""
+    import pandas as pd
+    rng = rng or np.random.default_rng()
+    rows = {"t": list(range(n_periods))}
+    contribs = np.zeros(n_periods)
+    for ch, p in channels.items():
+        spend = np.abs(rng.normal(p.get("spend_sd", 10), p.get("spend_sd", 10) / 3, n_periods))
+        # adstock (geometric decay)
+        adstock = np.zeros(n_periods); s_prev = 0
+        for t in range(n_periods):
+            s_prev = spend[t] + adstock_decay * s_prev; adstock[t] = s_prev
+        # Hill saturation
+        sat = p["beta"] * (adstock ** saturation_alpha) / (adstock ** saturation_alpha + saturation_gamma ** saturation_alpha)
+        rows[f"spend_{ch}"] = spend; rows[f"adstock_{ch}"] = adstock
+        contribs += sat
+    rows["y"] = baseline + contribs + rng.normal(0, noise_sd, n_periods)
+    return pd.DataFrame(rows)
+
+
+# ----- Discrete choice / conditional logit -----
+def discrete_choice(n_individuals, n_alternatives, attribute_matrix, coefs, rng=None):
+    """Conditional logit: each individual picks 1 of n_alternatives based on
+    alternative attributes (no individual-specific intercepts). attribute_matrix:
+    (n_alternatives, n_attrs) or (n_individuals, n_alternatives, n_attrs).
+    P(choose j | indiv i) = exp(x_ij·coefs) / Σ_k exp(x_ik·coefs)."""
+    import pandas as pd
+    rng = rng or np.random.default_rng()
+    A = np.asarray(attribute_matrix, float); coefs = np.asarray(coefs, float)
+    if A.ndim == 2:                                  # broadcast attrs across individuals
+        utilities = A @ coefs                        # (n_alts,)
+        probs = np.exp(utilities - utilities.max()); probs /= probs.sum()
+        choices = rng.choice(n_alternatives, n_individuals, p=probs)
+    else:
+        utilities = (A * coefs).sum(-1)              # (n_indiv, n_alts)
+        u = utilities - utilities.max(1, keepdims=True)
+        probs = np.exp(u); probs /= probs.sum(1, keepdims=True)
+        choices = np.array([rng.choice(n_alternatives, p=probs[i]) for i in range(n_individuals)])
+    return pd.DataFrame({"individual": np.arange(n_individuals), "choice": choices})
+
+
+# ----- Genetic SNPs with linkage disequilibrium -----
+def snp_genotypes(n_individuals, n_snps, maf=None, ld_strength=0.3, rng=None):
+    """Generate SNP genotypes ∈ {0,1,2} (additive coding) with target minor allele
+    frequencies and approximate linkage disequilibrium between adjacent SNPs via
+    Gaussian copula. maf default = uniform in [0.05, 0.5]."""
+    rng = rng or np.random.default_rng()
+    if maf is None: maf = rng.uniform(0.05, 0.5, n_snps)
+    # AR(1) corr between SNPs in normal-score space
+    R = np.eye(n_snps)
+    for i in range(n_snps - 1): R[i, i+1] = R[i+1, i] = ld_strength
+    Z = rng.standard_normal((n_individuals, n_snps)) @ np.linalg.cholesky(nearest_pd(R)).T
+    U = _phi(Z)
+    geno = np.zeros((n_individuals, n_snps), int)
+    for j in range(n_snps):
+        # 2 alleles, allele frequency = maf[j]; genotype = binomial(2, maf[j]) given U
+        thr1 = (1 - maf[j]) ** 2
+        thr2 = thr1 + 2 * maf[j] * (1 - maf[j])
+        geno[:, j] = (U[:, j] > thr1).astype(int) + (U[:, j] > thr2).astype(int)
+    return geno
+
+
+# ----- LDA topic-model documents -----
+def lda_documents(n_docs, n_topics, vocab_size, doc_lengths=None,
+                  topic_word_concentration=0.1, doc_topic_concentration=0.5, rng=None):
+    """Simulate a corpus from LDA: each topic has a vocab distribution
+    (Dirichlet); each doc has a topic mixture (Dirichlet); each token is drawn
+    from a topic. Returns (doc_term_matrix (n_docs, vocab_size), true_doc_topics)."""
+    rng = rng or np.random.default_rng()
+    if doc_lengths is None: doc_lengths = rng.integers(50, 200, n_docs)
+    topic_word = rng.dirichlet(np.full(vocab_size, topic_word_concentration), size=n_topics)
+    doc_topic = rng.dirichlet(np.full(n_topics, doc_topic_concentration), size=n_docs)
+    dtm = np.zeros((n_docs, vocab_size), int)
+    for d in range(n_docs):
+        for _ in range(int(doc_lengths[d])):
+            z = rng.choice(n_topics, p=doc_topic[d])
+            w = rng.choice(vocab_size, p=topic_word[z])
+            dtm[d, w] += 1
+    return dtm, doc_topic
+
+
+# ----- Spike trains (neuroscience) -----
+def spike_train(n_neurons, T_seconds, base_rate=10.0, refractory_ms=2.0, rng=None):
+    """Poisson spike trains per neuron with refractory period. Returns list-of-
+    arrays (one array of spike times per neuron, in seconds)."""
+    rng = rng or np.random.default_rng()
+    refract_s = refractory_ms / 1000.0
+    trains = []
+    for _ in range(n_neurons):
+        spikes = []; t = 0.0
+        while t < T_seconds:
+            t += rng.exponential(1 / base_rate)
+            if not spikes or (t - spikes[-1] >= refract_s):
+                if t < T_seconds: spikes.append(t)
+        trains.append(np.array(spikes))
+    return trains
+
+
+# ----- Cold-start recommendation (feature-based) -----
+def cold_start_recsys(n_users, n_items, user_dim=5, item_dim=5,
+                      cross_signal_strength=1.0, history_per_user=3, rng=None):
+    """Cold-start: each user/item has feature vectors; affinity = u_feat·item_feat
+    + noise. Only `history_per_user` interactions observed per user (the rest
+    must be predicted from features). Returns (user_features, item_features,
+    observed_interactions df, true_affinities matrix)."""
+    import pandas as pd
+    rng = rng or np.random.default_rng()
+    U = rng.standard_normal((n_users, user_dim))
+    V = rng.standard_normal((n_items, item_dim))
+    # project to same dim if differ via random map
+    dim = min(user_dim, item_dim)
+    affinity = cross_signal_strength * (U[:, :dim] @ V[:, :dim].T) + rng.normal(0, 0.5, (n_users, n_items))
+    rows = []
+    for u in range(n_users):
+        # sample history_per_user items proportional to affinity (positive bias)
+        p = np.exp(affinity[u] - affinity[u].max()); p /= p.sum()
+        items = rng.choice(n_items, size=min(history_per_user, n_items), replace=False, p=p)
+        for it in items:
+            rows.append((u, it, affinity[u, it]))
+    return U, V, pd.DataFrame(rows, columns=["user", "item", "rating"]), affinity
