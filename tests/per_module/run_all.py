@@ -1,6 +1,6 @@
 """Run every test_<module>.py and aggregate pass/fail."""
 import subprocess, sys, glob, os
-HERE = os.path.dirname(__file__)
+HERE = os.path.dirname(os.path.abspath(__file__))   # absolute, never empty
 test_files = sorted(f for f in glob.glob(os.path.join(HERE, "test_*.py")) if "_common" not in f)
 totals = {"pass": 0, "fail": 0}
 failed = []
