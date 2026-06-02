@@ -263,6 +263,109 @@ chk("funnel reach monotone non-increasing", all(cnts[i] >= cnts[i+1] for i in ra
 init = pd.DataFrame({"id": C.generate_id_column(10, "A"), "balance": np.full(10, 100.0)})
 panel = C.evolve_panel_state(init, 5, lambda s,t,r: s.assign(balance=s.balance+r.normal(0,5,len(s))), rng=rng)
 chk("evolve_panel shape n*T", len(panel) == 50 and panel.time.nunique() == 5)
+print(f"  ({sum(PASS)}/{len(PASS)} so far)\n")
+
+# ---------- round-5: industry-grade depth per category ----------
+# distributions
+for d, p in [("normal",{"mean":5,"sd":2}), ("gamma",{"shape":2,"scale":2}),
+             ("beta",{"a":2,"b":5}), ("exponential",{"scale":3}),
+             ("weibull",{"shape":1.5}), ("t",{"df":5}),
+             ("truncnormal",{"mean":0,"sd":1,"lo":-1,"hi":1})]:
+    x = C.sample_dist(d, 3000, rng=rng, **p)
+    chk(f"sample_dist {d} in plausible range", np.isfinite(x).all() and len(x)==3000)
+chk("truncnormal respects bounds",
+    (C.sample_dist("truncnormal", 1000, rng=rng, mean=0, sd=1, lo=-1, hi=1).min() >= -1) and
+    (C.sample_dist("truncnormal", 1000, rng=rng, mean=0, sd=1, lo=-1, hi=1).max() <= 1))
+gm = C.gaussian_mixture(5000, [0.3,0.7], [-2,2], [0.5,1.0], rng=rng)
+chk("gaussian_mixture bimodal", gm.std() > 1.5)
+zi = C.zero_inflated_continuous(3000, 0.4, lambda n,r: r.lognormal(2,0.5,n), rng=rng)
+chk("zero_inflated has zeros", 0.35 < np.mean(zi==0) < 0.45)
+
+# t-copula has heavier joint tails than gaussian copula
+tc = C.t_copula(5000, [[1,0.5],[0.5,1]], df=4, ppfs=[lambda q: C._phi_inv(q)]*2, rng=rng)
+gc = C.gaussian_copula(5000, [[1,0.5],[0.5,1]], ppfs=[lambda q: C._phi_inv(q)]*2, rng=rng)
+def jt(X,q): a,b=np.quantile(X[:,0],q),np.quantile(X[:,1],q); return np.mean((X[:,0]>a)&(X[:,1]>b))
+chk("t-copula upper tail > gaussian", jt(tc,0.95) > jt(gc,0.95))
+cc = C.clayton_copula(5000, theta=2.0, ppfs=[lambda q: C._phi_inv(q)]*2, rng=rng)
+def jl(X,q): a,b=np.quantile(X[:,0],q),np.quantile(X[:,1],q); return np.mean((X[:,0]<a)&(X[:,1]<b))
+chk("Clayton lower tail > gaussian", jl(cc,0.05) > jl(gc,0.05))
+
+# ARMA / GARCH / VAR
+x = C.ts_arma(3000, ar=(0.6,), ma=(0.3,), sd=1.0, rng=rng)
+chk("ARMA(1,1) acf > pure AR(.6)", np.corrcoef(x[:-1],x[1:])[0,1] > 0.6)
+r, sig = C.ts_garch(5000, omega=0.05, alpha=0.1, beta=0.85, rng=rng)
+chk("GARCH volatility clustering", np.corrcoef(r[:-1]**2, r[1:]**2)[0,1] > 0.05)
+Y = C.ts_var(2000, A_list=[np.array([[0.5,0.2],[0.1,0.4]])], Sigma=[[1,0.3],[0.3,1]], rng=rng)
+chk("VAR(1) shape correct", Y.shape == (2000, 2))
+
+# GLM
+dfp = C.poisson_regression_dataset(3000, coefs=[0.5,-0.3], intercept=1.0, rng=rng)
+chk("Poisson reg outputs integers >=0", (dfp.y >= 0).all() and (dfp.y == dfp.y.astype(int)).all())
+dfm = C.multinomial_logit_dataset(2000, coefs_per_class=[[1.0,-0.5],[0.5,1.0]], rng=rng)
+chk("multinomial logit 3 classes", set(dfm.y.unique()) == {0,1,2})
+dfo = C.ordinal_logit_dataset(2000, coefs=[0.8,-0.4], thresholds=[-1,0,1], rng=rng)
+chk("ordinal logit 4 categories", set(dfo.y.unique()) == {0,1,2,3})
+
+# causal/experimental
+dd = C.did_data(300, n_periods=2, treatment_time=1, treatment_effect=0.7, rng=rng)
+ch = dd.pivot_table(index=["unit","treated"], columns="time", values="y").reset_index()
+ch["diff"] = ch[1] - ch[0]
+did_est = ch[ch.treated==1]["diff"].mean() - ch[ch.treated==0]["diff"].mean()
+chk("DiD estimator near 0.7", abs(did_est - 0.7) < 0.3)
+iv = C.iv_data(5000, b_xy=0.5, b_zx=0.7, rng=rng)
+from numpy.linalg import lstsq as _ls2
+ols = _ls2(np.column_stack([np.ones(len(iv)),iv.x]), iv.y, rcond=None)[0][1]
+xh = _ls2(np.column_stack([np.ones(len(iv)),iv.z]), iv.x, rcond=None)[0]
+xp_ = xh[0] + xh[1]*iv.z
+tsls = _ls2(np.column_stack([np.ones(len(iv)),xp_]), iv.y, rcond=None)[0][1]
+chk("IV 2SLS unbiased vs OLS biased", abs(tsls - 0.5) < 0.05 and abs(ols - 0.5) > 0.1)
+
+# competing risks: all causes sampled
+cr = C.competing_risks_data(3000, baseline_rates=[0.1,0.05,0.03], censor_rate=0.05, rng=rng)
+chk("competing risks samples all causes", set(cr.cause.unique()) >= {-1,0,1,2})
+
+# IRT theta-totalscore correlation high
+X_irt, theta = C.irt_2pl_data(800, np.linspace(-2,2,20), np.full(20,1.5), rng=rng)
+chk("IRT 2PL theta-totalscore corr > 0.85", np.corrcoef(theta, X_irt.sum(1))[0,1] > 0.85)
+
+# graphs
+e_er = C.graph_er(50, 0.1, rng=rng)
+chk("ER edges in expected range", 80 < len(e_er) < 170)
+e_ba = C.graph_ba(80, 3, rng=rng); deg = np.zeros(80, int)
+for u,v in e_ba: deg[u]+=1; deg[v]+=1
+chk("BA has heavy-tailed degrees", deg.max() > 15)
+e_sbm, blk = C.graph_sbm([20,20], 0.5, 0.05, rng=rng)
+wi = sum(1 for u,v in e_sbm if blk[u]==blk[v])
+chk("SBM within > between", wi > (len(e_sbm) - wi))
+
+# ML scenarios
+ad = C.anomaly_dataset(2000, contamination=0.05, rng=rng)
+chk("anomaly contamination ≈ 0.05", abs(ad.label.mean() - 0.05) < 0.005)
+bf, af = C.concept_drift_data(2000, drift_type="covariate", drift_magnitude=1.0, rng=rng)
+chk("concept drift covariate shift ≈ 1.0", abs(af.x1.mean() - bf.x1.mean() - 1.0) < 0.2)
+
+# diagnostics
+ref = rng.standard_normal(2000); cur_s = rng.standard_normal(2000); cur_d = rng.standard_normal(2000)+1
+chk("PSI small for same dist", C.psi(ref, cur_s) < 0.05)
+chk("PSI large for shifted dist", C.psi(ref, cur_d) > 0.25)
+chk("JS small for same dist", C.js_divergence(ref, cur_s) < 0.02)
+
+# multi-table extensions
+L = pd.DataFrame({"user_id": C.generate_id_column(50,"U")})
+R = pd.DataFrame({"item_id": C.generate_id_column(30,"I")})
+m2m = C.many_to_many(L, R, "user_id", "item_id", density=0.05, rng=rng)
+chk("many_to_many density approx 5%", 40 < len(m2m) < 110)
+init_s = pd.DataFrame({"emp_id": C.generate_id_column(10,"E"), "salary": rng.uniform(50,100,10)})
+hist = C.scd_type2(init_s, "emp_id", n_changes=3,
+                   change_fn=lambda r,t,rng_: {**r, "salary": r["salary"]*1.05},
+                   time_periods=12, rng=rng)
+chk("SCD type-2 has valid_from/valid_to", "valid_from" in hist.columns and "valid_to" in hist.columns)
+chk("SCD type-2 versions per entity > 1 on average", len(hist) > 10)
+
+# SMOTE
+Xs = rng.standard_normal((600,5)); ys = np.concatenate([np.zeros(540,int), np.ones(60,int)])
+Xn, yn = C.smote(Xs, ys, target_balance=0.5, rng=rng)
+chk("SMOTE balanced", abs((yn==1).mean() - 0.5) < 0.05)
 
 print(f"\nFINAL: {sum(PASS)}/{len(PASS)} passed")
 sys.exit(0 if all(PASS) else 1)

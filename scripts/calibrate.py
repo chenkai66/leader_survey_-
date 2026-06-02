@@ -1127,3 +1127,609 @@ def enforce_constraints(df, rules, action="report", verbose=True):
         elif action == "fix" and rest:
             out = rest[0](out, bad)
     return out, viols
+
+
+# ============================================================================
+# DEEPENING — round 5: industry-grade depth per category
+# ============================================================================
+
+# ----- distribution family helpers (unified API) -----
+def sample_dist(dist, n, rng=None, **params):
+    """Unified sampler. dist in {normal, lognormal, exponential, gamma, beta,
+    weibull, pareto, t, chi2, poisson, negbin, geometric, uniform, truncnormal}.
+    params per family (mean/sd / shape/scale / etc.). Returns (n,) array."""
+    rng = rng or np.random.default_rng()
+    if dist == "normal":      return rng.normal(params.get("mean", 0), params.get("sd", 1), n)
+    if dist == "lognormal":   return rng.lognormal(params.get("mu", 0), params.get("sigma", 1), n)
+    if dist == "exponential": return rng.exponential(params.get("scale", 1), n)
+    if dist == "gamma":       return rng.gamma(params["shape"], params.get("scale", 1), n)
+    if dist == "beta":        return rng.beta(params["a"], params["b"], n)
+    if dist == "weibull":     return rng.weibull(params["shape"], n) * params.get("scale", 1)
+    if dist == "pareto":      return (rng.pareto(params["shape"], n) + 1) * params.get("scale", 1)
+    if dist == "t":           return rng.standard_t(params["df"], n) * params.get("scale", 1) + params.get("loc", 0)
+    if dist == "chi2":        return rng.chisquare(params["df"], n)
+    if dist == "poisson":     return rng.poisson(params["lam"], n)
+    if dist == "negbin":      return count_data(n, params["mean"], dispersion=params.get("dispersion", 1), rng=rng)
+    if dist == "geometric":   return rng.geometric(params["p"], n)
+    if dist == "uniform":     return rng.uniform(params.get("lo", 0), params.get("hi", 1), n)
+    if dist == "truncnormal":
+        return truncated_normal(n, params.get("mean", 0), params.get("sd", 1),
+                                params.get("lo", -np.inf), params.get("hi", np.inf), rng=rng)
+    raise ValueError(f"unknown dist {dist!r}")
+
+
+def truncated_normal(n, mean=0.0, sd=1.0, lo=-np.inf, hi=np.inf, rng=None):
+    """Sample exactly n from N(mean,sd) truncated to [lo,hi] via inverse CDF
+    (no rejection — efficient even at extreme truncation)."""
+    rng = rng or np.random.default_rng()
+    a = (lo - mean) / sd; b = (hi - mean) / sd
+    Fa = _phi(np.array([a]))[0] if np.isfinite(a) else 0.0
+    Fb = _phi(np.array([b]))[0] if np.isfinite(b) else 1.0
+    u = rng.uniform(Fa, Fb, n)
+    return mean + sd * _phi_inv(u)
+
+
+def gaussian_mixture(n, weights, means, sds, rng=None):
+    """Sample from a 1-D Gaussian mixture. weights need not sum to 1 (normalized)."""
+    rng = rng or np.random.default_rng()
+    w = np.asarray(weights, float); w = w / w.sum()
+    k = rng.choice(len(w), size=n, p=w)
+    return rng.normal(np.asarray(means)[k], np.asarray(sds)[k])
+
+
+def zero_inflated_continuous(n, zero_prob, positive_sampler, rng=None):
+    """Many zeros + a continuous positive distribution (insurance claims, gene
+    expression, etc.). positive_sampler(n, rng) returns the non-zero values."""
+    rng = rng or np.random.default_rng()
+    x = positive_sampler(n, rng)
+    x = np.where(rng.random(n) < zero_prob, 0.0, x)
+    return x
+
+
+# ----- additional copulas (heavy-tail / asymmetric tail dependence) -----
+def t_copula(n, corr, df, ppfs, rng=None):
+    """Student-t copula: heavier tail dependence than Gaussian (joint extremes
+    co-occur more often). df→∞ recovers Gaussian. Marginals via empirical
+    rank-based quantiles to avoid needing the t-CDF."""
+    rng = rng or np.random.default_rng()
+    k = len(ppfs)
+    Z = rng.standard_normal((n, k)) @ np.linalg.cholesky(nearest_pd(corr)).T
+    W = rng.chisquare(df, n)
+    T = Z * np.sqrt(df / W)[:, None]                     # multivariate t
+    # uniform via empirical CDF per column (avoids needing F_t)
+    U = (np.argsort(np.argsort(T, axis=0), axis=0) + 0.5) / n
+    return np.column_stack([np.asarray(ppfs[j](U[:, j]), float) for j in range(k)])
+
+
+def clayton_copula(n, theta, ppfs, rng=None):
+    """Clayton (Archimedean) copula: lower-tail dependence (joint small values
+    co-occur). theta>0; theta→0 = independence; theta→∞ = perfect comonotonic.
+    Marshall-Olkin algorithm (works for any dimension k)."""
+    rng = rng or np.random.default_rng()
+    k = len(ppfs)
+    M = rng.gamma(1 / theta, 1, n)                       # mixing variable
+    E = rng.exponential(1, (n, k))
+    U = (1 + E / M[:, None]) ** (-1 / theta)
+    return np.column_stack([np.asarray(ppfs[j](U[:, j]), float) for j in range(k)])
+
+
+# ----- advanced time series -----
+def ts_arma(n, ar=(), ma=(), sd=1.0, mean=0.0, rng=None):
+    """ARMA(p,q): x_t = mean + Σ φ_i x_{t-i} + ε_t + Σ θ_j ε_{t-j}.
+    ar=φ coefficients, ma=θ coefficients."""
+    rng = rng or np.random.default_rng()
+    p, q = len(ar), len(ma); m = max(p, q) + 1
+    e = rng.normal(0, sd, n + m); x = np.zeros(n + m)
+    for t in range(m, n + m):
+        ar_part = sum(ar[i] * x[t - 1 - i] for i in range(p))
+        ma_part = sum(ma[j] * e[t - 1 - j] for j in range(q))
+        x[t] = ar_part + ma_part + e[t]
+    return x[m:] + mean
+
+
+def ts_garch(n, omega=0.05, alpha=0.1, beta=0.85, mean=0.0, rng=None):
+    """GARCH(1,1): r_t = mean + ε_t, ε_t = σ_t·z_t, σ_t² = ω + α·ε_{t-1}² + β·σ_{t-1}².
+    Stationary if α+β<1. Models volatility clustering (financial returns)."""
+    rng = rng or np.random.default_rng()
+    sig2 = np.zeros(n); eps = np.zeros(n)
+    sig2[0] = omega / max(1 - alpha - beta, 1e-6)              # unconditional var
+    eps[0] = np.sqrt(sig2[0]) * rng.standard_normal()
+    for t in range(1, n):
+        sig2[t] = omega + alpha * eps[t - 1] ** 2 + beta * sig2[t - 1]
+        eps[t] = np.sqrt(sig2[t]) * rng.standard_normal()
+    return mean + eps, np.sqrt(sig2)
+
+
+def ts_var(n, A_list, Sigma, mean=None, rng=None):
+    """Vector autoregressive VAR(p): y_t = c + Σ A_i y_{t-i} + ε_t, ε~N(0,Sigma).
+    A_list: list of (k,k) coefficient matrices, one per lag."""
+    rng = rng or np.random.default_rng()
+    p = len(A_list); k = A_list[0].shape[0]
+    mu = np.zeros(k) if mean is None else np.asarray(mean, float)
+    L = np.linalg.cholesky(nearest_pd(Sigma))
+    Y = np.zeros((n + p, k))
+    for t in range(p, n + p):
+        e = L @ rng.standard_normal(k)
+        Y[t] = mu + sum(A_list[i] @ Y[t - 1 - i] for i in range(p)) + e
+    return Y[p:]
+
+
+# ----- GLM regression datasets -----
+def poisson_regression_dataset(n, coefs, intercept=0.0, X_corr=None, rng=None):
+    """Count outcome with target rate ratios exp(coefs). y_i ~ Poisson(exp(η_i))."""
+    import pandas as pd
+    rng = rng or np.random.default_rng()
+    coefs = np.asarray(coefs, float); k = len(coefs)
+    R = np.eye(k) if X_corr is None else nearest_pd(X_corr)
+    X = rng.standard_normal((n, k)) @ np.linalg.cholesky(R).T
+    eta = intercept + X @ coefs
+    lam = np.exp(np.clip(eta, -20, 20))
+    df = pd.DataFrame(X, columns=[f"x{i+1}" for i in range(k)])
+    df["y"] = rng.poisson(lam)
+    return df
+
+
+def multinomial_logit_dataset(n, coefs_per_class, intercepts=None, X_corr=None, rng=None):
+    """K-class multinomial logit. coefs_per_class: (K-1, p) coefficients (class 0
+    = reference). Returns df with features + class label in {0..K-1}."""
+    import pandas as pd
+    rng = rng or np.random.default_rng()
+    B = np.asarray(coefs_per_class, float)         # (K-1, p)
+    K1, p = B.shape; K = K1 + 1
+    R = np.eye(p) if X_corr is None else nearest_pd(X_corr)
+    X = rng.standard_normal((n, p)) @ np.linalg.cholesky(R).T
+    a = np.zeros(K1) if intercepts is None else np.asarray(intercepts, float)
+    eta = X @ B.T + a                              # (n, K-1)
+    exp_eta = np.exp(np.clip(eta, -20, 20))
+    denom = 1 + exp_eta.sum(1, keepdims=True)
+    probs = np.column_stack([1 / denom.ravel(), exp_eta / denom])   # (n, K)
+    y = np.array([rng.choice(K, p=probs[i]) for i in range(n)])
+    df = pd.DataFrame(X, columns=[f"x{i+1}" for i in range(p)])
+    df["y"] = y
+    return df
+
+
+def ordinal_logit_dataset(n, coefs, thresholds, X_corr=None, rng=None):
+    """Proportional-odds ordinal logit. thresholds: K-1 increasing cut-points.
+    P(y≤k|x) = sigmoid(threshold_k - x·coefs)."""
+    import pandas as pd
+    rng = rng or np.random.default_rng()
+    coefs = np.asarray(coefs, float); thr = np.sort(np.asarray(thresholds, float))
+    p = len(coefs)
+    R = np.eye(p) if X_corr is None else nearest_pd(X_corr)
+    X = rng.standard_normal((n, p)) @ np.linalg.cholesky(R).T
+    eta = X @ coefs
+    cum = 1 / (1 + np.exp(-(thr[None, :] - eta[:, None])))          # P(y<=k)
+    u = rng.random(n)
+    y = (u[:, None] > cum).sum(1)
+    df = pd.DataFrame(X, columns=[f"x{i+1}" for i in range(p)])
+    df["y"] = y
+    return df
+
+
+def quantile_regression_dataset(n, coefs, intercept=0.0, scale=1.0,
+                                target_quantile=0.5, X_corr=None, rng=None):
+    """Generate data where the τ-th conditional quantile of y given X equals
+    intercept + X·coefs. Uses asymmetric Laplace noise positioned so its τ-th
+    quantile = 0."""
+    import pandas as pd
+    rng = rng or np.random.default_rng()
+    coefs = np.asarray(coefs, float); k = len(coefs)
+    R = np.eye(k) if X_corr is None else nearest_pd(X_corr)
+    X = rng.standard_normal((n, k)) @ np.linalg.cholesky(R).T
+    # asymmetric Laplace: E ~ exp(rate τ) if u>τ else -exp(rate 1-τ)
+    u = rng.random(n)
+    e = np.where(u > target_quantile,
+                 rng.exponential(scale / (1 - target_quantile), n),
+                 -rng.exponential(scale / target_quantile, n))
+    y = intercept + X @ coefs + e
+    df = pd.DataFrame(X, columns=[f"x{i+1}" for i in range(k)])
+    df["y"] = y
+    return df
+
+
+# ----- causal/experimental designs -----
+def propensity_match(treatment, propensity, ratio=1, caliper=None):
+    """1:k nearest-neighbor matching on propensity score. Returns indices of
+    matched pairs (treated_idx, [control_idx,...]). caliper=None means no max
+    distance; else only matches within ±caliper on the propensity scale."""
+    t = np.asarray(treatment, int); ps = np.asarray(propensity, float)
+    treated = np.where(t == 1)[0]; control = np.where(t == 0)[0]
+    used = set(); pairs = []
+    for i in treated:
+        avail = [c for c in control if c not in used]
+        if not avail: break
+        dists = np.abs(ps[avail] - ps[i])
+        order = np.argsort(dists)
+        picks = []
+        for j in order:
+            if caliper is None or dists[j] <= caliper:
+                picks.append(avail[j]); used.add(avail[j])
+                if len(picks) >= ratio: break
+        if picks: pairs.append((i, picks))
+    return pairs
+
+
+def did_data(n_per_group, n_periods=2, treatment_time=1, treated_share=0.5,
+             treatment_effect=0.5, time_trend=0.1, baseline=0.0, noise_sd=1.0, rng=None):
+    """Difference-in-differences setup: units × periods, treatment applied at
+    `treatment_time` to `treated_share` of units. Returns long-format df with
+    unit/time/treated/post/treated_post/y."""
+    import pandas as pd
+    rng = rng or np.random.default_rng()
+    n = n_per_group * 2; treated = np.zeros(n, int)
+    treated[:int(n * treated_share)] = 1; rng.shuffle(treated)
+    fe = rng.normal(0, 0.5, n)                                         # unit FE
+    rows = []
+    for u in range(n):
+        for t in range(n_periods):
+            post = 1 if t >= treatment_time else 0
+            tp = post * treated[u]
+            y = baseline + fe[u] + time_trend * t + treatment_effect * tp + rng.normal(0, noise_sd)
+            rows.append((u, t, treated[u], post, tp, y))
+    return pd.DataFrame(rows, columns=["unit", "time", "treated", "post", "treated_post", "y"])
+
+
+def rdd_data(n, cutoff=0.0, treatment_effect=0.5, slope_left=1.0, slope_right=1.2,
+             noise_sd=1.0, running_dist="normal", rng=None):
+    """Sharp regression-discontinuity: T=1 iff running ≥ cutoff. y = f(running) +
+    T·effect + ε. Returns df with running/treated/y."""
+    import pandas as pd
+    rng = rng or np.random.default_rng()
+    if running_dist == "normal":     R = rng.normal(cutoff, 1.0, n)
+    elif running_dist == "uniform":  R = rng.uniform(cutoff - 2, cutoff + 2, n)
+    else: raise ValueError(running_dist)
+    T = (R >= cutoff).astype(int)
+    slope = np.where(T == 1, slope_right, slope_left)
+    y = slope * (R - cutoff) + treatment_effect * T + rng.normal(0, noise_sd, n)
+    return pd.DataFrame({"running": R, "treated": T, "y": y})
+
+
+def iv_data(n, b_xy=0.5, b_zx=0.7, confounder_strength=0.5, rng=None):
+    """Instrumental-variable setup: Z → X → Y plus unobserved U → X and U → Y
+    (so OLS of Y~X is biased; 2SLS using Z is unbiased). Returns df with z/x/y/u."""
+    import pandas as pd
+    rng = rng or np.random.default_rng()
+    U = rng.standard_normal(n)
+    Z = rng.standard_normal(n)
+    X = b_zx * Z + confounder_strength * U + rng.standard_normal(n) * 0.5
+    Y = b_xy * X + confounder_strength * U + rng.standard_normal(n)
+    return pd.DataFrame({"z": Z, "x": X, "y": Y, "u": U})
+
+
+def cluster_rct(n_clusters, n_per_cluster, treatment_effect=0.5, icc=0.1,
+                baseline=0.0, noise_sd=1.0, rng=None):
+    """Cluster-randomized trial: clusters (schools/clinics) are randomized; each
+    cluster's units share a random intercept. Inflates SE vs individual RCT."""
+    import pandas as pd
+    rng = rng or np.random.default_rng()
+    cl_treat = rng.choice([0, 1], size=n_clusters)
+    sb = np.sqrt(icc); sw = np.sqrt(max(1 - icc, 1e-6))
+    rows = []
+    for c in range(n_clusters):
+        u = rng.normal(0, sb)
+        for _ in range(n_per_cluster):
+            y = baseline + u + treatment_effect * cl_treat[c] + rng.normal(0, sw * noise_sd)
+            rows.append((c, cl_treat[c], y))
+    return pd.DataFrame(rows, columns=["cluster", "treated", "y"])
+
+
+# ----- survival extensions -----
+def competing_risks_data(n, baseline_rates, hazard_ratios=None, X=None,
+                         censor_rate=0.1, rng=None):
+    """K competing causes of failure. baseline_rates: list of λ_k. Each subject's
+    time = min of independent Exp(λ_k·exp(β_k·X)) + Exp(censor_rate).
+    cause = argmin (or -1 if censored). Returns df with time/cause/x_*."""
+    import pandas as pd
+    rng = rng or np.random.default_rng()
+    K = len(baseline_rates)
+    if X is None: X = np.zeros((n, 0))
+    X = np.asarray(X, float).reshape(n, -1)
+    HRs = hazard_ratios or [None] * K
+    T_k = np.zeros((n, K))
+    for k in range(K):
+        if X.shape[1]:
+            beta = np.log(np.asarray(HRs[k])) if HRs[k] is not None else np.zeros(X.shape[1])
+            lam = baseline_rates[k] * np.exp(X @ beta)        # (n,) array
+            T_k[:, k] = rng.exponential(1 / lam)              # element-wise
+        else:
+            T_k[:, k] = rng.exponential(1 / baseline_rates[k], n)  # explicit size=n
+    cause = np.argmin(T_k, axis=1)
+    T = T_k.min(axis=1)
+    C = rng.exponential(1 / max(censor_rate, 1e-9), n)
+    obs = np.minimum(T, C); event = T <= C
+    out = pd.DataFrame({"time": obs, "cause": np.where(event, cause, -1)})
+    for j in range(X.shape[1]): out[f"x{j+1}"] = X[:, j]
+    return out
+
+
+def recurrent_events_data(n, baseline_rate, max_time, frailty_sd=0.5, rng=None):
+    """Recurrent (Poisson) events per subject with shared frailty Z_i ~ LogN
+    inflating their event rate. Returns long-format df with subject/time."""
+    import pandas as pd
+    rng = rng or np.random.default_rng()
+    frailty = np.exp(rng.normal(0, frailty_sd, n))
+    rows = []
+    for i in range(n):
+        rate = baseline_rate * frailty[i]; t = 0.0
+        while True:
+            t += rng.exponential(1 / rate)
+            if t > max_time: break
+            rows.append((i, t))
+    return pd.DataFrame(rows, columns=["subject", "time"])
+
+
+# ----- IRT (item response theory) -----
+def irt_2pl_data(n_persons, item_difficulty, item_discrimination, theta_sd=1.0, rng=None):
+    """2PL IRT: P(correct | theta) = sigmoid(a·(theta − b)) per item.
+    item_difficulty: array b (n_items,); item_discrimination: array a (n_items,).
+    Returns (n_persons, n_items) binary matrix + theta vector."""
+    rng = rng or np.random.default_rng()
+    b = np.asarray(item_difficulty, float); a = np.asarray(item_discrimination, float)
+    n_items = len(b)
+    theta = rng.normal(0, theta_sd, n_persons)
+    P = 1 / (1 + np.exp(-a[None, :] * (theta[:, None] - b[None, :])))
+    X = (rng.random((n_persons, n_items)) < P).astype(int)
+    return X, theta
+
+
+def irt_grm_data(n_persons, item_discrimination, item_thresholds, theta_sd=1.0, rng=None):
+    """Graded Response Model (ordinal IRT): item_thresholds[i] = list of K-1
+    increasing cut-points for item i (each item can have its own K)."""
+    rng = rng or np.random.default_rng()
+    theta = rng.normal(0, theta_sd, n_persons)
+    a = np.asarray(item_discrimination, float); J = len(a)
+    items = np.zeros((n_persons, J), int)
+    for j in range(J):
+        thr = np.sort(np.asarray(item_thresholds[j], float))
+        cum = 1 / (1 + np.exp(-a[j] * (theta[:, None] - thr[None, :])))
+        # P(y≥k) = cum_k → cell probs = diff; sample via rank
+        u = rng.random(n_persons)
+        items[:, j] = (u[:, None] < cum).sum(1)
+    return items, theta
+
+
+# ----- network / graph generators (edge-list format, no networkx) -----
+def graph_er(n, p, directed=False, rng=None):
+    """Erdős-Rényi G(n,p): each unordered pair (or ordered, if directed) is an
+    edge independently with probability p. Returns list of (u,v) tuples."""
+    rng = rng or np.random.default_rng()
+    edges = []
+    for i in range(n):
+        for j in (range(n) if directed else range(i + 1, n)):
+            if i != j and rng.random() < p: edges.append((i, j))
+    return edges
+
+
+def graph_ba(n, m, rng=None):
+    """Barabási-Albert preferential attachment. Start with m+1 fully connected
+    nodes; each new node connects to m existing chosen with prob ∝ degree.
+    Produces heavy-tailed (power-law) degree distribution."""
+    rng = rng or np.random.default_rng()
+    edges = [(i, j) for i in range(m + 1) for j in range(i + 1, m + 1)]
+    deg = np.zeros(n, int)
+    for i in range(m + 1):
+        deg[i] = m
+    for v in range(m + 1, n):
+        probs = deg[:v] / deg[:v].sum()
+        targets = rng.choice(v, size=m, replace=False, p=probs)
+        for t in targets:
+            edges.append((t, v)); deg[t] += 1; deg[v] += 1
+    return edges
+
+
+def graph_ws(n, k, p, rng=None):
+    """Watts-Strogatz small-world: ring lattice with k nearest neighbors, each
+    edge rewired with prob p. Captures high clustering + short path lengths."""
+    rng = rng or np.random.default_rng()
+    edges = set()
+    for i in range(n):
+        for j in range(1, k // 2 + 1):
+            edges.add((i, (i + j) % n))
+    out = []
+    for (u, v) in edges:
+        if rng.random() < p:
+            new = rng.integers(0, n)
+            while new == u or (u, new) in edges or (new, u) in edges:
+                new = rng.integers(0, n)
+            out.append((u, int(new)))
+        else:
+            out.append((u, v))
+    return out
+
+
+def graph_sbm(block_sizes, p_in, p_out, rng=None):
+    """Stochastic Block Model: within-block edge prob p_in, between-block p_out.
+    block_sizes = list of community sizes. Returns (edges, block_membership)."""
+    rng = rng or np.random.default_rng()
+    block = np.concatenate([np.full(s, k) for k, s in enumerate(block_sizes)])
+    n = len(block); edges = []
+    for i in range(n):
+        for j in range(i + 1, n):
+            p = p_in if block[i] == block[j] else p_out
+            if rng.random() < p: edges.append((i, j))
+    return edges, block
+
+
+# ----- ML benchmark scenarios -----
+def regression_benchmark(n, n_features=5, target_r2=0.5, noise_type="normal",
+                         feature_corr=None, rng=None):
+    """Regression benchmark with calibrated R². noise_type in
+    {'normal','heavy_t','heteroscedastic'} for realism variants."""
+    rng = rng or np.random.default_rng()
+    R = np.eye(n_features) if feature_corr is None else nearest_pd(feature_corr)
+    X = rng.standard_normal((n, n_features)) @ np.linalg.cholesky(R).T
+    w = rng.standard_normal(n_features); signal = X @ w
+    var_s = signal.var()
+    noise_sd = np.sqrt(var_s * (1 - target_r2) / max(target_r2, 1e-9))
+    if   noise_type == "normal":          e = rng.normal(0, noise_sd, n)
+    elif noise_type == "heavy_t":         e = rng.standard_t(4, n) * noise_sd / np.sqrt(2)
+    elif noise_type == "heteroscedastic": e = rng.normal(0, noise_sd * (0.5 + np.abs(X[:, 0])))
+    else: raise ValueError(noise_type)
+    import pandas as pd
+    df = pd.DataFrame(X, columns=[f"x{i+1}" for i in range(n_features)])
+    df["y"] = signal + e
+    return df
+
+
+def concept_drift_data(n, n_features=5, drift_type="covariate", drift_magnitude=1.0,
+                       split=0.5, rng=None):
+    """Generate (df_before, df_after) with controlled distribution drift between
+    halves. drift_type:
+      'covariate' = X means shift in 'after' (label conditional unchanged)
+      'label'     = P(y|x) shifts (coefs change)
+      'prior'     = class balance shifts (binary outcome)
+    Useful for testing drift detectors / online learning."""
+    rng = rng or np.random.default_rng()
+    n0 = int(n * split); n1 = n - n0
+    X0 = rng.standard_normal((n0, n_features))
+    coefs = rng.standard_normal(n_features)
+    y0 = (X0 @ coefs + rng.standard_normal(n0)) > 0
+    if drift_type == "covariate":
+        X1 = rng.standard_normal((n1, n_features)) + drift_magnitude
+        y1 = (X1 @ coefs + rng.standard_normal(n1)) > 0
+    elif drift_type == "label":
+        X1 = rng.standard_normal((n1, n_features))
+        y1 = (X1 @ (coefs + drift_magnitude * np.ones_like(coefs)) + rng.standard_normal(n1)) > 0
+    elif drift_type == "prior":
+        X1 = rng.standard_normal((n1, n_features))
+        y1 = (X1 @ coefs + drift_magnitude + rng.standard_normal(n1)) > 0
+    else: raise ValueError(drift_type)
+    import pandas as pd
+    cols = [f"x{i+1}" for i in range(n_features)]
+    return (pd.DataFrame(np.column_stack([X0, y0.astype(int)]), columns=cols + ["y"]),
+            pd.DataFrame(np.column_stack([X1, y1.astype(int)]), columns=cols + ["y"]))
+
+
+def anomaly_dataset(n, n_features=5, contamination=0.05, normal_sampler=None,
+                    anomaly_sampler=None, rng=None):
+    """Mostly-normal data with a small fraction of anomalies (for outlier-detection
+    benchmarks). Returns df with label 0=normal, 1=anomaly."""
+    import pandas as pd
+    rng = rng or np.random.default_rng()
+    n_anom = int(round(n * contamination))
+    n_norm = n - n_anom
+    if normal_sampler is None:
+        normal_sampler = lambda m, r: r.standard_normal((m, n_features))
+    if anomaly_sampler is None:
+        anomaly_sampler = lambda m, r: r.standard_normal((m, n_features)) * 3 + 5
+    X = np.vstack([normal_sampler(n_norm, rng), anomaly_sampler(n_anom, rng)])
+    y = np.concatenate([np.zeros(n_norm, int), np.ones(n_anom, int)])
+    perm = rng.permutation(n)
+    return pd.DataFrame(np.column_stack([X[perm], y[perm]]),
+                        columns=[f"x{i+1}" for i in range(n_features)] + ["label"])
+
+
+# ----- advanced diagnostics -----
+def psi(reference, current, bins=10):
+    """Population Stability Index: sum((expected_pct - actual_pct) * log(...)).
+    Small=stable, >0.1 moderate drift, >0.25 severe drift. Reference is the
+    baseline distribution (e.g. training data); current is the new one."""
+    ref = np.asarray(reference, float); cur = np.asarray(current, float)
+    edges = np.quantile(ref, np.linspace(0, 1, bins + 1))
+    edges[0] -= 1e-9; edges[-1] += 1e-9
+    p = np.histogram(ref, bins=edges)[0] / max(len(ref), 1)
+    q = np.histogram(cur, bins=edges)[0] / max(len(cur), 1)
+    p = np.clip(p, 1e-9, None); q = np.clip(q, 1e-9, None)
+    return float(np.sum((p - q) * np.log(p / q)))
+
+
+def js_divergence(p, q, bins=30):
+    """Jensen-Shannon divergence (symmetric, bounded in [0, log2]) between two
+    samples — generic distribution-similarity metric."""
+    p = np.asarray(p, float); q = np.asarray(q, float)
+    lo = min(p.min(), q.min()); hi = max(p.max(), q.max())
+    edges = np.linspace(lo, hi, bins + 1)
+    P = np.histogram(p, bins=edges, density=True)[0]; P = P / max(P.sum(), 1e-12)
+    Q = np.histogram(q, bins=edges, density=True)[0]; Q = Q / max(Q.sum(), 1e-12)
+    M = 0.5 * (P + Q)
+    def kl(a, b): a = np.clip(a, 1e-12, None); b = np.clip(b, 1e-12, None); return float((a * np.log(a / b)).sum())
+    return 0.5 * kl(P, M) + 0.5 * kl(Q, M)
+
+
+def mahalanobis_outliers(X, threshold=None):
+    """Per-row Mahalanobis distance from the multivariate mean; rows above
+    `threshold` flagged as outliers. Default threshold = sqrt(chi²_0.975, df=p)."""
+    X = np.asarray(X, float); n, p = X.shape
+    mu = X.mean(0); S = np.cov(X, rowvar=False)
+    Sinv = np.linalg.pinv(S)
+    d = np.sqrt(((X - mu) @ Sinv * (X - mu)).sum(1))
+    if threshold is None:
+        # crude chi² approximation: median+3*MAD, or use sqrt of 97.5% of chi²_p
+        threshold = np.sqrt(p + 3 * np.sqrt(2 * p))
+    return d, d > threshold
+
+
+def mardia_normality(X):
+    """Mardia's multivariate skewness and kurtosis. Under multivariate normality:
+    n·b1/6 ~ χ²(p(p+1)(p+2)/6); (b2 - p(p+2)) / sqrt(8p(p+2)/n) ~ N(0,1).
+    Returns (b1, b2, p_value_skew_chi2, z_kurt)."""
+    X = np.asarray(X, float); n, p = X.shape
+    mu = X.mean(0); S = np.cov(X, rowvar=False); Sinv = np.linalg.pinv(S)
+    Y = X - mu
+    D = Y @ Sinv @ Y.T              # (n,n)
+    b1 = float((D ** 3).sum()) / (n * n)
+    b2 = float(np.diag(D) ** 2).sum() / n if False else float((np.diag(D) ** 2).sum() / n)
+    z_kurt = (b2 - p * (p + 2)) / np.sqrt(8 * p * (p + 2) / n)
+    return b1, b2, z_kurt
+
+
+# ----- multi-table extensions -----
+def many_to_many(left, right, left_key, right_key, density=0.1, rng=None):
+    """Generate a junction table (left_key, right_key) with target edge density.
+    density = expected # links / (|left|·|right|). Useful for user-product likes,
+    student-course enrollments."""
+    import pandas as pd
+    rng = rng or np.random.default_rng()
+    nL = len(left); nR = len(right); n_edges = int(nL * nR * density)
+    Li = rng.integers(0, nL, n_edges)
+    Ri = rng.integers(0, nR, n_edges)
+    df = pd.DataFrame({left_key: left[left_key].values[Li],
+                       right_key: right[right_key].values[Ri]})
+    return df.drop_duplicates().reset_index(drop=True)
+
+
+def scd_type2(initial_df, key_col, n_changes, change_fn, time_periods, rng=None):
+    """Slowly Changing Dimension type 2 history table: each entity keeps a
+    sequence of versions with valid_from/valid_to. change_fn(row, t, rng) returns
+    a modified row (or None for no change). Returns long history df."""
+    import pandas as pd
+    rng = rng or np.random.default_rng()
+    rows = []
+    for _, r in initial_df.iterrows():
+        cur = dict(r); start = 0
+        for t in range(1, time_periods + 1):
+            if rng.random() < n_changes / time_periods:
+                new = change_fn(cur, t, rng)
+                if new is not None:
+                    rows.append({**cur, "valid_from": start, "valid_to": t})
+                    cur = new; start = t
+        rows.append({**cur, "valid_from": start, "valid_to": time_periods})
+    return pd.DataFrame(rows)
+
+
+# ----- minority oversampling -----
+def smote(X, y, target_balance=0.5, k=5, rng=None):
+    """SMOTE: oversample the minority class to reach `target_balance` by creating
+    synthetic samples between minority points and their k nearest neighbors.
+    Returns (X_new, y_new)."""
+    rng = rng or np.random.default_rng()
+    X = np.asarray(X, float); y = np.asarray(y)
+    classes, cnts = np.unique(y, return_counts=True)
+    minc = classes[np.argmin(cnts)]; majc = classes[np.argmax(cnts)]
+    n_min = int(cnts.min()); n_maj = int(cnts.max())
+    target_min = int(n_maj * target_balance / (1 - target_balance)) if target_balance < 1 else n_min
+    n_new = max(0, target_min - n_min)
+    if n_new == 0: return X, y
+    Xm = X[y == minc]
+    new_rows = []
+    for _ in range(n_new):
+        i = rng.integers(0, len(Xm))
+        d = np.linalg.norm(Xm - Xm[i], axis=1)
+        nn = np.argsort(d)[1:k + 1]
+        j = rng.choice(nn)
+        alpha = rng.random()
+        new_rows.append(Xm[i] + alpha * (Xm[j] - Xm[i]))
+    X_new = np.vstack([X] + new_rows)
+    y_new = np.concatenate([y, np.full(n_new, minc)])
+    return X_new, y_new

@@ -455,3 +455,69 @@ out, viol = enforce_constraints(df, rules, action="drop")   # 或 "report" / "fi
 2. 派生字段一律**重算**（profit = revenue - cost；total = sum(parts)），别独立生成。
 3. 跑全部 `check_*` 校验；任何失败回头修生成器（不是手补数据）。
 4. 把每条业务约束**编码进 `enforce_constraints` 规则集**，下次生成自动守护（呼应黄金法则 §1.4 + 师傅原则）。
+
+---
+
+## 16. 工业级深化（按类别覆盖到行业基准）
+
+每个类别从"基础可用"扩到"覆盖大多数实际场景"：
+
+### 16.1 分布族（统一抽样 + 混合 + 截断 + 零膨胀）
+- `sample_dist(name, n, **params)` —— 统一 API 覆盖 normal/lognormal/exponential/gamma/beta/weibull/pareto/t/chi2/poisson/negbin/geometric/uniform/truncnormal
+- `gaussian_mixture(n, weights, means, sds)` —— 混合高斯（多峰/异质）
+- `zero_inflated_continuous(n, zero_prob, positive_sampler)` —— 半连续（保险理赔/基因表达）
+- `truncated_normal(n, mean, sd, lo, hi)` —— 截断正态（逆 CDF，极端截断也高效）
+
+### 16.2 高级 copula（尾部依赖）
+- `t_copula(n, corr, df, ppfs)` —— Student-t copula，重尾联合极端（金融压力测试金标准）
+- `clayton_copula(n, theta, ppfs)` —— Archimedean Clayton：**下尾依赖**（联合小值同时出现，风险评估常用）
+
+### 16.3 时间序列工业级
+- `ts_arma(n, ar, ma, sd)` —— 完整 ARMA(p,q)
+- `ts_garch(n, omega, alpha, beta)` —— GARCH(1,1) 波动率聚集（金融收益）
+- `ts_var(n, A_list, Sigma)` —— 多元 VAR(p)
+
+### 16.4 GLM 完整家族
+- `poisson_regression_dataset(n, coefs, intercept, X_corr)` —— Poisson 回归（rate ratio = exp(b)）
+- `multinomial_logit_dataset(n, coefs_per_class)` —— K 类
+- `ordinal_logit_dataset(n, coefs, thresholds)` —— proportional-odds
+- `quantile_regression_dataset(n, coefs, target_quantile)` —— 不对称 Laplace 噪声
+
+### 16.5 因果推断深化
+- `propensity_match(treatment, ps, ratio, caliper)` —— 1:k 最近邻匹配
+- `did_data(n_per_group, n_periods, treatment_time, treated_share, treatment_effect, time_trend)` —— Difference-in-differences 完整设置
+- `rdd_data(n, cutoff, treatment_effect, slope_left, slope_right)` —— sharp regression discontinuity
+- `iv_data(n, b_xy, b_zx, confounder_strength)` —— 工具变量（OLS 偏 / 2SLS 无偏）
+- `cluster_rct(n_clusters, n_per_cluster, treatment_effect, icc)` —— 集群随机试验
+
+### 16.6 生存分析扩展
+- `competing_risks_data(n, baseline_rates, hazard_ratios, X)` —— 竞争风险（多病因）
+- `recurrent_events_data(n, baseline_rate, max_time, frailty_sd)` —— 复发事件 + 共享 frailty
+
+### 16.7 IRT 项目反应理论
+- `irt_2pl_data(n_persons, item_difficulty, item_discrimination)` —— 2PL 二分项
+- `irt_grm_data(n_persons, item_discrimination, item_thresholds)` —— Graded Response 序类项
+
+### 16.8 网络/图生成
+- `graph_er(n, p)` —— Erdős-Rényi
+- `graph_ba(n, m)` —— Barabási-Albert 偏好连接（幂律度分布）
+- `graph_ws(n, k, p)` —— Watts-Strogatz 小世界
+- `graph_sbm(block_sizes, p_in, p_out)` —— 随机块模型（社区检测基准）
+
+### 16.9 ML 基准场景
+- `regression_benchmark(n, n_features, target_r2, noise_type='normal'|'heavy_t'|'heteroscedastic')` —— 回归基准三种噪声形态
+- `concept_drift_data(n, drift_type='covariate'|'label'|'prior', drift_magnitude)` —— 概念漂移（前后两半数据集）
+- `anomaly_dataset(n, contamination, normal_sampler, anomaly_sampler)` —— 异常检测基准
+- `smote(X, y, target_balance, k)` —— 少数类合成上采样
+
+### 16.10 高级诊断
+- `psi(reference, current, bins)` —— Population Stability Index（>0.25 = 严重漂移）
+- `js_divergence(p, q)` —— Jensen-Shannon 散度
+- `mahalanobis_outliers(X, threshold)` —— 多元马氏距离离群
+- `mardia_normality(X)` —— Mardia 多元正态性检验（skew/kurt）
+
+### 16.11 多表 SCD / 关系扩展
+- `many_to_many(left, right, density)` —— 多对多 junction（用户-商品、学生-课程）
+- `scd_type2(initial_df, key_col, n_changes, change_fn, time_periods)` —— Slowly Changing Dimension type 2（带 valid_from / valid_to 历史表）
+
+**覆盖范围对比**：基础版（~25 函数）= 简单造数；本版（~75 函数）≈ SDV / simstudy / scikit-learn make_*** 等工业库的核心能力交集 + 多维一致性 + 行业领域（金融 GARCH、医学生存、心理 IRT、因果推断 IV/DiD/RDD、网络 SBM）。
