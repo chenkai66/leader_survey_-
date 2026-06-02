@@ -93,3 +93,57 @@ examples/                3 个端到端场景脚本（nonnormal / model_targets 
 ```
 
 **阅读策略**：常驻只读本 SKILL.md（路由）；某个模块需要时再 `Read modules/xxx.md`；代码直接 `from calibrate import ...`。
+
+---
+
+## 6. Harness（discoverability + 声明式 + 复测 + CLI + recipes）
+
+不想读模块只想直接用：以下入口让你从命令行或交互式 REPL 即时上手。
+
+```python
+import calibrate as C
+
+# A. 函数清单（按类）
+C.list_functions()                    # [(category, name, oneliner), ...] 共 133
+C.list_functions("regression")        # 仅某类
+
+# B. 内省（签名 + docstring + fuzzy 建议）
+C.show_help("fleishman")              # 完整签名 + 文档 + 所属类
+C.show_help("rebuild_blocks")         # 拼错 → 'did you mean: ["rebuild_block"]?'
+
+# C. 配方库（15 个常见模式的可执行代码）
+C.list_recipes()                      # name + 描述
+C.show_recipe("ab_test_power_sim")    # 打印可直接 copy-run 的脚本
+
+# D. 声明式 spec → df（一行式造数）
+spec = {"n": 2000,
+        "columns": [{"name":"age","dist":"truncnormal","mean":40,"sd":10,"lo":18,"hi":80},
+                    {"name":"income","dist":"lognormal","mu":10,"sigma":0.5}],
+        "correlations": {("age","income"): 0.4},
+        "constraints":  [{"type":"range","col":"age","lo":18,"hi":80}]}
+df = C.generate_from_spec(spec)
+
+# E. 复测命中（验数据 vs spec）
+print(C.validate(df, spec))          # 每条 PASS/FAIL + N/T 摘要
+
+# F. 全局可复现种子
+S = C.Seed(42); rng = S.rng()         # 整脚本共用
+```
+
+**CLI**（不用写 Python）：
+```bash
+python -m calibrate help                          # 用法
+python -m calibrate list [category]               # 列函数
+python -m calibrate help <function>               # 文档
+python -m calibrate recipes                       # 配方
+python -m calibrate show-recipe <name>            # 打印某配方
+python -m calibrate sample <dist> <n> k=v ...     # 快速单列抽样 + 摘要
+python -m calibrate generate spec.json out.csv    # 声明式造数 → CSV
+python -m calibrate validate data.csv spec.json   # 校验
+```
+
+**入门路径**：
+1. 跑 `examples/quickstart.py`（5 个最常见模式串起来）
+2. 用 `generate_from_spec` 声明式造一份基础数据；`validate` 看命中
+3. 复杂场景：按 §2 路由读相应模块；用 `show_help(name)` 查具体函数
+4. 没有现成函数：用 `tune_scalar`（万能兜底）或翻 `modules/engine.md`

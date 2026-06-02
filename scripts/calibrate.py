@@ -2310,3 +2310,499 @@ def cold_start_recsys(n_users, n_items, user_dim=5, item_dim=5,
         for it in items:
             rows.append((u, it, affinity[u, it]))
     return U, V, pd.DataFrame(rows, columns=["user", "item", "rating"]), affinity
+
+
+# ============================================================================
+# HARNESS — discoverability, declarative API, validation, CLI, reproducibility
+# ============================================================================
+
+# ---------- 1. Function inventory (categorized) ----------
+INVENTORY = {
+    "engine": [
+        ("tune_scalar",          "万能单旋钮标定（任何可度量目标的兜底）"),
+        ("build_latents",        "β=R⁻¹r 条件高斯，多目标精确命中"),
+        ("rebuild_block",        "外层校正多 Likert composite 同时命中"),
+        ("zscale",               "标准化"),
+        ("nearest_pd",           "投影到最近正定阵"),
+        ("resid_against",        "对一组列残差化"),
+    ],
+    "distributions": [
+        ("sample_dist",          "统一抽样：normal/lognormal/exp/gamma/beta/weibull/pareto/t/chi2/poisson/negbin/geometric/uniform/truncnormal"),
+        ("match_marginal",       "分位映射 x 到任意目标分布（保排序）"),
+        ("fleishman",            "Fleishman 幂多项式：命中精确偏度+峰度"),
+        ("fleishman_coef",       "Fleishman 系数"),
+        ("gaussian_mixture",     "高斯混合（多峰/异质）"),
+        ("truncated_normal",     "截断正态（逆 CDF）"),
+        ("zero_inflated_continuous", "零膨胀连续（保险/基因表达）"),
+        ("multinomial_dataset",  "分类标签精确占比"),
+        ("dirichlet_compositional", "组分数据（行和=1）"),
+        ("rescale",              "线性变换 + clip"),
+        ("fit_from_reference",   "拟合真实数据返回 sampler(n)"),
+    ],
+    "dependence": [
+        ("iman_conover",         "分布无关秩相关（保边缘）"),
+        ("gaussian_copula",      "给定边缘 + 正态分相关"),
+        ("t_copula",             "t-copula（重尾联合极端）"),
+        ("clayton_copula",       "Clayton 下尾依赖"),
+        ("nonnormal_data",       "Vale-Maurelli：多元非正态 + 目标 Pearson"),
+        ("mixed_copula",         "连续+二分+定序联合相关"),
+        ("correlation_matrix_block", "块状相关阵"),
+        ("partial_corr",         "偏相关（控变量后）"),
+        ("vif",                  "VIF 共线性诊断"),
+    ],
+    "regression": [
+        ("regression_dataset",   "线性回归（target b/R²）"),
+        ("logistic_dataset",     "Logistic 回归（target b/OR）"),
+        ("poisson_regression_dataset", "Poisson 回归（rate ratios）"),
+        ("multinomial_logit_dataset",  "Multinomial logit（K 类）"),
+        ("ordinal_logit_dataset",      "Ordinal logit（proportional odds）"),
+        ("quantile_regression_dataset","Quantile 回归（target 分位）"),
+        ("anova_design",         "Factorial ANOVA（主效应+交互）"),
+        ("paired_data",          "配对前后（within-corr）"),
+        ("two_sample",           "两样本（t-test ready）"),
+        ("contingency_table",    "列联表（margins + OR）"),
+    ],
+    "multilevel": [
+        ("likertize",            "Likert 题项 + composite"),
+        ("icc_rebuild",          "多层 ICC 命中 + halo cross-corr"),
+        ("factor_model_sample",  "因子模型 X = FΛ' + E"),
+        ("irt_2pl_data",         "IRT 2PL 二分项"),
+        ("irt_grm_data",         "IRT GRM 序类项"),
+        ("multi_rater",          "多评分者目标 inter-rater corr"),
+        ("mixed_effects_dataset","混合效应/多层回归"),
+        ("panel_data",           "简单面板（ICC + AR1 + trend）"),
+        ("cronbach_alpha",       "Cronbach's α"),
+    ],
+    "timeseries": [
+        ("ts_ar",                "AR(p) + 趋势 + 季节"),
+        ("ts_arma",              "ARMA(p,q) 全实现"),
+        ("ts_garch",             "GARCH(1,1) 波动率聚集"),
+        ("ts_var",               "VAR(p) 多元自回归"),
+        ("markov_chain",         "由转移阵抽序列"),
+        ("fit_markov",           "估转移阵"),
+        ("hmm_data",             "高斯发射 HMM"),
+        ("hawkes_process",       "Hawkes 自激点过程"),
+        ("count_data",           "Poisson/NB/零膨胀计数"),
+        ("ts_anomaly_inject",    "类型化时序异常注入"),
+        ("change_point_series",  "已知变点 + 分段均值"),
+    ],
+    "causal": [
+        ("dag_sample",           "结构因果模型 (SCM) 通用器"),
+        ("ab_test_data",         "A/B 测试（continuous/binary/count）"),
+        ("ipw_weights",          "逆概率处理权重"),
+        ("propensity_match",     "Propensity score 1:k 匹配"),
+        ("did_data",             "Difference-in-differences"),
+        ("rdd_data",             "Sharp regression discontinuity"),
+        ("iv_data",              "Instrumental variable"),
+        ("cluster_rct",          "Cluster-randomized trial"),
+        ("survival_data",        "Cox-PH 生存"),
+        ("competing_risks_data", "竞争风险（多病因）"),
+        ("recurrent_events_data","复发事件 + frailty"),
+        ("hte_data",             "异质处理效应（CATE）"),
+        ("synthetic_control_data","合成控制（pre/post + donor pool）"),
+        ("staggered_did",        "Staggered DiD（变 treatment 时间）"),
+        ("hierarchical_bayes_data","层级 Bayes 随机效应"),
+    ],
+    "networks-spatial": [
+        ("graph_er",             "Erdős-Rényi 随机图"),
+        ("graph_ba",             "Barabási-Albert 偏好连接"),
+        ("graph_ws",             "Watts-Strogatz 小世界"),
+        ("graph_sbm",            "Stochastic Block Model"),
+        ("spatial_points",       "空间点模式 (CSR/cluster/regular)"),
+        ("spatial_field",        "高斯随机场（指数协方差）"),
+        ("morans_i",             "Moran's I 空间自相关"),
+        ("knowledge_graph_triples", "知识图谱 (h,r,t) 三元组"),
+        ("temporal_network",     "带时间戳的边流"),
+    ],
+    "ml-benchmarks": [
+        ("classification_dataset","Classification: target AUC + balance"),
+        ("regression_benchmark", "Regression: 3 种噪声（normal/heavy_t/het）"),
+        ("concept_drift_data",   "概念漂移（covariate/label/prior）"),
+        ("anomaly_dataset",      "异常检测基准"),
+        ("smote",                "少数类上采样"),
+        ("recsys_explicit",      "显式评分推荐"),
+        ("recsys_implicit",      "隐式反馈推荐"),
+        ("cold_start_recsys",    "Cold-start 特征推荐"),
+        ("low_rank_data",        "低秩矩阵 + 噪声"),
+        ("cluster_data",         "Gaussian mixture 聚类"),
+        ("adversarial_perturb",  "L∞/L2 对抗扰动"),
+        ("label_noise",          "随机标签翻转"),
+        ("prior_dataset",        "Bayesian 先验抽样"),
+        ("metropolis_posterior", "Metropolis 后验采样"),
+        ("rl_trajectories",      "RL 轨迹（MDP rollouts）"),
+        ("bandit_data",          "线性上下文 bandit"),
+        ("conformal_calibration_set", "Conformal 校准集"),
+    ],
+    "multitable": [
+        ("generate_id_column",   "唯一 ID 列"),
+        ("relational_children",  "关系表父子（FK + per-parent count）"),
+        ("many_to_many",         "M:N junction 表"),
+        ("evolve_panel_state",   "时序状态演化"),
+        ("funnel_data",          "Cohort 漏斗"),
+        ("scd_type2",            "Slowly Changing Dim 历史表"),
+        ("enforce_constraints",  "业务规则引擎 (report/drop/fix)"),
+        ("check_referential_integrity", "外键校验"),
+        ("check_aggregate",      "父子聚合一致校验"),
+        ("check_temporal",       "时序顺序校验"),
+        ("check_identity",       "行内恒等式校验"),
+        ("check_uniqueness",     "主键唯一校验"),
+        ("check_no_nulls",       "非空校验"),
+        ("check_value_set",      "值域校验"),
+    ],
+    "diagnostics-privacy": [
+        ("verify",               "通用相关核验"),
+        ("report",               "全列均值/SD/偏峰/Pearson&Spearman"),
+        ("ks_stat",              "KS 距离"),
+        ("psi",                  "Population Stability Index"),
+        ("js_divergence",        "Jensen-Shannon"),
+        ("mahalanobis_outliers", "马氏距离异常"),
+        ("mardia_normality",     "Mardia 多元正态性"),
+        ("anderson_darling_normal", "AD 正态检验"),
+        ("chi_square_gof",       "χ² 拟合优度"),
+        ("discriminability",     "合成 vs 真实 AUC（真实度）"),
+        ("rake",                 "IPF 重加权到边际"),
+        ("inject_missing",       "MCAR/MAR/MNAR 缺失注入"),
+        ("inject_outliers",      "目标率异常注入"),
+        ("heteroscedastic_noise","异方差噪声"),
+        ("dp_noise",             "Laplace 差分隐私"),
+        ("bootstrap_perturb",    "Bootstrap 重抽"),
+        ("shift_group_effect",   "命中 Cohen's d"),
+    ],
+    "domain-specific": [
+        ("marketing_mix_data",   "MMM（adstock + Hill 饱和）"),
+        ("discrete_choice",      "条件 logit 离散选择"),
+        ("snp_genotypes",        "SNP + 连锁不平衡"),
+        ("lda_documents",        "LDA 主题文档"),
+        ("spike_train",          "神经元 Poisson 脉冲"),
+    ],
+}
+
+
+def list_functions(category=None):
+    """Return [(category, name, oneliner), ...]. Filter by category if given."""
+    return [(cat, name, desc) for cat, items in INVENTORY.items()
+            if (category is None or category == cat)
+            for name, desc in items]
+
+
+def show_help(name):
+    """Pretty-print function signature + docstring + category. Fuzzy-suggest on
+    unknown names."""
+    import inspect
+    fn = globals().get(name)
+    if fn is None or not callable(fn):
+        from difflib import get_close_matches
+        all_names = [n for items in INVENTORY.values() for n, _ in items]
+        sug = get_close_matches(name, all_names, n=3)
+        print(f"unknown function: {name!r}" + (f" — did you mean: {sug}?" if sug else ""))
+        return
+    sig = inspect.signature(fn)
+    print(f"\n{name}{sig}\n")
+    print((fn.__doc__ or "(no docstring)").rstrip() + "\n")
+    for cat, items in INVENTORY.items():
+        for n, desc in items:
+            if n == name: print(f"  category: {cat}\n  oneliner: {desc}")
+
+
+# ---------- 2. Recipes (executable common patterns) ----------
+RECIPES = {
+    "ab_test_power_sim": dict(desc="A/B 测试经验功效仿真：固定 n、effect、sd，多次重抽估 power", code='''
+import numpy as np, calibrate as C
+rng = np.random.default_rng(0)
+sig = 0
+for _ in range(1000):
+    df = C.ab_test_data(500, baseline=0, effect=0.2, sd=1.0, rng=rng)
+    a = df[df.arm=="control"].y; b = df[df.arm=="treatment"].y
+    se = (a.var()/len(a) + b.var()/len(b))**0.5
+    if abs(b.mean()-a.mean())/se > 1.96: sig += 1
+print(f"empirical power = {sig/1000:.1%}")
+'''),
+    "iv_recover_causal_effect": dict(desc="工具变量：OLS 偏 vs 2SLS 无偏（验证 IV 必要性）", code='''
+import numpy as np, calibrate as C
+from numpy.linalg import lstsq
+rng = np.random.default_rng(0)
+iv = C.iv_data(5000, b_xy=0.5, b_zx=0.7, confounder_strength=0.5, rng=rng)
+ols = lstsq(np.column_stack([np.ones(len(iv)), iv.x]), iv.y, rcond=None)[0][1]
+xh = lstsq(np.column_stack([np.ones(len(iv)), iv.z]), iv.x, rcond=None)[0]
+xp = xh[0] + xh[1] * iv.z
+tsls = lstsq(np.column_stack([np.ones(len(iv)), xp]), iv.y, rcond=None)[0][1]
+print(f"true b_xy=0.5, OLS={ols:.3f} (biased), 2SLS={tsls:.3f}")
+'''),
+    "imitate_real_dataset": dict(desc="拟合真实数据 → 合成数据 → 真实度判别", code='''
+import calibrate as C, pandas as pd, numpy as np
+rng = np.random.default_rng(0)
+real = pd.DataFrame({"income": rng.lognormal(10, 0.6, 2000),
+                     "age": rng.integers(22, 65, 2000)})
+real["spend"] = 0.0001 * real.income + 5 * rng.standard_normal(2000)
+sampler = C.fit_from_reference(real, rng=rng)
+synth = sampler(2000)
+auc = C.discriminability(real, synth)
+print(f"discriminability AUC = {auc:.3f}  (~0.5 = indistinguishable)")
+'''),
+    "scale_with_likert_alpha": dict(desc="造一份 Likert 量表 (k=5, α≈0.80, target 相关)", code='''
+import calibrate as C, pandas as pd, numpy as np
+rng = np.random.default_rng(0)
+n = 500
+df = pd.DataFrame({"X1": rng.normal(4, 1, n), "X2": rng.normal(5, 1, n)})
+C.rebuild_block(df, ["X1","X2"],
+    specs=[dict(items=[f"A{i}" for i in range(1,6)], comp="Y", mean=4.5, sd=1.2,
+                tgt=[-0.49, 0.52])],
+    item_sigma=0.66, outer=9, rng=rng)
+print("alpha =", C.cronbach_alpha(df[[f"A{i}" for i in range(1,6)]].values).round(2),
+      "corr(X1,Y) =", df.X1.corr(df.Y).round(3))
+'''),
+    "nonnormal_corr_preserve_marginals": dict(desc="保各列分布只改秩相关（Iman-Conover）", code='''
+import numpy as np, calibrate as C
+rng = np.random.default_rng(0)
+X = np.column_stack([rng.lognormal(0,1,2000), rng.uniform(0,10,2000)])
+Y = C.iman_conover(X, [[1, 0.6],[0.6,1]], rng=rng)
+sp = np.corrcoef(C._ranks(Y[:,0]), C._ranks(Y[:,1]))[0,1]
+print(f"spearman={sp:.3f} (~0.6), 边缘保留: {np.allclose(np.sort(Y[:,0]), np.sort(X[:,0]))}")
+'''),
+    "multilevel_icc_with_likert": dict(desc="多层 ICC + Likert + 控 cross-corr", code='''
+import calibrate as C, pandas as pd, numpy as np
+rng = np.random.default_rng(0)
+# 假设有 final df，群 = LeaderID
+# C.icc_rebuild(df, "LeaderID", ["BE","ME","Thr"], ["OCBS_L1",...,"OCBS_L6"],
+#              "OCBS_L", mean=4.65, total_sd=1.193, icc=0.275,
+#              r_tgt=[0.396, -0.319, 0.283], rng=rng)
+print("（量表/多层 SEM 仿真用此 + halo_scale 控制两 outcome cross-corr）")
+'''),
+    "causal_dag_confounder": dict(desc="DAG 造混淆 + 比较未调整 vs 控变量回归", code='''
+import calibrate as C, numpy as np
+from numpy.linalg import lstsq
+rng = np.random.default_rng(0)
+df = C.dag_sample(5000, [
+    ("U", lambda d,n,r: r.standard_normal(n)),
+    ("X", lambda d,n,r: 0.6*d["U"] + r.standard_normal(n)),
+    ("Y", lambda d,n,r: 0.4*d["X"] + 0.5*d["U"] + r.standard_normal(n)),
+])
+b1 = lstsq(np.column_stack([np.ones(len(df)), df.X]), df.Y, rcond=None)[0][1]
+b2 = lstsq(np.column_stack([np.ones(len(df)), df.X, df.U]), df.Y, rcond=None)[0][1]
+print(f"biased={b1:.3f}, controlled={b2:.3f} (true 0.40)")
+'''),
+    "panel_ab_test_with_did": dict(desc="DiD 估计处理效应", code='''
+import calibrate as C
+df = C.did_data(500, n_periods=2, treatment_time=1, treated_share=0.5,
+                treatment_effect=0.7)
+piv = df.pivot_table(index=["unit","treated"], columns="time", values="y").reset_index()
+piv["delta"] = piv[1] - piv[0]
+print("DiD estimate:", round(piv[piv.treated==1]["delta"].mean()
+                              - piv[piv.treated==0]["delta"].mean(), 3))
+'''),
+    "relational_with_consistency_check": dict(desc="父子表 + 外键 / 聚合 / 时序校验", code='''
+import calibrate as C, pandas as pd, numpy as np
+rng = np.random.default_rng(0)
+parents = pd.DataFrame({"user_id": C.generate_id_column(100, "U"),
+                        "signup_age": rng.integers(20, 60, 100)})
+orders = C.relational_children(parents, "user_id",
+    n_per_parent=lambda r: r.poisson(3),
+    child_cols={"amount": lambda p,i,r: 50 + 2*p.signup_age + r.normal(0,20)},
+    rng=rng)
+ok_ri, _ = C.check_referential_integrity(orders, "user_id", parents, "user_id")
+print(f"# orders = {len(orders)}, FK integrity = {ok_ri}")
+'''),
+    "regression_with_target_r2": dict(desc="线性回归命中 target R²", code='''
+import calibrate as C
+df = C.regression_dataset(2000, coefs=[0.5, -0.3, 0.2], intercept=1.0, target_r2=0.5)
+print(df.head())
+'''),
+    "ml_classification_benchmark": dict(desc="ML 分类基准 (target AUC + 类不平衡)", code='''
+import calibrate as C
+df = C.classification_dataset(3000, n_features=5, target_auc=0.85, class_balance=0.3)
+print(f"shape={df.shape}, pos_prop={df.y.mean():.2f}")
+'''),
+    "synthesize_then_validate": dict(desc="声明 spec → generate → validate 命中", code='''
+import calibrate as C
+spec = {"n": 3000,
+        "columns": [{"name":"age","dist":"truncnormal","mean":40,"sd":10,"lo":18,"hi":80},
+                    {"name":"income","dist":"lognormal","mu":10,"sigma":0.5}],
+        "correlations": {("age","income"): 0.4}}
+df = C.generate_from_spec(spec)
+print(C.validate(df, spec))
+'''),
+    "hierarchical_bayes_groups": dict(desc="多组 partial pooling 数据", code='''
+import calibrate as C
+df, truth = C.hierarchical_bayes_data(20, 30, hyper_mean=5.0, hyper_sd=1.0, within_sd=0.5)
+print(df.groupby("group").y.mean().head(), truth.head())
+'''),
+    "graph_community_detection_bench": dict(desc="SBM 社区检测基准", code='''
+import calibrate as C
+edges, blocks = C.graph_sbm([30, 30, 40], p_in=0.5, p_out=0.05)
+print(f"# edges = {len(edges)}, # nodes = {len(blocks)}, communities = {len(set(blocks))}")
+'''),
+    "ts_anomaly_benchmark": dict(desc="造带标签时序异常用于检测器评测", code='''
+import calibrate as C
+base = C.ts_ar(500, ar=(0.5,), sd=1.0)
+x, y = C.ts_anomaly_inject(base, point_rate=0.02,
+    level_shift=[(200, 3.0)], drift_at=400, drift_slope=0.05)
+print(f"len={len(x)}, anomaly rate={y.mean():.3f}")
+'''),
+}
+
+
+def list_recipes(): return [(n, r["desc"]) for n, r in RECIPES.items()]
+
+
+def show_recipe(name):
+    """Print the recipe code (also returns it)."""
+    r = RECIPES.get(name)
+    if r is None:
+        from difflib import get_close_matches
+        sug = get_close_matches(name, list(RECIPES), n=3)
+        print(f"unknown recipe: {name!r}" + (f"; did you mean {sug}?" if sug else ""))
+        return None
+    print(f"--- {name}: {r['desc']} ---")
+    print(r["code"])
+    return r["code"]
+
+
+# ---------- 3. Declarative spec-driven generator ----------
+def generate_from_spec(spec, rng=None):
+    """Declarative data generation. spec keys:
+      n            : int, num rows
+      columns      : list of {name, dist, ...params}, dist passed to sample_dist
+      correlations : {(col_a, col_b): r}  — induced via Iman-Conover (preserves marginals)
+      constraints  : list of constraint specs (applied post-hoc), each:
+                     {"type": "monotone", "before": "...", "after": "..."}
+                     {"type": "range", "col": "...", "lo": ..., "hi": ...}
+                     {"type": "predicate", "name": "...", "fn": lambda d: bool_mask_GOOD}
+                     {"action": "drop" | "report"}     (per-rule or default 'drop')
+    Returns DataFrame."""
+    import pandas as pd
+    rng = rng or np.random.default_rng()
+    n = spec["n"]; data = {}
+    for col in spec.get("columns", []):
+        name = col["name"]; dist = col.get("dist", "normal")
+        params = {k: v for k, v in col.items() if k not in ("name", "dist")}
+        data[name] = sample_dist(dist, n, rng=rng, **params)
+    df = pd.DataFrame(data)
+    # induce target correlations (preserves marginals)
+    corr_spec = spec.get("correlations") or {}
+    if corr_spec:
+        cols = list(data.keys()); n_cols = len(cols); col_idx = {c: i for i, c in enumerate(cols)}
+        R = np.eye(n_cols)
+        for (a, b), r in corr_spec.items():
+            i, j = col_idx[a], col_idx[b]; R[i, j] = R[j, i] = r
+        X = iman_conover(df[cols].values, R, rng=rng)
+        for k, c in enumerate(cols): df[c] = X[:, k]
+    # apply constraints
+    for c in spec.get("constraints", []):
+        t = c["type"]
+        if t == "monotone":
+            bef, aft = c["before"], c["after"]
+            rule = (f"monotone_{bef}_le_{aft}", lambda d, b=bef, a=aft: d[b] <= d[a])
+        elif t == "range":
+            col, lo, hi = c["col"], c.get("lo", -np.inf), c.get("hi", np.inf)
+            rule = (f"range_{col}", lambda d, c=col, l=lo, h=hi: (d[c] >= l) & (d[c] <= h))
+        elif t == "predicate":
+            rule = (c.get("name", "predicate"), c["fn"])
+        else:
+            raise ValueError(f"unknown constraint type {t!r}")
+        df, _ = enforce_constraints(df, [rule], action=c.get("action", "drop"), verbose=False)
+    return df.reset_index(drop=True)
+
+
+def validate(df, spec, tol=0.05, corr_tol=0.08):
+    """Verify df satisfies the spec used to generate it. Returns dict with
+    per-check PASS/FAIL + values. Pass to print() for human display."""
+    report = {"distribution": [], "correlation": [], "constraint": [], "summary": ""}
+    n_pass = 0; n_total = 0
+    for col in spec.get("columns", []):
+        name = col["name"]
+        if name not in df.columns: continue
+        if "mean" in col:
+            ach = float(df[name].mean()); ok = abs(ach - col["mean"]) < tol * max(abs(col["mean"]), 1)
+            report["distribution"].append((name, "mean", col["mean"], round(ach, 3), ok)); n_pass += ok; n_total += 1
+        if "sd" in col:
+            ach = float(df[name].std()); ok = abs(ach - col["sd"]) < tol * max(abs(col["sd"]), 0.1)
+            report["distribution"].append((name, "sd", col["sd"], round(ach, 3), ok)); n_pass += ok; n_total += 1
+        if "lo" in col:
+            ach = float(df[name].min()); ok = ach >= col["lo"] - 1e-6
+            report["distribution"].append((name, "min>=lo", col["lo"], round(ach, 3), ok)); n_pass += ok; n_total += 1
+        if "hi" in col:
+            ach = float(df[name].max()); ok = ach <= col["hi"] + 1e-6
+            report["distribution"].append((name, "max<=hi", col["hi"], round(ach, 3), ok)); n_pass += ok; n_total += 1
+    for (a, b), r in (spec.get("correlations") or {}).items():
+        if a in df.columns and b in df.columns:
+            ach = float(df[[a, b]].corr().iloc[0, 1])
+            ok = abs(ach - r) < corr_tol
+            report["correlation"].append((a, b, r, round(ach, 3), ok)); n_pass += ok; n_total += 1
+    for c in spec.get("constraints", []):
+        t = c["type"]
+        if t == "monotone":
+            bef, aft = c["before"], c["after"]
+            v = (df[bef] <= df[aft]).all()
+            report["constraint"].append((f"monotone {bef}<={aft}", bool(v))); n_pass += v; n_total += 1
+        elif t == "range":
+            col, lo, hi = c["col"], c.get("lo", -np.inf), c.get("hi", np.inf)
+            v = ((df[col] >= lo) & (df[col] <= hi)).all()
+            report["constraint"].append((f"range {col} in [{lo}, {hi}]", bool(v))); n_pass += v; n_total += 1
+    report["summary"] = f"{n_pass}/{n_total} checks passed"
+    return report
+
+
+# ---------- 4. Seed manager (reproducibility) ----------
+class Seed:
+    """Global RNG manager. Use to make a whole script reproducible."""
+    def __init__(self, seed=20260601): self.set(seed)
+    def set(self, seed):
+        self.seed = int(seed); self._rng = np.random.default_rng(self.seed)
+        np.random.seed(self.seed)
+    def rng(self): return self._rng
+    def __repr__(self): return f"Seed(seed={self.seed})"
+
+
+# ---------- 5. CLI ----------
+def _cli(argv=None):
+    import sys, json
+    argv = argv if argv is not None else sys.argv[1:]
+    if not argv or argv[0] in ("-h", "--help", "help") and len(argv) == 1:
+        print("calibrate CLI:")
+        print("  python -m calibrate list [category]                 list functions")
+        print("  python -m calibrate help <name>                     function signature + docstring")
+        print("  python -m calibrate recipes                         list recipe names + descriptions")
+        print("  python -m calibrate show-recipe <name>              print recipe code")
+        print("  python -m calibrate sample <dist> <n> k=v k=v       quick one-column sample (prints summary)")
+        print("  python -m calibrate generate <spec.json> [out.csv]  declarative generate -> csv")
+        print("  python -m calibrate validate <data.csv> <spec.json> verify generated data hits spec")
+        return
+    cmd = argv[0]
+    if cmd == "list":
+        cat = argv[1] if len(argv) > 1 else None
+        for c, n, d in list_functions(cat):
+            print(f"  [{c:20s}] {n:35s} {d}")
+    elif cmd == "help":
+        show_help(argv[1])
+    elif cmd == "recipes":
+        for n, d in list_recipes(): print(f"  {n:35s} {d}")
+    elif cmd == "show-recipe":
+        show_recipe(argv[1])
+    elif cmd == "sample":
+        dist = argv[1]; n = int(argv[2])
+        params = {}
+        for kv in argv[3:]:
+            k, v = kv.split("=")
+            try: params[k] = float(v) if "." in v or "e" in v.lower() else int(v)
+            except ValueError: params[k] = v
+        x = sample_dist(dist, n, **params)
+        print(f"dist={dist}, n={n}, mean={x.mean():.3f} sd={x.std():.3f} "
+              f"min={x.min():.3f} max={x.max():.3f}")
+    elif cmd == "generate":
+        spec = json.load(open(argv[1])); df = generate_from_spec(spec)
+        out = argv[2] if len(argv) > 2 else "generated.csv"
+        df.to_csv(out, index=False); print(f"wrote {out} ({len(df)} rows × {len(df.columns)} cols)")
+    elif cmd == "validate":
+        import pandas as pd
+        df = pd.read_csv(argv[1]); spec = json.load(open(argv[2]))
+        r = validate(df, spec)
+        for sec, items in r.items():
+            if sec == "summary": continue
+            for it in items: print(f"  [{sec}] {it}")
+        print(r["summary"])
+    else:
+        print(f"unknown command: {cmd}; run 'help' for usage")
+
+
+if __name__ == "__main__":
+    _cli()
