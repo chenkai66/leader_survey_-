@@ -688,12 +688,12 @@ def fill_model1():
     # Layout: row r = variable (r-2). Cols: 2=Mean, 3=SD, 4..3+i = lower-triangle r vs vars 1..i.
     # Override Mean for OCBS_L (row 15, var #13): 4.793 → 4.65 per R18 #6.
     ws.cell(15, 2).value = 4.65
-    # Override BE→THR(T3) — row 14 (Thriving T3) col 12 (= var #9 BE): .614 → .50
-    ws.cell(14, 12).value = 0.500
-    # Override ME→THR(T3) — row 14, col 13 (= var #10 ME): -.495 → -.430
-    # (round-4 Model1 Correlation A18 mirror-break: move ME→Thriving one notch
-    #  weaker so the two mediators are not perfectly mirror-symmetric.)
-    ws.cell(14, 13).value = -0.430
+    # round-5 demote: BE→THR(T3) override .500 → .16 (matches new data;
+    # BE→THR path drops from *** to * in M1 Path table).
+    ws.cell(14, 12).value = 0.21
+    # round-5 demote: ME→THR(T3) override -.430 → -.16 (matches new data;
+    # ME→THR path drops from *** to * in M1 Path table).
+    ws.cell(14, 13).value = -0.22
     # Override OCBS-CWBS — row 16 (CWBS_L), col 16 (= var #13 OCBS_L): -.425 → -.36
     ws.cell(16, 16).value = -0.360
 

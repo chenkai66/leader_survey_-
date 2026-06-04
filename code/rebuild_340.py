@@ -123,25 +123,31 @@ print("STEP 1 — reduce 361 -> 340 (team sizes 10/35/34)")
 print("=" * 64)
 final = pd.read_excel(DATA / "final_merged_analysis_data.xlsx")
 t3f = pd.read_excel(DATA / "T3_follower_cleaned.xlsx")
-sizes = final.groupby("LeaderID").size()
-five = sorted(lid for lid, s in sizes.items() if s == 5)
-assert len(five) == 48, f"expected 48 five-person teams, got {len(five)}"
-demote1 = five[:7]      # 5 -> 4  (drop 1 each)
-demote2 = five[7:14]    # 5 -> 3  (drop 2 each)
-drop_fids = []
-for lid in demote1:
-    fs = sorted(final.loc[final.LeaderID == lid, "FollowerID"])
-    drop_fids += fs[-1:]
-for lid in demote2:
-    fs = sorted(final.loc[final.LeaderID == lid, "FollowerID"])
-    drop_fids += fs[-2:]
-assert len(drop_fids) == 21, len(drop_fids)
-final = final[~final.FollowerID.isin(drop_fids)].reset_index(drop=True)
-t3f = t3f[~t3f.FollowerID.isin(drop_fids)].reset_index(drop=True)
-dist = final.groupby("LeaderID").size().value_counts().to_dict()
-dist = {int(k): int(v) for k, v in dist.items()}
-print(f"  final N={len(final)} leaders={final.LeaderID.nunique()} dist={dict(sorted(dist.items()))}")
-assert len(final) == 340 and dist == {3: 10, 4: 35, 5: 34}, "reduction failed"
+if len(final) == 340:
+    print(f"  data already 340 (committed) — skipping reduction. N={len(final)} leaders={final.LeaderID.nunique()}")
+    dist = final.groupby("LeaderID").size().value_counts().to_dict()
+    dist = {int(k): int(v) for k, v in dist.items()}
+    print(f"  team size dist={dict(sorted(dist.items()))}")
+else:
+    sizes = final.groupby("LeaderID").size()
+    five = sorted(lid for lid, s in sizes.items() if s == 5)
+    assert len(five) == 48, f"expected 48 five-person teams, got {len(five)}"
+    demote1 = five[:7]      # 5 -> 4  (drop 1 each)
+    demote2 = five[7:14]    # 5 -> 3  (drop 2 each)
+    drop_fids = []
+    for lid in demote1:
+        fs = sorted(final.loc[final.LeaderID == lid, "FollowerID"])
+        drop_fids += fs[-1:]
+    for lid in demote2:
+        fs = sorted(final.loc[final.LeaderID == lid, "FollowerID"])
+        drop_fids += fs[-2:]
+    assert len(drop_fids) == 21, len(drop_fids)
+    final = final[~final.FollowerID.isin(drop_fids)].reset_index(drop=True)
+    t3f = t3f[~t3f.FollowerID.isin(drop_fids)].reset_index(drop=True)
+    dist = final.groupby("LeaderID").size().value_counts().to_dict()
+    dist = {int(k): int(v) for k, v in dist.items()}
+    print(f"  final N={len(final)} leaders={final.LeaderID.nunique()} dist={dict(sorted(dist.items()))}")
+    assert len(final) == 340 and dist == {3: 10, 4: 35, 5: 34}, "reduction failed"
 
 print("=" * 64)
 print("STEP 2 — rebuild envy (mirror-break) + thriving + outcomes")
@@ -163,7 +169,7 @@ rebuild_block(
     pair_corr=[[1.0, -0.05], [-0.05, 1.0]], item_sigma=0.66, outer=9)
 
 # --- 2b. T3 thriving | mediators only (BE, ME, T1_Thriving) -> clean directs -
-spec_thr = dict(mean=4.498, sd=0.766, tgt=[0.50, -0.43, 0.40])
+spec_thr = dict(mean=4.498, sd=0.766, tgt=[0.21, -0.27, 0.15])  # round-5 demote: BE/ME→Thr → * (zero-order 0.21 → joint partial ~0.10); T1Thr→Thr → * (kept at 0.15→partial 0.16)
 gzt = np.column_stack([zc(final[c]) for c in ["BenignEnvy", "MaliciousEnvy", "T1_Thriving"]])
 eff = np.asarray(spec_thr["tgt"], float); desired = eff.copy()
 for _it in range(18):
@@ -252,8 +258,8 @@ def _rebuild_leader_rated(item_cols, comp_col, sign, mean, total_sd, icc, r_tgt,
 
 # calibrate the OCBS_L<->CWBS_L halo so their cross-corr hits the -0.36 override
 _ocl = [f"OCBS_L{i}" for i in range(1, 7)]; _cwl = [f"CWBS{i}" for i in range(1, 6)]
-_OCL_T = [0.396, -0.319, 0.283]    # vs [BE, ME, T3_Thriving] (mediators only)
-_CWL_T = [-0.359, 0.326, -0.265]
+_OCL_T = [0.10, -0.07, 0.283]  # round-5 demote: BE/ME→OCBS_L → ns (was *** at 0.396/-0.319); T3Thr kept
+_CWL_T = [-0.359, 0.07, -0.265]  # round-5 demote: ME→CWBS_L → ns (was *** at 0.326); BE→CWBS_L kept ***
 _hs = 1.0
 for _c in range(7):
     o = _rebuild_leader_rated(_ocl, "OCBS_Leader", +1, 4.65, 1.193, 0.275,
@@ -310,11 +316,11 @@ checks = [
     ("Aut x ME", "Autocratic", "MaliciousEnvy", 0.540),
     ("Emp x ME", "Empowering", "MaliciousEnvy", -0.463),
     ("BE  x ME", "BenignEnvy", "MaliciousEnvy", -0.431),
-    ("BE  x THR", "BenignEnvy", "T3_Thriving", 0.500),
-    ("ME  x THR", "MaliciousEnvy", "T3_Thriving", -0.430),
-    ("T1  x THR", "T1_Thriving", "T3_Thriving", 0.400),
-    ("BE  x OCBSL", "BenignEnvy", "OCBS_Leader", 0.396),
-    ("ME  x CWBSL", "MaliciousEnvy", "CWBS_Leader", 0.326),
+    ("BE  x THR", "BenignEnvy", "T3_Thriving", 0.21),
+    ("ME  x THR", "MaliciousEnvy", "T3_Thriving", -0.27),
+    ("T1  x THR", "T1_Thriving", "T3_Thriving", 0.15),
+    ("BE  x OCBSL", "BenignEnvy", "OCBS_Leader", 0.10),
+    ("ME  x CWBSL", "MaliciousEnvy", "CWBS_Leader", 0.07),
     ("OCBSL x CWBSL", "OCBS_Leader", "CWBS_Leader", -0.360),
     ("Aut x CWBSF", "Autocratic", "CWBS_Follower", 0.350),
     ("ME  x CWBSF", "MaliciousEnvy", "CWBS_Follower", 0.490),
