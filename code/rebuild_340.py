@@ -160,7 +160,7 @@ rebuild_block(
         dict(name="ME", items=[f"MAL{i}" for i in range(1, 6)], comp="MaliciousEnvy",
              mean=3.095, sd=1.208, tgt=[0.549, -0.456, -0.08], extra=-0.12 * _ixME),
     ],
-    pair_corr=[[1.0, -0.417], [-0.417, 1.0]], item_sigma=0.66, outer=9)
+    pair_corr=[[1.0, -0.05], [-0.05, 1.0]], item_sigma=0.66, outer=9)
 
 # --- 2b. T3 thriving | mediators only (BE, ME, T1_Thriving) -> clean directs -
 spec_thr = dict(mean=4.498, sd=0.766, tgt=[0.50, -0.43, 0.40])

@@ -34,74 +34,74 @@ Empowering_c:PowerDistance_c  -0.1533     0.0632 340 -2.4244   0.0159
 
 ====  M1 ME (main effects) ====
                    Estimate Std. Error  df t value Pr(>|t|)
-(Intercept)          0.0700     0.0773 340  0.9057   0.3657
-Autocratic_c         0.5707     0.0609 340  9.3739   0.0000
-Empowering_c        -0.4020     0.0566 340 -7.1005   0.0000
-Narcissism_c         0.0563     0.0579 340  0.9726   0.3314
-PowerDistance_c      0.0689     0.0580 340  1.1868   0.2361
-FollowerAge_c        0.0026     0.0112 340  0.2339   0.8152
-Gender_Male         -0.1246     0.1037 340 -1.2019   0.2302
-TenureWithLeader_c   0.0164     0.0352 340  0.4674   0.6405
-InteractionFreq_c    0.0160     0.0477 340  0.3353   0.7376
+(Intercept)          0.0721     0.0741 340  0.9738   0.3308
+Autocratic_c         0.5878     0.0584 340 10.0708   0.0000
+Empowering_c        -0.3852     0.0543 340 -7.0967   0.0000
+Narcissism_c        -0.0038     0.0555 340 -0.0683   0.9455
+PowerDistance_c      0.0033     0.0556 340  0.0594   0.9526
+FollowerAge_c        0.0116     0.0107 340  1.0876   0.2775
+Gender_Male         -0.1284     0.0994 340 -1.2923   0.1971
+TenureWithLeader_c   0.0291     0.0337 340  0.8629   0.3888
+InteractionFreq_c    0.0351     0.0458 340  0.7674   0.4434
 
 ====  M1 ME (interactive) ====
                              Estimate Std. Error  df t value Pr(>|t|)
-(Intercept)                    0.0501     0.0769 340  0.6509   0.5156
-Autocratic_c                   0.5928     0.0606 340  9.7781   0.0000
-Narcissism_c                   0.0504     0.0576 340  0.8737   0.3829
-Empowering_c                  -0.3970     0.0564 340 -7.0393   0.0000
-PowerDistance_c                0.0762     0.0577 340  1.3224   0.1869
-FollowerAge_c                  0.0033     0.0111 340  0.3009   0.7637
-Gender_Male                   -0.1010     0.1029 340 -0.9811   0.3273
-TenureWithLeader_c             0.0086     0.0349 340  0.2474   0.8047
-InteractionFreq_c              0.0084     0.0472 340  0.1770   0.8596
-Autocratic_c:Narcissism_c      0.0592     0.0710 340  0.8334   0.4052
-Narcissism_c:Empowering_c      0.0718     0.0711 340  1.0101   0.3132
-Autocratic_c:PowerDistance_c  -0.1299     0.0635 340 -2.0462   0.0415
-Empowering_c:PowerDistance_c   0.0590     0.0599 340  0.9842   0.3257
+(Intercept)                    0.0503     0.0738 340  0.6816   0.4959
+Autocratic_c                   0.6073     0.0582 340 10.4438   0.0000
+Narcissism_c                  -0.0081     0.0553 340 -0.1472   0.8831
+Empowering_c                  -0.3839     0.0541 340 -7.0969   0.0000
+PowerDistance_c                0.0061     0.0553 340  0.1095   0.9129
+FollowerAge_c                  0.0116     0.0106 340  1.0934   0.2750
+Gender_Male                   -0.1025     0.0987 340 -1.0377   0.3002
+TenureWithLeader_c             0.0236     0.0335 340  0.7044   0.4817
+InteractionFreq_c              0.0300     0.0453 340  0.6622   0.5083
+Autocratic_c:Narcissism_c      0.0162     0.0681 340  0.2379   0.8121
+Narcissism_c:Empowering_c      0.0674     0.0682 340  0.9884   0.3237
+Autocratic_c:PowerDistance_c  -0.1426     0.0609 340 -2.3401   0.0199
+Empowering_c:PowerDistance_c   0.0156     0.0575 340  0.2707   0.7867
 
 ====  M1 THR (outcome) ====
                    Estimate Std. Error  df t value Pr(>|t|)
-(Intercept)          0.0060     0.0500 340  0.1196   0.9049
-BenignEnvy_c         0.1988     0.0341 340  5.8294   0.0000
-MaliciousEnvy_c     -0.1370     0.0354 340 -3.8675   0.0001
-Autocratic_c        -0.0112     0.0472 340 -0.2374   0.8125
-Empowering_c         0.0514     0.0431 340  1.1945   0.2331
-Narcissism_c        -0.0049     0.0377 340 -0.1310   0.8959
-PowerDistance_c      0.0177     0.0377 340  0.4698   0.6388
-FollowerAge_c       -0.0128     0.0072 340 -1.7665   0.0782
-Gender_Male         -0.0106     0.0671 340 -0.1585   0.8741
-TenureWithLeader_c  -0.0005     0.0227 340 -0.0231   0.9816
-InteractionFreq_c    0.0033     0.0308 340  0.1063   0.9154
-T1_Thriving_c        0.4117     0.0530 340  7.7660   0.0000
+(Intercept)          0.0041     0.0458 340  0.0896   0.9286
+BenignEnvy_c         0.2488     0.0374 340  6.6516   0.0000
+MaliciousEnvy_c     -0.2217     0.0406 340 -5.4643   0.0000
+Autocratic_c        -0.0081     0.0524 340 -0.1537   0.8779
+Empowering_c         0.0456     0.0461 340  0.9880   0.3239
+Narcissism_c        -0.0060     0.0345 340 -0.1742   0.8618
+PowerDistance_c      0.0223     0.0345 340  0.6458   0.5188
+FollowerAge_c       -0.0112     0.0066 340 -1.6887   0.0922
+Gender_Male         -0.0073     0.0615 340 -0.1188   0.9055
+TenureWithLeader_c   0.0064     0.0208 340  0.3053   0.7603
+InteractionFreq_c   -0.0030     0.0283 340 -0.1062   0.9155
+T1_Thriving_c        0.3924     0.0505 340  7.7663   0.0000
 
 ====  M1 OCBS (outcome) ====
                    Estimate Std. Error       df t value Pr(>|t|)
-(Intercept)         -0.0277     0.1017 158.7425 -0.2720   0.7860
-BenignEnvy_c         0.2845     0.0520 301.4899  5.4671   0.0000
-MaliciousEnvy_c     -0.1704     0.0550 305.4198 -3.0973   0.0021
-Autocratic_c        -0.0665     0.0783 335.6508 -0.8488   0.3966
-Empowering_c        -0.0278     0.0716 335.7139 -0.3879   0.6983
-Narcissism_c        -0.0260     0.0630 334.1192 -0.4131   0.6798
-PowerDistance_c      0.0233     0.0631 334.7249  0.3685   0.7127
-FollowerAge_c        0.0116     0.0116 319.8225  0.9937   0.3211
-Gender_Male          0.0528     0.1076 316.9867  0.4913   0.6236
-TenureWithLeader_c   0.0918     0.0363 314.3089  2.5300   0.0119
-InteractionFreq_c    0.0353     0.0484 306.1789  0.7286   0.4668
+(Intercept)         -0.0298     0.0981 159.2638 -0.3041   0.7615
+BenignEnvy_c         0.3186     0.0574 298.2498  5.5528   0.0000
+MaliciousEnvy_c     -0.2573     0.0642 309.6578 -4.0086   0.0001
+Autocratic_c        -0.0893     0.0874 331.1351 -1.0222   0.3074
+Empowering_c         0.0063     0.0776 332.8581  0.0817   0.9349
+Narcissism_c        -0.0258     0.0606 334.0609 -0.4252   0.6709
+PowerDistance_c      0.0447     0.0608 334.7835  0.7362   0.4621
+FollowerAge_c        0.0162     0.0112 319.8818  1.4432   0.1499
+Gender_Male          0.0566     0.1037 317.9280  0.5458   0.5856
+TenureWithLeader_c   0.0860     0.0349 314.6896  2.4634   0.0143
+InteractionFreq_c    0.0366     0.0466 305.9457  0.7860   0.4325
 
 ====  M1 CWBS (outcome) ====
                    Estimate Std. Error       df t value Pr(>|t|)
-(Intercept)         -0.0126     0.0839 164.5874 -0.1498   0.8811
-BenignEnvy_c        -0.2120     0.0464 307.5639 -4.5730   0.0000
-MaliciousEnvy_c      0.1835     0.0490 311.9796  3.7479   0.0002
-Autocratic_c         0.0016     0.0688 339.8394  0.0228   0.9818
-Empowering_c         0.0201     0.0628 339.8986  0.3207   0.7487
-Narcissism_c         0.0479     0.0553 339.5141  0.8653   0.3875
-PowerDistance_c     -0.0014     0.0554 339.5876 -0.0249   0.9802
-FollowerAge_c       -0.0035     0.0103 327.7215 -0.3410   0.7333
-Gender_Male          0.0191     0.0953 325.2621  0.2000   0.8416
-TenureWithLeader_c  -0.0346     0.0322 322.4366 -1.0768   0.2824
-InteractionFreq_c   -0.0069     0.0431 313.2293 -0.1593   0.8735
+(Intercept)         -0.0046     0.0814 164.1661 -0.0569   0.9547
+BenignEnvy_c        -0.2818     0.0515 303.4615 -5.4687   0.0000
+MaliciousEnvy_c      0.2676     0.0574 316.9036  4.6607   0.0000
+Autocratic_c        -0.0214     0.0774 337.7360 -0.2758   0.7828
+Empowering_c         0.0286     0.0687 338.7974  0.4165   0.6773
+Narcissism_c         0.0452     0.0536 339.5203  0.8431   0.3998
+PowerDistance_c     -0.0073     0.0537 339.6441 -0.1360   0.8919
+FollowerAge_c       -0.0046     0.0100 327.7502 -0.4645   0.6426
+Gender_Male          0.0061     0.0925 326.1035  0.0657   0.9477
+TenureWithLeader_c  -0.0234     0.0312 322.6395 -0.7511   0.4532
+InteractionFreq_c   -0.0162     0.0417 312.6712 -0.3871   0.6990
 
 ################  M2  ################
 
@@ -127,53 +127,53 @@ Empowering_c:PowerDistance_c  -0.1566     0.0630 340 -2.4848   0.0134
 
 ====  M2 ME (main effects) ====
                 Estimate Std. Error  df t value Pr(>|t|)
-(Intercept)       0.0000     0.0509 340  0.0000   1.0000
-Autocratic_c      0.5765     0.0606 340  9.5135   0.0000
-Empowering_c     -0.4008     0.0566 340 -7.0833   0.0000
-Narcissism_c      0.0601     0.0578 340  1.0401   0.2991
-PowerDistance_c   0.0715     0.0575 340  1.2439   0.2144
+(Intercept)       0.0000     0.0490 340  0.0000   1.0000
+Autocratic_c      0.5926     0.0583 340 10.1629   0.0000
+Empowering_c     -0.3861     0.0544 340 -7.0923   0.0000
+Narcissism_c     -0.0022     0.0556 340 -0.0392   0.9687
+PowerDistance_c   0.0002     0.0553 340  0.0045   0.9964
 
 ====  M2 ME (interactive) ====
                              Estimate Std. Error  df t value Pr(>|t|)
-(Intercept)                   -0.0071     0.0505 340 -0.1398   0.8889
-Autocratic_c                   0.5970     0.0602 340  9.9125   0.0000
-Narcissism_c                   0.0529     0.0575 340  0.9200   0.3582
-Empowering_c                  -0.3961     0.0563 340 -7.0319   0.0000
-PowerDistance_c                0.0788     0.0571 340  1.3796   0.1686
-Autocratic_c:Narcissism_c      0.0609     0.0710 340  0.8582   0.3914
-Narcissism_c:Empowering_c      0.0730     0.0711 340  1.0263   0.3055
-Autocratic_c:PowerDistance_c  -0.1379     0.0632 340 -2.1837   0.0297
-Empowering_c:PowerDistance_c   0.0564     0.0596 340  0.9454   0.3451
+(Intercept)                   -0.0080     0.0486 340 -0.1647   0.8693
+Autocratic_c                   0.6114     0.0580 340 10.5477   0.0000
+Narcissism_c                  -0.0082     0.0553 340 -0.1482   0.8823
+Empowering_c                  -0.3850     0.0542 340 -7.1022   0.0000
+PowerDistance_c                0.0025     0.0550 340  0.0454   0.9638
+Autocratic_c:Narcissism_c      0.0204     0.0683 340  0.2991   0.7651
+Narcissism_c:Empowering_c      0.0719     0.0684 340  1.0500   0.2945
+Autocratic_c:PowerDistance_c  -0.1528     0.0608 340 -2.5145   0.0124
+Empowering_c:PowerDistance_c   0.0118     0.0574 340  0.2060   0.8369
 
 ====  M2 THR (outcome) ====
                 Estimate Std. Error       df t value Pr(>|t|)
-(Intercept)       0.0003     0.0389  77.4404  0.0089   0.9929
-BenignEnvy_c      0.2402     0.0359 326.6766  6.6817   0.0000
-MaliciousEnvy_c  -0.1771     0.0379 331.5843 -4.6747   0.0000
-Autocratic_c      0.0454     0.0511 326.4757  0.8890   0.3747
-Empowering_c     -0.0015     0.0467 321.0414 -0.0317   0.9747
-Narcissism_c     -0.0378     0.0411 323.4203 -0.9187   0.3589
-PowerDistance_c  -0.0056     0.0410 325.6017 -0.1366   0.8915
+(Intercept)       0.0004     0.0354  77.2697  0.0107   0.9915
+BenignEnvy_c      0.3365     0.0380 325.8268  8.8568   0.0000
+MaliciousEnvy_c  -0.3191     0.0417 336.0407 -7.6481   0.0000
+Autocratic_c      0.1079     0.0548 333.7704  1.9679   0.0499
+Empowering_c     -0.0508     0.0485 329.0370 -1.0479   0.2954
+Narcissism_c     -0.0359     0.0376 321.9832 -0.9544   0.3406
+PowerDistance_c   0.0008     0.0374 323.5460  0.0212   0.9831
 
 ====  M2 OCBS (outcome) ====
                 Estimate Std. Error       df t value Pr(>|t|)
-(Intercept)       0.0018     0.0818  80.2365  0.0221   0.9824
-BenignEnvy_c      0.2942     0.0524 298.5748  5.6139   0.0000
-MaliciousEnvy_c  -0.1691     0.0556 303.8627 -3.0441   0.0025
-Autocratic_c     -0.0548     0.0788 335.0207 -0.6961   0.4869
-Empowering_c     -0.0267     0.0724 336.0302 -0.3691   0.7123
-Narcissism_c     -0.0253     0.0635 334.0930 -0.3986   0.6905
-PowerDistance_c  -0.0011     0.0632 334.9308 -0.0170   0.9865
+(Intercept)       0.0020     0.0786  81.0153  0.0248   0.9803
+BenignEnvy_c      0.3287     0.0583 298.9611  5.6349   0.0000
+MaliciousEnvy_c  -0.2549     0.0649 307.9136 -3.9312   0.0001
+Autocratic_c     -0.0815     0.0882 330.6960 -0.9238   0.3563
+Empowering_c      0.0067     0.0786 333.3554  0.0851   0.9322
+Narcissism_c     -0.0270     0.0612 334.4936 -0.4419   0.6588
+PowerDistance_c   0.0195     0.0610 335.3684  0.3194   0.7496
 
 ====  M2 CWBS (outcome) ====
                 Estimate Std. Error       df t value Pr(>|t|)
-(Intercept)      -0.0017     0.0647  75.4303 -0.0255   0.9797
-BenignEnvy_c     -0.2164     0.0461 303.5737 -4.6936   0.0000
-MaliciousEnvy_c   0.1813     0.0488 309.5768  3.7139   0.0002
-Autocratic_c     -0.0049     0.0684 339.3764 -0.0720   0.9427
-Empowering_c      0.0182     0.0628 339.8014  0.2894   0.7724
-Narcissism_c      0.0452     0.0551 339.1673  0.8202   0.4127
-PowerDistance_c   0.0045     0.0549 339.3637  0.0826   0.9342
+(Intercept)      -0.0011     0.0628  75.7106 -0.0181   0.9856
+BenignEnvy_c     -0.2843     0.0515 302.8911 -5.5252   0.0000
+MaliciousEnvy_c   0.2650     0.0571 313.6653  4.6443   0.0000
+Autocratic_c     -0.0232     0.0770 336.3510 -0.3017   0.7631
+Empowering_c      0.0278     0.0685 338.2632  0.4050   0.6857
+Narcissism_c      0.0445     0.0533 339.1126  0.8350   0.4043
+PowerDistance_c  -0.0011     0.0531 339.3744 -0.0215   0.9828
 
 ################  M3  ################
 
@@ -207,81 +207,81 @@ Empowering_c:PowerDistance_c  -0.1533     0.0632 340 -2.4244   0.0159
 
 ====  M3 ME (main effects) ====
                    Estimate Std. Error  df t value Pr(>|t|)
-(Intercept)          0.0700     0.0773 340  0.9057   0.3657
-Autocratic_c         0.5707     0.0609 340  9.3739   0.0000
-Empowering_c        -0.4020     0.0566 340 -7.1005   0.0000
-Narcissism_c         0.0563     0.0579 340  0.9726   0.3314
-PowerDistance_c      0.0689     0.0580 340  1.1868   0.2361
-FollowerAge_c        0.0026     0.0112 340  0.2339   0.8152
-Gender_Male         -0.1246     0.1037 340 -1.2019   0.2302
-TenureWithLeader_c   0.0164     0.0352 340  0.4674   0.6405
-InteractionFreq_c    0.0160     0.0477 340  0.3353   0.7376
+(Intercept)          0.0721     0.0741 340  0.9738   0.3308
+Autocratic_c         0.5878     0.0584 340 10.0708   0.0000
+Empowering_c        -0.3852     0.0543 340 -7.0967   0.0000
+Narcissism_c        -0.0038     0.0555 340 -0.0683   0.9455
+PowerDistance_c      0.0033     0.0556 340  0.0594   0.9526
+FollowerAge_c        0.0116     0.0107 340  1.0876   0.2775
+Gender_Male         -0.1284     0.0994 340 -1.2923   0.1971
+TenureWithLeader_c   0.0291     0.0337 340  0.8629   0.3888
+InteractionFreq_c    0.0351     0.0458 340  0.7674   0.4434
 
 ====  M3 ME (interactive) ====
                              Estimate Std. Error  df t value Pr(>|t|)
-(Intercept)                    0.0501     0.0769 340  0.6509   0.5156
-Autocratic_c                   0.5928     0.0606 340  9.7781   0.0000
-Narcissism_c                   0.0504     0.0576 340  0.8737   0.3829
-Empowering_c                  -0.3970     0.0564 340 -7.0393   0.0000
-PowerDistance_c                0.0762     0.0577 340  1.3224   0.1869
-FollowerAge_c                  0.0033     0.0111 340  0.3009   0.7637
-Gender_Male                   -0.1010     0.1029 340 -0.9811   0.3273
-TenureWithLeader_c             0.0086     0.0349 340  0.2474   0.8047
-InteractionFreq_c              0.0084     0.0472 340  0.1770   0.8596
-Autocratic_c:Narcissism_c      0.0592     0.0710 340  0.8334   0.4052
-Narcissism_c:Empowering_c      0.0718     0.0711 340  1.0101   0.3132
-Autocratic_c:PowerDistance_c  -0.1299     0.0635 340 -2.0462   0.0415
-Empowering_c:PowerDistance_c   0.0590     0.0599 340  0.9842   0.3257
+(Intercept)                    0.0503     0.0738 340  0.6816   0.4959
+Autocratic_c                   0.6073     0.0582 340 10.4438   0.0000
+Narcissism_c                  -0.0081     0.0553 340 -0.1472   0.8831
+Empowering_c                  -0.3839     0.0541 340 -7.0969   0.0000
+PowerDistance_c                0.0061     0.0553 340  0.1095   0.9129
+FollowerAge_c                  0.0116     0.0106 340  1.0934   0.2750
+Gender_Male                   -0.1025     0.0987 340 -1.0377   0.3002
+TenureWithLeader_c             0.0236     0.0335 340  0.7044   0.4817
+InteractionFreq_c              0.0300     0.0453 340  0.6622   0.5083
+Autocratic_c:Narcissism_c      0.0162     0.0681 340  0.2379   0.8121
+Narcissism_c:Empowering_c      0.0674     0.0682 340  0.9884   0.3237
+Autocratic_c:PowerDistance_c  -0.1426     0.0609 340 -2.3401   0.0199
+Empowering_c:PowerDistance_c   0.0156     0.0575 340  0.2707   0.7867
 
 ====  M3 THR (outcome) ====
                    Estimate Std. Error  df t value Pr(>|t|)
-(Intercept)          0.0060     0.0500 340  0.1196   0.9049
-BenignEnvy_c         0.1988     0.0341 340  5.8294   0.0000
-MaliciousEnvy_c     -0.1370     0.0354 340 -3.8675   0.0001
-Autocratic_c        -0.0112     0.0472 340 -0.2374   0.8125
-Empowering_c         0.0514     0.0431 340  1.1945   0.2331
-Narcissism_c        -0.0049     0.0377 340 -0.1310   0.8959
-PowerDistance_c      0.0177     0.0377 340  0.4698   0.6388
-FollowerAge_c       -0.0128     0.0072 340 -1.7665   0.0782
-Gender_Male         -0.0106     0.0671 340 -0.1585   0.8741
-TenureWithLeader_c  -0.0005     0.0227 340 -0.0231   0.9816
-InteractionFreq_c    0.0033     0.0308 340  0.1063   0.9154
-T1_Thriving_c        0.4117     0.0530 340  7.7660   0.0000
+(Intercept)          0.0041     0.0458 340  0.0896   0.9286
+BenignEnvy_c         0.2488     0.0374 340  6.6516   0.0000
+MaliciousEnvy_c     -0.2217     0.0406 340 -5.4643   0.0000
+Autocratic_c        -0.0081     0.0524 340 -0.1537   0.8779
+Empowering_c         0.0456     0.0461 340  0.9880   0.3239
+Narcissism_c        -0.0060     0.0345 340 -0.1742   0.8618
+PowerDistance_c      0.0223     0.0345 340  0.6458   0.5188
+FollowerAge_c       -0.0112     0.0066 340 -1.6887   0.0922
+Gender_Male         -0.0073     0.0615 340 -0.1188   0.9055
+TenureWithLeader_c   0.0064     0.0208 340  0.3053   0.7603
+InteractionFreq_c   -0.0030     0.0283 340 -0.1062   0.9155
+T1_Thriving_c        0.3924     0.0505 340  7.7663   0.0000
 
 ====  M3 OCBS (outcome) ====
                    Estimate Std. Error       df t value Pr(>|t|)
-(Intercept)         -0.0608     0.0798 194.0901 -0.7621   0.4469
-BenignEnvy_c         0.3185     0.0516 331.2078  6.1662   0.0000
-MaliciousEnvy_c     -0.1525     0.0543 334.2649 -2.8072   0.0053
-Autocratic_c         0.1011     0.0730 319.6805  1.3843   0.1672
-Empowering_c        -0.0321     0.0666 316.0463 -0.4813   0.6306
-Narcissism_c        -0.0673     0.0588 317.6872 -1.1442   0.2534
-PowerDistance_c     -0.0744     0.0590 320.7768 -1.2615   0.2081
-FollowerAge_c       -0.0143     0.0112 339.9688 -1.2715   0.2044
-Gender_Male          0.1070     0.1043 340.0000  1.0264   0.3054
-TenureWithLeader_c   0.0192     0.0353 339.7878  0.5441   0.5867
-InteractionFreq_c   -0.1049     0.0477 335.7782 -2.1983   0.0286
+(Intercept)         -0.0541     0.0753 192.8159 -0.7181   0.4736
+BenignEnvy_c         0.4506     0.0557 327.0510  8.0904   0.0000
+MaliciousEnvy_c     -0.4088     0.0613 337.2256 -6.6650   0.0000
+Autocratic_c         0.3747     0.0804 331.0708  4.6595   0.0000
+Empowering_c        -0.0287     0.0711 327.3297 -0.4032   0.6870
+Narcissism_c        -0.0530     0.0552 319.9250 -0.9600   0.3378
+PowerDistance_c     -0.0533     0.0553 321.8829 -0.9629   0.3363
+FollowerAge_c       -0.0125     0.0105 339.9989 -1.1875   0.2359
+Gender_Male          0.0946     0.0978 339.9966  0.9673   0.3341
+TenureWithLeader_c   0.0139     0.0331 339.5456  0.4189   0.6755
+InteractionFreq_c   -0.0908     0.0448 334.6215 -2.0278   0.0434
 
 ====  M3 CWBS (outcome) ====
                    Estimate Std. Error  df t value Pr(>|t|)
-(Intercept)          0.0410     0.0738 340  0.5562   0.5784
-BenignEnvy_c        -0.0653     0.0494 340 -1.3222   0.1870
-MaliciousEnvy_c      0.3443     0.0519 340  6.6356   0.0000
-Autocratic_c         0.0962     0.0688 340  1.3988   0.1628
-Empowering_c        -0.0184     0.0627 340 -0.2928   0.7698
-Narcissism_c         0.0872     0.0554 340  1.5761   0.1159
-PowerDistance_c     -0.0014     0.0556 340 -0.0253   0.9798
-FollowerAge_c        0.0066     0.0107 340  0.6164   0.5381
-Gender_Male         -0.0731     0.0991 340 -0.7374   0.4614
-TenureWithLeader_c  -0.0219     0.0336 340 -0.6509   0.5156
-InteractionFreq_c   -0.0044     0.0455 340 -0.0967   0.9230
+(Intercept)          0.0296     0.0712 340  0.4160   0.6777
+BenignEnvy_c        -0.2305     0.0549 340 -4.1995   0.0000
+MaliciousEnvy_c      0.4671     0.0602 340  7.7655   0.0000
+Autocratic_c        -0.1088     0.0781 340 -1.3938   0.1643
+Empowering_c        -0.0129     0.0689 340 -0.1879   0.8511
+Narcissism_c         0.0613     0.0533 340  1.1496   0.2511
+PowerDistance_c     -0.0239     0.0535 340 -0.4470   0.6552
+FollowerAge_c        0.0037     0.0103 340  0.3548   0.7229
+Gender_Male         -0.0527     0.0956 340 -0.5515   0.5817
+TenureWithLeader_c  -0.0080     0.0324 340 -0.2480   0.8043
+InteractionFreq_c   -0.0189     0.0440 340 -0.4299   0.6675
 
 ################  MCFA competing models (two-level)  ################
 
 ---- 5-factor hypothesized ----
        chisq           df          cfi          tli        rmsea  srmr_within 
-     297.812      484.000        1.000        1.043        0.000        0.042 
+     299.474      484.000        1.000        1.042        0.000        0.044 
 srmr_between          aic 
-       0.197    20164.252 
+       0.218    20008.249 
 
-All coefficient tables written to /tmp/rout 
+All coefficient tables written to /tmp/rout_new 
