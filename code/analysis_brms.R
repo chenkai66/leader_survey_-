@@ -1,5 +1,5 @@
 suppressMessages({ library(brms); library(readxl) })
-if (requireNamespace("cmdstanr", quietly=TRUE)) cmdstanr::set_cmdstan_path("/tmp/cmdstan-2.39.0")
+if (requireNamespace("cmdstanr", quietly=TRUE)) # Removed internal path setting for customer delivery
 set.seed(42)
 
 d <- as.data.frame(read_excel("data/final_merged_analysis_data.xlsx"))

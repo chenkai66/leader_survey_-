@@ -70,9 +70,9 @@ fi
 
 if [ -z "$REPO" ] || [ ! -f "$REPO/code/analysis_brms.R" ]; then
     echo "[3/5] 找不到项目文件，尝试 clone..."
-    git clone git@github.com:chenkai66/leader_survey_-.git /tmp/leader_survey_v2 2>/dev/null || \
-    git clone https://github.com/chenkai66/leader_survey_-.git /tmp/leader_survey_v2
-    REPO="/tmp/leader_survey_v2"
+    git clone git@github.com:chenkai66/leader_survey_-.git ./leader_survey_v2 2>/dev/null || \
+    git clone https://github.com/chenkai66/leader_survey_-.git ./leader_survey_v2
+    REPO="./leader_survey_v2"
 fi
 echo "[3/5] 项目目录: $REPO"
 mkdir -p "$REPO/results/raw_output"
@@ -81,7 +81,7 @@ mkdir -p "$REPO/results/raw_output"
 echo "[4/5] 开始跑 brms 分析 (预计 15-25 分钟)..."
 echo "      $(date '+%H:%M:%S') 开始"
 cd "$REPO"
-Rscript code/analysis_brms.R data/final_merged_analysis_data.xlsx results/raw_output 2>&1 | tee /tmp/brms_output.log
+Rscript code/analysis_brms.R data/final_merged_analysis_data.xlsx results/raw_output 2>&1 | tee ./brms_output.log
 
 echo "      $(date '+%H:%M:%S') 完成"
 
@@ -103,10 +103,10 @@ if [ -f results/raw_output/r_coefs_brms.csv ]; then
             focal$eq[i], focal$term[i], focal$b[i], focal$ci_lo[i], focal$ci_hi[i], focal$sig[i]))
     '
     echo ""
-    echo "--- 完整日志: /tmp/brms_output.log ---"
+    echo "--- 完整日志: ./brms_output.log ---"
     echo "--- 如果和 lavaan 结果一致（预期内），当前交付表不用改 ---"
     echo "--- 如果有方向不一致，把 r_coefs_brms.csv 发回来 ---"
 else
-    echo "✗ 分析失败，查看日志: /tmp/brms_output.log"
-    tail -20 /tmp/brms_output.log
+    echo "✗ 分析失败，查看日志: ./brms_output.log"
+    tail -20 ./brms_output.log
 fi
