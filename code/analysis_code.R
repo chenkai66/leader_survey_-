@@ -174,25 +174,18 @@ run_full("M1", c("OCBS_Leader_c","CWBS_Leader_c"), TRUE)
 run_full("M2", c("OCBS_Leader_c","CWBS_Leader_c"), FALSE)
 run_full("M3", c("OCBS_Follower_c","CWBS_Follower_c"), TRUE)
 
-# ---- MCFA competing models (lavaan two-level) -------------------------------
-cat("\n################  MCFA competing models (two-level)  ################\n")
+# ---- MCFA competing models (lavaan two-level, ITEM-LEVEL) --------------------
+# Round-5: switched from parcels (EMPP1-4/THRP1-4) to individual items
+# (EMP1-12, THR1-10 with R_THR5/R_THR10 reverse-coded).
+# All 5 factors at BOTH levels; 5 competing models.
+cat("\n################  MCFA competing models (two-level, item-level)  ################\n")
 mcfa_rows <- list()
-items <- c(paste0("AUT",1:6), paste0("EMPP",1:4), paste0("BEN",1:5),
-           paste0("MAL",1:5), paste0("THRP",1:4))
+EMP <- paste0("EMP",1:12)
+THR <- c("THR1","THR2","THR3","THR4","R_THR5","THR6","THR7","THR8","THR9","R_THR10")
+items <- c(paste0("AUT",1:6), EMP, paste0("BEN",1:5), paste0("MAL",1:5), THR)
 dm <- d[, c("CLID", items)]
-hyp <- '
- level: 1
-   AUTw =~ AUT1+AUT2+AUT3+AUT4+AUT5+AUT6
-   EMPw =~ EMPP1+EMPP2+EMPP3+EMPP4
-   BENw =~ BEN1+BEN2+BEN3+BEN4+BEN5
-   MALw =~ MAL1+MAL2+MAL3+MAL4+MAL5
-   THRw =~ THRP1+THRP2+THRP3+THRP4
- level: 2
-   AUTb =~ AUT1+AUT2+AUT3+AUT4+AUT5+AUT6
-   EMPb =~ EMPP1+EMPP2+EMPP3+EMPP4
-   BENb =~ BEN1+BEN2+BEN3+BEN4+BEN5
-   MALb =~ MAL1+MAL2+MAL3+MAL4+MAL5
-   THRb =~ THRP1+THRP2+THRP3+THRP4 '
+EMP_str <- paste(EMP, collapse="+")
+THR_str <- paste(THR, collapse="+")
 addfit <- function(nm, fit) {
   fm <- tryCatch(fitMeasures(fit, c("chisq","df","cfi","tli","rmsea","srmr_within","srmr_between","aic")),
                  error=function(e) rep(NA,8))
@@ -200,8 +193,61 @@ addfit <- function(nm, fit) {
   mcfa_rows[[length(mcfa_rows)+1]] <<- data.frame(model=nm, chisq=fm[1], df=fm[2],
     cfi=fm[3], tli=fm[4], rmsea=fm[5], srmrw=fm[6], srmrb=fm[7], aic=fm[8], row.names=NULL)
 }
-f_hyp <- tryCatch(cfa(hyp, data=dm, cluster="CLID", estimator="MLR"), error=function(e){cat("hyp err\n");NULL})
-if(!is.null(f_hyp)) addfit("5-factor hypothesized", f_hyp)
+tryfit <- function(nm, mod) {
+  fit <- tryCatch(cfa(mod, data=dm, cluster="CLID", estimator="MLR"),
+                  error=function(e){cat(nm,"err:", conditionMessage(e),"\n"); NULL})
+  if(!is.null(fit) && lavInspect(fit,"converged")) addfit(nm, fit) else cat(nm,": did not converge\n")
+}
+# Model 1: Five-Factor Hypothesized
+tryfit("5-factor hypothesized", paste0('
+ level: 1
+   AUTw =~ AUT1+AUT2+AUT3+AUT4+AUT5+AUT6
+   EMPw =~ ',EMP_str,'
+   BENw =~ BEN1+BEN2+BEN3+BEN4+BEN5
+   MALw =~ MAL1+MAL2+MAL3+MAL4+MAL5
+   THRw =~ ',THR_str,'
+ level: 2
+   AUTb =~ AUT1+AUT2+AUT3+AUT4+AUT5+AUT6
+   EMPb =~ ',EMP_str,'
+   BENb =~ BEN1+BEN2+BEN3+BEN4+BEN5
+   MALb =~ MAL1+MAL2+MAL3+MAL4+MAL5
+   THRb =~ ',THR_str))
+# Model 2: Four-Factor (BEN+MAL combined)
+tryfit("4-factor (BEN+MAL)", paste0('
+ level: 1
+   AUTw =~ AUT1+AUT2+AUT3+AUT4+AUT5+AUT6
+   EMPw =~ ',EMP_str,'
+   ENVYw =~ BEN1+BEN2+BEN3+BEN4+BEN5+MAL1+MAL2+MAL3+MAL4+MAL5
+   THRw =~ ',THR_str,'
+ level: 2
+   AUTb =~ AUT1+AUT2+AUT3+AUT4+AUT5+AUT6
+   EMPb =~ ',EMP_str,'
+   ENVYb =~ BEN1+BEN2+BEN3+BEN4+BEN5+MAL1+MAL2+MAL3+MAL4+MAL5
+   THRb =~ ',THR_str))
+# Model 3: Three-Factor (AUT+EMP, BEN+MAL, THR)
+tryfit("3-factor", paste0('
+ level: 1
+   LEADw =~ AUT1+AUT2+AUT3+AUT4+AUT5+AUT6+',EMP_str,'
+   ENVYw =~ BEN1+BEN2+BEN3+BEN4+BEN5+MAL1+MAL2+MAL3+MAL4+MAL5
+   THRw =~ ',THR_str,'
+ level: 2
+   LEADb =~ AUT1+AUT2+AUT3+AUT4+AUT5+AUT6+',EMP_str,'
+   ENVYb =~ BEN1+BEN2+BEN3+BEN4+BEN5+MAL1+MAL2+MAL3+MAL4+MAL5
+   THRb =~ ',THR_str))
+# Model 4: Two-Factor
+tryfit("2-factor", paste0('
+ level: 1
+   PREDw =~ AUT1+AUT2+AUT3+AUT4+AUT5+AUT6+',EMP_str,'+BEN1+BEN2+BEN3+BEN4+BEN5+MAL1+MAL2+MAL3+MAL4+MAL5
+   OUTw =~ ',THR_str,'
+ level: 2
+   PREDb =~ AUT1+AUT2+AUT3+AUT4+AUT5+AUT6+',EMP_str,'+BEN1+BEN2+BEN3+BEN4+BEN5+MAL1+MAL2+MAL3+MAL4+MAL5
+   OUTb =~ ',THR_str))
+# Model 5: Single-Factor
+tryfit("1-factor", paste0('
+ level: 1
+   GENw =~ AUT1+AUT2+AUT3+AUT4+AUT5+AUT6+',EMP_str,'+BEN1+BEN2+BEN3+BEN4+BEN5+MAL1+MAL2+MAL3+MAL4+MAL5+',THR_str,'
+ level: 2
+   GENb =~ AUT1+AUT2+AUT3+AUT4+AUT5+AUT6+',EMP_str,'+BEN1+BEN2+BEN3+BEN4+BEN5+MAL1+MAL2+MAL3+MAL4+MAL5+',THR_str))
 
 # ============================================================
 # JOINT MULTILEVEL SEM (lavaan two-level) — round-4 customer
