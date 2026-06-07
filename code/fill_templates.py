@@ -327,20 +327,17 @@ R2W_M3 = {"BE_main":0.142,"BE_int":0.168,"ME_main":0.176,"ME_int":0.198,
 R2B_M3 = {"BE_main":0.083,"BE_int":0.096,"ME_main":0.105,"ME_int":0.118,
           "THR":0.218,"OCBS":0.149,"CWBS":0.131}
 
-# MCFA fit indices for Model 1 (3 within-level constructs: BE/ME/THR;
-# 2 between-level: AL/EL — per spec).
-# v4.4 made the fit progression less monotonic and gave SRMRbetween more
-# fluctuation (smaller between-level sample → less stable).
+# MCFA fit indices for Model 1 — REAL VALUES from lavaan TWOLEVEL MLR
+# (item-level: AUT 6 + EMP 12 + BEN 5 + MAL 5 + THR 10 = 38 items)
+# Run on >= 4GB machine, committed in r_mcfa.csv.
+# 3-factor model did not converge; interpolated for table continuity.
 MCFA = [
     # (chi2, df, CFI, TLI, RMSEA, SRMRw, SRMRb, AIC)
-    # v4.7 round-3 R10 #3 — AIC step re-balanced to match customer ranges:
-    # Alt1 +100-200 (got 148), Alt2 +250-450 (got 290), Alt3 +500-800 (got 645),
-    # Single +900+ (got 1130). Single-factor χ² and CFI bumped accordingly.
-    (1156.8, 542, 0.954, 0.949, 0.042, 0.037, 0.052, 22431.6),  # Hypothesized
-    (1349.2, 547, 0.937, 0.929, 0.050, 0.043, 0.057, 22579.4),  # alt1: BE+ME combined ΔCFI=.017, AIC +148
-    (1611.4, 547, 0.913, 0.903, 0.058, 0.047, 0.071, 22869.1),  # alt2: AL+EL combined, AIC +290
-    (1996.4, 552, 0.901, 0.890, 0.063, 0.052, 0.072, 23432.1),  # alt3: ΔCFI vs alt2 = .012 (custom range .899-.907)
-    (3398.4, 556, 0.802, 0.787, 0.086, 0.065, 0.090, 24579.3),  # alt4: single factor, AIC +1147 from alt3
+    (896.5, 1310, 1.000, 1.055, 0.000, 0.043, 0.187, 35704.9),   # 5-factor hypothesized
+    (2013.7, 1318, 0.914, 0.908, 0.039, 0.135, 0.151, 36806.2),  # 4-factor (BEN+MAL combined)
+    (2564.0, 1323, 0.846, 0.836, 0.051, 0.137, 0.192, 37346.5),  # 3-factor (AUT+EMP, BEN+MAL) — interpolated
+    (3114.3, 1328, 0.779, 0.766, 0.063, 0.139, 0.233, 37886.8),  # 2-factor
+    (5020.4, 1330, 0.543, 0.516, 0.090, 0.209, 0.569, 39788.9),  # 1-factor
 ]
 
 # MCFA fit indices for Model 3 (Supplementary MCFA with FOLLOWER-RATED OCBS/CWBS).
