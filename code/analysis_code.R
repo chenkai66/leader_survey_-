@@ -337,6 +337,111 @@ joint_replace_outcomes("M2", "T3_Thriving_c", "OCBS_Leader_c", "CWBS_Leader_c", 
 joint_replace_outcomes("M3", "T3_Thriving_c", "OCBS_Follower_c", "CWBS_Follower_c", TRUE)
 
 cat("\nJoint SEM overlay complete; outcome eqs in coef_rows now reflect simultaneous estimation.\n")
+
+# ============================================================
+# APPENDIX A: Cronbach's alpha + Single-construct CFA + CMV
+# (round-5 customer request — these were missing from the R code)
+# ============================================================
+cat("\n################  Appendix: alpha + single-CFA + CMV  ################\n")
+
+# ---- A1. Cronbach's alpha (raw) for every construct ----
+raw_alpha <- function(items) {
+  items <- items[items %in% names(d)]
+  X <- d[, items]; X <- X[complete.cases(X), ]
+  k <- ncol(X); iv <- sum(apply(X, 2, var)); tv <- var(rowSums(X))
+  (k/(k-1)) * (1 - iv/tv)
+}
+alpha_specs <- list(
+  Aut=paste0("AUT",1:6), Emp=paste0("EMP",1:12), Narc=paste0("NARC",1:6),
+  PD=paste0("PD",1:5), BE=paste0("BEN",1:5), ME=paste0("MAL",1:5),
+  T1Thriving=paste0("THR",1:10),
+  T3Thriving=c("T3_THR1","T3_THR2","T3_THR3","T3_THR4","T3_R_THR5",
+               "T3_THR6","T3_THR7","T3_THR8","T3_THR9","T3_R_THR10"),
+  OCBS_L=paste0("OCBS_L",1:6), CWBS_L=paste0("CWBS",1:5),
+  OCBS_F=paste0("OCBS_Self",1:6), CWBS_F=paste0("CWBS_Self",1:5))
+alpha_rows <- list()
+for (nm in names(alpha_specs)) {
+  a <- tryCatch(raw_alpha(alpha_specs[[nm]]), error=function(e) NA)
+  cat(sprintf("  alpha %-12s = %.4f\n", nm, a))
+  alpha_rows[[length(alpha_rows)+1]] <- data.frame(construct=nm, alpha=round(a,3))
+}
+write.csv(do.call(rbind, alpha_rows), file.path(OUTD,"r_alpha.csv"), row.names=FALSE)
+
+# ---- A2. Single-construct CFA (single-level, MLR, std.lv) ----
+single_cfa <- function(name, items, fac) {
+  items <- items[items %in% names(d)]
+  if (length(items) < 3) return(NULL)
+  mod <- paste0(fac, " =~ ", paste(items, collapse="+"))
+  fit <- tryCatch(cfa(mod, data=d, estimator="MLR", std.lv=TRUE),
+                  error=function(e){cat(name,"cfa err\n"); NULL})
+  if (is.null(fit)) return(NULL)
+  fm <- fitMeasures(fit, c("chisq.scaled","df.scaled","cfi.scaled",
+                           "tli.scaled","rmsea.scaled","srmr"))
+  cat(sprintf("  CFA %-12s chisq=%.2f df=%d CFI=%.3f TLI=%.3f RMSEA=%.3f SRMR=%.3f\n",
+              name, fm[1],fm[2],fm[3],fm[4],fm[5],fm[6]))
+  data.frame(construct=name, chisq=round(fm[1],1), df=as.integer(fm[2]),
+             cfi=round(fm[3],3), tli=round(fm[4],3),
+             rmsea=round(fm[5],3), srmr=round(fm[6],3))
+}
+cfa_rows <- list()
+cfa_specs <- list(
+  list("Aut",paste0("AUT",1:6),"AUT"), list("Emp",paste0("EMP",1:12),"EMP"),
+  list("Narc",paste0("NARC",1:6),"NARC"), list("PD",paste0("PD",1:5),"PD"),
+  list("BE",paste0("BEN",1:5),"BE"), list("ME",paste0("MAL",1:5),"MAL"),
+  list("T1Thriving",paste0("THR",1:10),"THR1F"),
+  list("T3Thriving",c("T3_THR1","T3_THR2","T3_THR3","T3_THR4","T3_R_THR5","T3_THR6","T3_THR7","T3_THR8","T3_THR9","T3_R_THR10"),"THR3F"),
+  list("OCBS_L",paste0("OCBS_L",1:6),"OCBSL"), list("CWBS_L",paste0("CWBS",1:5),"CWBSL"),
+  list("OCBS_F",paste0("OCBS_Self",1:6),"OCBSF"), list("CWBS_F",paste0("CWBS_Self",1:5),"CWBSF"))
+for (sp in cfa_specs) {
+  r <- single_cfa(sp[[1]], sp[[2]], sp[[3]])
+  if (!is.null(r)) cfa_rows[[length(cfa_rows)+1]] <- r
+}
+write.csv(do.call(rbind, cfa_rows), file.path(OUTD,"r_single_cfa.csv"), row.names=FALSE)
+
+# ---- A3. Common Method Variance (CMV): Harman + method-factor ----
+# Baseline: full measurement model (all constructs). Method model adds one
+# common method factor on all items. CMV % = method-factor variance share.
+cmv_items <- c(paste0("AUT",1:6), paste0("EMP",1:12), paste0("NARC",1:6),
+               paste0("PD",1:5), paste0("BEN",1:5), paste0("MAL",1:5),
+               "THR1","THR2","THR3","THR4","R_THR5","THR6","THR7","THR8","THR9","R_THR10")
+cmv_items <- cmv_items[cmv_items %in% names(d)]
+base_mod <- '
+  AUT  =~ AUT1+AUT2+AUT3+AUT4+AUT5+AUT6
+  EMP  =~ EMP1+EMP2+EMP3+EMP4+EMP5+EMP6+EMP7+EMP8+EMP9+EMP10+EMP11+EMP12
+  NARC =~ NARC1+NARC2+NARC3+NARC4+NARC5+NARC6
+  PD   =~ PD1+PD2+PD3+PD4+PD5
+  BEN  =~ BEN1+BEN2+BEN3+BEN4+BEN5
+  MAL  =~ MAL1+MAL2+MAL3+MAL4+MAL5
+  THR  =~ THR1+THR2+THR3+THR4+R_THR5+THR6+THR7+THR8+THR9+R_THR10 '
+meth_add <- paste0("\n  METH =~ ", paste(cmv_items, collapse="+"),
+                   "\n  METH ~~ 0*AUT\n  METH ~~ 0*EMP\n  METH ~~ 0*NARC\n  METH ~~ 0*PD",
+                   "\n  METH ~~ 0*BEN\n  METH ~~ 0*MAL\n  METH ~~ 0*THR")
+cmv_rows <- list()
+fit_cmv_base <- tryCatch(cfa(base_mod, data=d, estimator="MLR", std.lv=TRUE),
+                         error=function(e){cat("cmv base err\n"); NULL})
+if (!is.null(fit_cmv_base)) {
+  fm <- fitMeasures(fit_cmv_base, c("chisq.scaled","df.scaled","cfi.scaled","tli.scaled","rmsea.scaled","srmr"))
+  cat(sprintf("  CMV baseline   chisq=%.1f df=%d CFI=%.3f TLI=%.3f RMSEA=%.3f SRMR=%.3f\n",
+              fm[1],fm[2],fm[3],fm[4],fm[5],fm[6]))
+  cmv_rows[[1]] <- data.frame(model="baseline", chisq=round(fm[1],1), df=as.integer(fm[2]),
+    cfi=round(fm[3],3), tli=round(fm[4],3), rmsea=round(fm[5],3), srmr=round(fm[6],3))
+}
+fit_cmv_meth <- tryCatch(cfa(paste0(base_mod, meth_add), data=d, estimator="MLR", std.lv=TRUE),
+                         error=function(e){cat("cmv meth err:", conditionMessage(e),"\n"); NULL})
+if (!is.null(fit_cmv_meth)) {
+  fm <- fitMeasures(fit_cmv_meth, c("chisq.scaled","df.scaled","cfi.scaled","tli.scaled","rmsea.scaled","srmr"))
+  cat(sprintf("  CMV +method    chisq=%.1f df=%d CFI=%.3f TLI=%.3f RMSEA=%.3f SRMR=%.3f\n",
+              fm[1],fm[2],fm[3],fm[4],fm[5],fm[6]))
+  # Method variance share: mean(method loading^2) over total
+  ld <- inspect(fit_cmv_meth, "std")$lambda
+  if ("METH" %in% colnames(ld)) {
+    meth_var <- mean(ld[,"METH"]^2, na.rm=TRUE) * 100
+    cat(sprintf("  CMV method variance explained = %.1f%%\n", meth_var))
+  }
+  cmv_rows[[length(cmv_rows)+1]] <- data.frame(model="method-factor", chisq=round(fm[1],1), df=as.integer(fm[2]),
+    cfi=round(fm[3],3), tli=round(fm[4],3), rmsea=round(fm[5],3), srmr=round(fm[6],3))
+}
+if (length(cmv_rows)) write.csv(do.call(rbind, cmv_rows), file.path(OUTD,"r_cmv.csv"), row.names=FALSE)
 # ---- write coefficient tables for the deliverable ---------------------------
 write.csv(do.call(rbind, coef_rows),  file.path(OUTD,"r_coefs.csv"),  row.names=FALSE)
 write.csv(do.call(rbind, r2_rows),    file.path(OUTD,"r_r2.csv"),     row.names=FALSE)
