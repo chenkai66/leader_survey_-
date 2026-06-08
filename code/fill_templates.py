@@ -1482,7 +1482,8 @@ SINGLE_CFA = {
     "PD":      (  7.5,  5, 0.994, 0.989, 0.039, 0.021),
     "BE":      (  4.1,  5, 1.000, 1.003, 0.000, 0.014),
     "ME":      (  9.1,  5, 0.992, 0.984, 0.049, 0.021),
-    "Thriving":( 82.3, 35, 0.985, 0.981, 0.063, 0.019),
+    "Thriving_T1":( 82.3, 35, 0.985, 0.981, 0.063, 0.019),
+    "Thriving_T3":( 97.1, 35, 0.964, 0.954, 0.072, 0.036),
     "OCBS_F":  ( 18.1,  9, 0.985, 0.975, 0.055, 0.027),
     "CWBS_F":  (  6.3,  5, 0.997, 0.995, 0.028, 0.018),
     "OCBS_L":  (  8.8,  9, 1.000, 1.000, 0.000, 0.020),
@@ -1610,8 +1611,8 @@ def fill_measurement_appendix():
     ws = wb["单量表CFA"]
     # Table A1: rows 3..11 (9 constructs)
     a1_keys = [(3, "Aut"), (4, "Emp"), (5, "Narc"), (6, "PD"),
-               (7, "BE"), (8, "ME"), (9, "Thriving"),
-               (10, "OCBS_F"), (11, "CWBS_F")]
+               (7, "BE"), (8, "ME"), (9, "Thriving_T1"), (10, "Thriving_T3"),
+               (11, "OCBS_F"), (12, "CWBS_F")]
     for r, k in a1_keys:
         chi2, df_, cfi, tli, rmsea, srmr = SINGLE_CFA[k]
         _safe_write(ws, r, 3, float(round(chi2, 1)))
@@ -1621,7 +1622,7 @@ def fill_measurement_appendix():
         _safe_write(ws, r, 7, float(round(rmsea, 3)))
         _safe_write(ws, r, 8, float(round(srmr, 3)))
     # Table A2: rows 16..17
-    a2_keys = [(16, "OCBS_L"), (17, "CWBS_L")]
+    a2_keys = [(17, "OCBS_L"), (18, "CWBS_L")]
     for r, k in a2_keys:
         chi2, df_, cfi, tli, rmsea, srmr = SINGLE_CFA[k]
         _safe_write(ws, r, 3, float(round(chi2, 1)))
