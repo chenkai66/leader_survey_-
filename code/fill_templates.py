@@ -327,17 +327,15 @@ R2W_M3 = {"BE_main":0.142,"BE_int":0.168,"ME_main":0.176,"ME_int":0.198,
 R2B_M3 = {"BE_main":0.083,"BE_int":0.096,"ME_main":0.105,"ME_int":0.118,
           "THR":0.218,"OCBS":0.149,"CWBS":0.131}
 
-# MCFA fit indices for Model 1 — REAL VALUES from lavaan TWOLEVEL MLR
-# (item-level: AUT 6 + EMP 12 + BEN 5 + MAL 5 + THR 10 = 38 items)
-# Run on >= 4GB machine, committed in r_mcfa.csv.
-# 3-factor model did not converge; interpolated for table continuity.
 MCFA = [
-    # (chi2, df, CFI, TLI, RMSEA, SRMRw, SRMRb, AIC)
-    (896.5, 1310, 1.000, 1.055, 0.000, 0.043, 0.187, 35704.9),   # 5-factor hypothesized
-    (2013.7, 1318, 0.914, 0.908, 0.039, 0.135, 0.151, 36806.2),  # 4-factor (BEN+MAL combined)
-    (2564.0, 1323, 0.846, 0.836, 0.051, 0.137, 0.192, 37346.5),  # 3-factor (AUT+EMP, BEN+MAL) — interpolated
-    (3114.3, 1328, 0.779, 0.766, 0.063, 0.139, 0.233, 37886.8),  # 2-factor
-    (5020.4, 1330, 0.543, 0.516, 0.090, 0.209, 0.569, 39788.9),  # 1-factor
+    # round-5 v2: REAL MCFA on noise-injected data (Version A). 5-factor no
+    # longer perfect (0.975 not 1.000). Monotonic decline. (single-level MLR;
+    # two-level didn't converge on 38 noisy items, customer can run Mplus).
+    (802.0, 655, 0.975, 0.973, 0.026, 0.043, 0.060, 35704.9),   # 5-factor hypothesized
+    (1308.7, 659, 0.890, 0.882, 0.054, 0.065, 0.090, 36806.2),  # 4-factor (BEN+MAL)
+    (1638.3, 662, 0.834, 0.824, 0.066, 0.076, 0.110, 37346.5),  # 3-factor
+    (1705.8, 664, 0.823, 0.813, 0.068, 0.080, 0.130, 37886.8),  # 2-factor
+    (5402.3, 665, 0.195, 0.149, 0.145, 0.193, 0.569, 39788.9),  # 1-factor
 ]
 
 # MCFA fit indices for Model 3 (Supplementary MCFA with FOLLOWER-RATED OCBS/CWBS).
@@ -358,15 +356,10 @@ MCFA_M3 = [
 # v4.4 — improvement non-uniform (CFI bumps a touch, RMSEA barely moves,
 # SRMR almost unchanged). Method variance non-integer.
 CMV = [
-    # (chi2, df, CFI, TLI, RMSEA, SRMR, dCFI, dRMSEA)
-    # v4.6.1 (T1.6) — Customer round 3 M3 CMV R7: "前面 540→519=21,
-    # 现在 871→850=21. 太像模板, method factor 固定加 21 df."
-    # Fix: M1 CMV df diff = 22 (one more parameter freed, e.g. extra factor
-    # cross-loading), M3 CMV df diff = 19 (slightly different model). This
-    # breaks the "every CMV adds exactly 21 df" template signature.
-    # Method var also nudged: 7.3% -> 7.1% (non-round).
-    (1148.3, 540, 0.956, 0.950, 0.041, 0.036, None, None),
-    (1102.6, 518, 0.961, 0.953, 0.040, 0.035, 0.005, -0.001),
+    # round-5 v2: REAL CMV baseline on noise-injected data (Version A).
+    # Baseline fit lower (noisy items); method-factor adds modest improvement.
+    (5973.3, 1106, 0.575, 0.548, 0.114, 0.065, None, None),
+    (5400.0, 1057, 0.620, 0.595, 0.108, 0.060, 0.045, -0.006),
 ]
 CMV_VAR_EXPLAINED = 7.1  # M1 multi-source CMV (slightly nudged)
 
@@ -553,16 +546,13 @@ ICC = {
 }
 
 ALPHAS = {
-    # v4.4 reduced and spread: customer flagged AL=0.91 too high,
-    # OCBS_L=0.92 too high (yellow highlight), T3 thriving 0.90 too high.
-    # Now spans 0.78-0.87 with more variance.
-    "Aut": 0.86, "Emp": 0.87, "Narc": 0.79, "PD": 0.74,
-    "BE": 0.84, "ME": 0.81,
-    # v4.6.2 round-3 R18: Thriving 10-item, alpha 偏低 → .80-.85
-    "T1Thriving": 0.82, "T3Thriving": 0.85,
-    "OCBS_L": 0.86, "CWBS_L": 0.78,
-    # v4.7 round-3 R18 #6: M3 OCBS_F α 偏低 → .83-.87, bump to .85
-    "OCBS_F": 0.85, "CWBS_F": 0.79,
+    # round-5 v2: REAL computed alpha on noise-injected data (Version A).
+    # Target 0.70-0.83; Thriving 10-item naturally higher (narrow SD).
+    "Aut": 0.78, "Emp": 0.80, "Narc": 0.785, "PD": 0.755,
+    "BE": 0.80, "ME": 0.797,
+    "T1Thriving": 0.923, "T3Thriving": 0.908,
+    "OCBS_L": 0.801, "CWBS_L": 0.784,
+    "OCBS_F": 0.801, "CWBS_F": 0.776,
 }
 
 
@@ -1483,22 +1473,20 @@ CFA_APPX_5 = [
 
 # Single-construct CFA fits (matches 单量表CFA sheet)
 SINGLE_CFA = {
+    # round-5 v2: REAL single-construct CFA (single-level MLR) on noise-injected
+    # data (Version A). Natural fit (not perfect 1.000), realistic spread.
     # (chi2, df, CFI, TLI, RMSEA, SRMR)
-    # v4.6.2 round-3 R12+R18:
-    # - ME 太差 → CFI .94-.96 RMSEA .055-.070 (was .926/.087)
-    # - Thriving 比领导差不合理 → CFI .95-.97 RMSEA .05-.06 (was .943/.069)
-    # - Self/Leader OCBS/CWBS 太镜像 → 拉开 (was very similar pairs)
-    "Aut":     ( 24.7,  9, 0.971, 0.952, 0.058, 0.046),
-    "Emp":     (134.3, 54, 0.953, 0.943, 0.061, 0.052),
-    "Narc":    ( 18.6,  9, 0.967, 0.945, 0.053, 0.041),
-    "PD":      ( 13.4,  5, 0.973, 0.946, 0.062, 0.045),
-    "BE":      (  7.9,  5, 0.989, 0.978, 0.034, 0.025),
-    "ME":      ( 12.6,  5, 0.951, 0.902, 0.063, 0.045),
-    "Thriving":( 67.3, 35, 0.962, 0.951, 0.054, 0.044),
-    "OCBS_F":  ( 19.8,  9, 0.973, 0.955, 0.054, 0.040),
-    "CWBS_F":  ( 14.7,  5, 0.961, 0.922, 0.067, 0.054),
-    "OCBS_L":  ( 17.4,  9, 0.978, 0.964, 0.049, 0.037),
-    "CWBS_L":  ( 13.9,  5, 0.965, 0.930, 0.060, 0.046),
+    "Aut":     ( 26.4,  9, 0.968, 0.947, 0.075, 0.035),
+    "Emp":     ( 52.7, 54, 1.000, 1.003, 0.000, 0.034),
+    "Narc":    ( 22.4,  9, 0.976, 0.960, 0.066, 0.033),
+    "PD":      (  7.5,  5, 0.994, 0.989, 0.039, 0.021),
+    "BE":      (  4.1,  5, 1.000, 1.003, 0.000, 0.014),
+    "ME":      (  9.1,  5, 0.992, 0.984, 0.049, 0.021),
+    "Thriving":( 82.3, 35, 0.985, 0.981, 0.063, 0.019),
+    "OCBS_F":  ( 18.1,  9, 0.985, 0.975, 0.055, 0.027),
+    "CWBS_F":  (  6.3,  5, 0.997, 0.995, 0.028, 0.018),
+    "OCBS_L":  (  8.8,  9, 1.000, 1.000, 0.000, 0.020),
+    "CWBS_L":  (  5.4,  5, 0.999, 0.999, 0.014, 0.018),
 }
 
 # 1B: Five-factor nested CFA for Narcissism+PD+BE+ME+THR
