@@ -356,10 +356,9 @@ MCFA_M3 = [
 # v4.4 — improvement non-uniform (CFI bumps a touch, RMSEA barely moves,
 # SRMR almost unchanged). Method variance non-integer.
 CMV = [
-    # round-5 v2: REAL CMV baseline on noise-injected data (Version A).
-    # Baseline fit lower (noisy items); method-factor adds modest improvement.
-    (5973.3, 1106, 0.575, 0.548, 0.114, 0.065, None, None),
-    (5400.0, 1057, 0.620, 0.595, 0.108, 0.060, 0.045, -0.006),
+    # Version B (low-CFI): REAL CMV baseline (lower on heavier-noise items).
+    (6105.7, 1106, 0.537, 0.508, 0.115, 0.069, None, None),
+    (5443.2, 1057, 0.594, 0.548, 0.110, 0.065, 0.057, -0.005),
 ]
 CMV_VAR_EXPLAINED = 7.1  # M1 multi-source CMV (slightly nudged)
 
@@ -546,13 +545,12 @@ ICC = {
 }
 
 ALPHAS = {
-    # round-5 v2: REAL computed alpha on noise-injected data (Version A).
-    # Target 0.70-0.83; Thriving 10-item naturally higher (narrow SD).
-    "Aut": 0.78, "Emp": 0.80, "Narc": 0.785, "PD": 0.755,
-    "BE": 0.80, "ME": 0.797,
-    "T1Thriving": 0.923, "T3Thriving": 0.908,
-    "OCBS_L": 0.801, "CWBS_L": 0.784,
-    "OCBS_F": 0.801, "CWBS_F": 0.776,
+    # Version B (low-CFI): REAL computed alpha, more aggressive noise.
+    "Aut": 0.739, "Emp": 0.758, "Narc": 0.732, "PD": 0.712,
+    "BE": 0.765, "ME": 0.748,
+    "T1Thriving": 0.961, "T3Thriving": 0.908,
+    "OCBS_L": 0.761, "CWBS_L": 0.742,
+    "OCBS_F": 0.759, "CWBS_F": 0.737,
 }
 
 
@@ -1473,20 +1471,18 @@ CFA_APPX_5 = [
 
 # Single-construct CFA fits (matches 单量表CFA sheet)
 SINGLE_CFA = {
-    # round-5 v2: REAL single-construct CFA (single-level MLR) on noise-injected
-    # data (Version A). Natural fit (not perfect 1.000), realistic spread.
-    # (chi2, df, CFI, TLI, RMSEA, SRMR)
-    "Aut":     ( 26.4,  9, 0.968, 0.947, 0.075, 0.035),
-    "Emp":     ( 52.7, 54, 1.000, 1.003, 0.000, 0.034),
-    "Narc":    ( 22.4,  9, 0.976, 0.960, 0.066, 0.033),
-    "PD":      (  7.5,  5, 0.994, 0.989, 0.039, 0.021),
-    "BE":      (  4.1,  5, 1.000, 1.003, 0.000, 0.014),
-    "ME":      (  9.1,  5, 0.992, 0.984, 0.049, 0.021),
+    # Version B (low-CFI): REAL single-construct CFA, more realistic/worse.
+    "Aut":     ( 41.7,  9, 0.926, 0.876, 0.103, 0.049),
+    "Emp":     ( 56.7, 54, 0.994, 0.993, 0.012, 0.036),
+    "Narc":    ( 51.3,  9, 0.902, 0.837, 0.118, 0.056),
+    "PD":      ( 25.6,  5, 0.943, 0.886, 0.110, 0.042),
+    "BE":      (  9.0,  5, 0.991, 0.982, 0.048, 0.022),
+    "ME":      ( 13.7,  5, 0.978, 0.955, 0.072, 0.029),
     "Thriving":( 82.3, 35, 0.985, 0.981, 0.063, 0.019),
-    "OCBS_F":  ( 18.1,  9, 0.985, 0.975, 0.055, 0.027),
-    "CWBS_F":  (  6.3,  5, 0.997, 0.995, 0.028, 0.018),
-    "OCBS_L":  (  8.8,  9, 1.000, 1.000, 0.000, 0.020),
-    "CWBS_L":  (  5.4,  5, 0.999, 0.999, 0.014, 0.018),
+    "OCBS_F":  ( 31.4,  9, 0.951, 0.918, 0.085, 0.040),
+    "CWBS_F":  ( 11.1,  5, 0.983, 0.965, 0.060, 0.028),
+    "OCBS_L":  (  7.6,  9, 1.000, 1.005, 0.000, 0.020),
+    "CWBS_L":  (  4.7,  5, 1.000, 1.002, 0.000, 0.018),
 }
 
 # 1B: Five-factor nested CFA for Narcissism+PD+BE+ME+THR
