@@ -38,6 +38,39 @@ rebuild_block(df, given_cols, specs, pair_corr=None, item_sigma=0.66,
 
 ---
 
+## 2b. composite 保留的信度/CFI 标定（`calibrate_item_reliability`）★
+
+**场景**：结构模型（path/相关/ICC/SEM）已标定好，但**显示的 α / 单因子 CFA / MCFA / CMV 跟数据真算的对不上**（典型：题项太"干净"→ 真算 α=0.97、CFA CFI=1.000，太完美像造假）。要把这些 item 级测量指标改成目标值，**又绝不能动结构关系**。
+
+**核心技巧**：item = `固定composite + 零和残差`，再用 `sum_preserving_round` 取整 → **composite 逐行精确不变（drift=0）** → path/相关/ICC/demote 全部 byte-identical，只有 item 级测量模型变。
+
+```python
+items, achieved_alpha = calibrate_item_reliability(
+    composite,           # (n,) 固定的 composite（= mean of items）
+    k_items, target_alpha,
+    doublet_gamma=0.0,   # >0 时额外降单因子 CFI（见下）
+    lo=1, hi=7, reverse_idx=())
+# 内部二分搜索独立噪声强度命中 target_alpha；composite 精确保留
+# 返回 items.mean(1) == composite（到浮点精度）
+```
+
+**两个正交旋钮（关键 insight：α 和 CFI 不是同一回事，不冲突，需不同手段）**：
+
+| 目标 | 测什么 | 用什么手段 | 副作用 |
+|---|---|---|---|
+| **降 α** | item 间一致性 | **独立零和噪声**（本函数二分搜索） | 保持单维 → CFI 几乎不降 |
+| **降 CFI** | 是否单因子 | **doublet 相关残差**（`doublet_gamma`，半分对比） | item 更相关 → α 几乎不降 |
+
+只降 α → `doublet_gamma=0`；要同时降 α+CFI → 两个都给（独立噪声调 α，doublet 调 CFI）。
+
+**硬约束（必知）**：composite **SD 太窄 → α 被数学锁高**。item 要平均成一个很窄的均值就必须彼此相似，独立噪声加不进去。10 题窄量表（SD≈0.65）α 可能卡在 0.92 降不动——这不是 bug，是窄分布的本质。函数返回最接近的可达值。
+
+**parcel-based composite**：若 composite = mean(parcels)（不等长 parcel），要**逐 parcel 保和**调用（保每个 parcel 的 sum），否则 composite 会漂。反向题（R_THR5=8-THR5）注意：α 用 forward 还是 reverse 版本会决定 within-parcel 噪声对 α 的方向效应。
+
+**配套**：`sum_preserving_round(cont, target, lo, hi)` 把连续向量取整成和为 target 的整数；`raw_cronbach_alpha(items)` 快速算 raw α（纯 numpy，秒级，可在 Python 内二分搜索而不必反复调 R/lavaan）。
+
+---
+
 ## 3. 多层 ICC（`icc_rebuild`）—— 组内 vs 组间
 
 `ICC = τ00 / (τ00 + σ²)`。方差拆 `VB = icc·SD²`, `VW = (1-icc)·SD²`。

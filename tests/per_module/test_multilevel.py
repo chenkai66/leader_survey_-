@@ -19,4 +19,14 @@ bv = df_p.groupby("unit").y.mean().var(); wv = df_p.groupby("unit").y.var().mean
 chk("panel ICC ≈ 0.3", abs(bv/(bv+wv) - 0.3) < 0.07)
 mr = C.multi_rater(2000, rater_corr=[[1,0.6],[0.6,1]], rng=rng)
 chk("multi_rater inter-rater corr ≈ 0.6", abs(mr.corr().iloc[0,1] - 0.6) < 0.05)
+
+# composite-preserving reliability calibration (regenerate items at target alpha,
+# keep composite byte-identical so structural relationships are untouched)
+comp = np.clip(np.round(rng.normal(4.5, 1.0, 500)), 1, 7)
+it_a, ach = C.calibrate_item_reliability(comp, 6, target_alpha=0.78, rng=rng)
+chk("calibrate_item_reliability alpha ≈ 0.78", abs(ach - 0.78) < 0.03)
+chk("calibrate_item_reliability composite preserved", abs(it_a.mean(1) - comp).max() < 1e-9)
+chk("calibrate_item_reliability items 1..7 int",
+    it_a.min() >= 1 and it_a.max() <= 7 and it_a.dtype.kind == "i")
+chk("sum_preserving_round hits target sum", C.sum_preserving_round([4.3,5.1,3.8], 13).sum() == 13)
 summary()

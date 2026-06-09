@@ -97,6 +97,127 @@ def likertize(Lstd, mean, sd, k_items, item_sigma, lo=1, hi=7,
     return items, composite
 
 
+# -------------------------- composite-preserving reliability/CFI calibration
+
+def sum_preserving_round(cont, target, lo=1, hi=7):
+    """Round a continuous vector to integers in [lo,hi] whose sum == target.
+
+    Largest-remainder style: floor, then add/subtract 1 from the items whose
+    continuous value most over/under-shoots, skipping items already at a
+    boundary. Guarantees the integer mean equals target/len exactly UNLESS
+    boundary clipping makes it infeasible (rare for small perturbations).
+    """
+    cont = np.asarray(cont, float)
+    fl = np.clip(np.round(cont), lo, hi).astype(int)
+    for _ in range(80):
+        deficit = int(round(target - fl.sum()))
+        if deficit == 0:
+            break
+        if deficit > 0:
+            cand = [j for j in range(len(fl)) if fl[j] < hi]
+            if not cand:
+                break
+            fl[max(cand, key=lambda j: cont[j] - fl[j])] += 1
+        else:
+            cand = [j for j in range(len(fl)) if fl[j] > lo]
+            if not cand:
+                break
+            fl[min(cand, key=lambda j: cont[j] - fl[j])] -= 1
+    return fl
+
+
+def raw_cronbach_alpha(items):
+    """Raw (unstandardized) Cronbach's alpha for an (n,k) integer item matrix."""
+    X = np.asarray(items, float)
+    k = X.shape[1]
+    iv = X.var(axis=0, ddof=1).sum()
+    tv = X.sum(axis=1).var(ddof=1)
+    return (k / (k - 1)) * (1 - iv / tv)
+
+
+def calibrate_item_reliability(composite, k_items, target_alpha,
+                               doublet_gamma=0.0, lo=1, hi=7,
+                               reverse_idx=(), rng=None, n_search=22):
+    """Regenerate k Likert items AROUND a FIXED composite so that the items
+    hit a target Cronbach's alpha (and, via doublet_gamma, a target single-
+    factor CFA misfit) WHILE the composite (row mean) is preserved EXACTLY.
+
+    Why this matters
+    ----------------
+    Path / correlation / ICC / SEM use the COMPOSITE (mean of items). Single-
+    construct CFA, MCFA, CMV and alpha use the ITEMS. By regenerating items as
+    `composite + zero-sum residual` and rounding with `sum_preserving_round`,
+    the composite stays byte-identical -> every structural relationship is
+    unchanged, and ONLY the item-level measurement models move. This lets you
+    fix "displayed alpha/CFA != what the data computes" without disturbing an
+    already-calibrated structural model.
+
+    Two orthogonal knobs (they do NOT trade off — see SKILL note)
+    -------------------------------------------------------------
+    * target_alpha  : driven by INDEPENDENT zero-sum item noise (binary-searched
+                      here). More independent noise -> lower inter-item r -> lower
+                      alpha. Keeps the scale unidimensional (CFI stays high).
+    * doublet_gamma : a zero-sum split-half "method" contrast added on top. It
+                      creates correlated residuals -> single-factor CFA misfit
+                      (lower CFI) WITHOUT raising alpha back. Set 0 for alpha-only.
+
+    Hard limit
+    ----------
+    A NARROW composite SD forces HIGH alpha: items must average to a tight mean,
+    so they cannot vary independently enough to lower inter-item correlation.
+    If target_alpha is unreachable the search returns the closest achievable.
+
+    Parameters
+    ----------
+    composite   : (n,) fixed composite values (mean of items). For parcel-based
+                  composites, call per parcel preserving each parcel sum.
+    k_items     : number of items.
+    target_alpha: desired raw Cronbach alpha (approximate; "close enough" is fine).
+    doublet_gamma: split-half contrast magnitude for CFA misfit (0 = none).
+    reverse_idx : 1-based indices stored reverse-coded ((lo+hi)-value).
+
+    Returns (items (n,k) int, achieved_alpha float). Composite == items.mean(1).
+    """
+    rng = rng or np.random.default_rng()
+    C = np.asarray(composite, float)
+    n = len(C)
+    k = k_items
+    n1 = k // 2
+    n2 = k - n1
+    Csum = np.round(C * k).astype(int)          # integer target sum per row
+
+    def build(sigma, seed):
+        r = np.random.default_rng(seed)
+        u = r.standard_normal(n)                # doublet latent (shared per row)
+        X = np.zeros((n, k), dtype=int)
+        for i in range(n):
+            e = r.standard_normal(k)
+            e = e - e.mean()                    # zero-sum independent residual
+            if e.std() > 1e-9:
+                e = e / e.std() * sigma
+            dbl = np.array([doublet_gamma if j < n1
+                            else -doublet_gamma * (n1 / n2) for j in range(k)]) * u[i]
+            X[i] = sum_preserving_round(C[i] + e + dbl, Csum[i], lo, hi)
+        return X
+
+    lo_s, hi_s, best = 0.01, 3.0, None
+    for it in range(n_search):
+        mid = (lo_s + hi_s) / 2
+        X = build(mid, seed=1000 + it)
+        a = raw_cronbach_alpha(X)
+        best = (X, a)
+        if abs(a - target_alpha) < 0.008:
+            break
+        if a > target_alpha:                    # too reliable -> more noise
+            lo_s = mid
+        else:                                   # too noisy -> less
+            hi_s = mid
+    X, a = best
+    for j in reverse_idx:
+        X[:, j - 1] = (lo + hi) - X[:, j - 1]
+    return X, a
+
+
 # ---------------------------------- outer-calibrated multi-composite rebuild
 def rebuild_block(df, given_cols, specs, pair_corr=None, item_sigma=0.66,
                   outer=9, lr=0.85, lo=1, hi=7, rng=None):
@@ -2364,6 +2485,9 @@ INVENTORY = {
     ],
     "multilevel": [
         ("likertize",            "Likert 题项 + composite"),
+        ("calibrate_item_reliability", "保 composite 调 α+CFI（结构不变）★"),
+        ("sum_preserving_round", "取整成和=target 的整数向量"),
+        ("raw_cronbach_alpha",   "raw α（纯 numpy，秒级）"),
         ("icc_rebuild",          "多层 ICC 命中 + halo cross-corr"),
         ("factor_model_sample",  "因子模型 X = FΛ' + E"),
         ("irt_2pl_data",         "IRT 2PL 二分项"),
