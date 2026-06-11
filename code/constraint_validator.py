@@ -106,7 +106,21 @@ def main() -> int:
           f"got {t1['LeaderID'].nunique()}")
     check("T2 leaders == 85", t2["LeaderID"].nunique() == 85,
           f"got {t2['LeaderID'].nunique()}")
-    check("T3 leader cleaned rows == 79", len(t3l) == 79, f"got {len(t3l)}")
+    # round-5: T3 leader survey is now DYAD-level (one row per follower the
+    # leader evaluated) — a leader rates several followers. 340 rows / 79 leaders.
+    check("T3 leader cleaned rows == 340 (dyad-level)", len(t3l) == 340, f"got {len(t3l)}")
+    check("T3 leader cleaned leaders == 79", t3l["LeaderID"].nunique() == 79,
+          f"got {t3l['LeaderID'].nunique()}")
+    check("T3 leader followers unique == 340", t3l["FollowerID"].nunique() == 340,
+          f"got {t3l['FollowerID'].nunique()}")
+    check("T3 leader has NumFollowersEvaluated col", "NumFollowersEvaluated" in t3l.columns)
+    if "NumFollowersEvaluated" in t3l.columns:
+        per = t3l.groupby("LeaderID")["FollowerID"].count()
+        nfe = t3l.groupby("LeaderID")["NumFollowersEvaluated"].first()
+        check("NumFollowersEvaluated == actual dyad count", bool((per.values == nfe.values).all()),
+              "count mismatch")
+        check("SpanOfControl >= NumFollowersEvaluated",
+              bool((t3l["SpanOfControl"] >= t3l["NumFollowersEvaluated"]).all()))
     check("T3 follower leaders == 79", t3f["LeaderID"].nunique() == 79,
           f"got {t3f['LeaderID'].nunique()}")
     check("final leaders == 79", final["LeaderID"].nunique() == 79,
@@ -229,9 +243,9 @@ def main() -> int:
     if "FollowerID" in t2r.columns:
         n = t2r["FollowerID"].duplicated().sum()
         check("T2 raw 1 ≤ dup ≤ 6", 1 <= n <= 6, f"{n}")
-    if "LeaderID" in t3lr.columns:
-        n = t3lr["LeaderID"].duplicated().sum()
-        check("T3 leader raw 0 < dup ≤ 1", 0 < n <= 1, f"{n}")
+    if "FollowerID" in t3lr.columns:
+        n = t3lr["FollowerID"].duplicated().sum()
+        check("T3 leader raw 0 < follower-dup ≤ 1", 0 < n <= 1, f"{n}")
     if "FollowerID" in t1.columns and "FollowerID" in t2r.columns:
         miss = set(t2r["FollowerID"]) - set(t1["FollowerID"])
         check("T2 raw ≥ 3 unmatched", len(miss) >= 3, f"{len(miss)}")
@@ -443,7 +457,7 @@ def main() -> int:
     section("24. No duplicate IDs in cleaned")
     for label, df, key in [("T1", t1, "FollowerID"), ("T2", t2, "FollowerID"),
                             ("T3 follower", t3f, "FollowerID"),
-                            ("T3 leader", t3l, "LeaderID"),
+                            ("T3 leader", t3l, "FollowerID"),
                             ("final", final, "FollowerID")]:
         if key in df.columns:
             n = df[key].duplicated().sum()
