@@ -69,6 +69,8 @@ items, achieved_alpha = calibrate_item_reliability(
 
 **配套**：`sum_preserving_round(cont, target, lo, hi)` 把连续向量取整成和为 target 的整数；`raw_cronbach_alpha(items)` 快速算 raw α（纯 numpy，秒级，可在 Python 内二分搜索而不必反复调 R/lavaan）。
 
+**⚠️ 多构念调用必须用 distinct rng（种子隔离）**：对每个构念分别调 `calibrate_item_reliability` 时，**每个构念传一个独立 rng**（或独立 seed）。函数内部噪声种子已改为从传入 rng 派生——若多个构念共用同一固定种子，会给不同 composite 加上**完全相同的零和噪声向量**，导致跨构念第 k 个题项之间出现伪"对角线"相关（实测可达 0.4–0.5，像两个量表的 item5 几乎 1:1）。这是隐蔽的造假破绽。正确写法：`for i,(comp,...) in enumerate(specs): calibrate_item_reliability(..., rng=np.random.default_rng(BASE + i*1000))`。反向题（raw=负向措辞 → 与正向题负相关；reverse-scored R=lo+hi−raw → 正相关，进 composite）务必让 **R 进 composite 且正相关**；若 raw 进 composite 就成了 sign-flip，R 反而 ≈−1。
+
 ---
 
 ## 3. 多层 ICC（`icc_rebuild`）—— 组内 vs 组间

@@ -29,4 +29,13 @@ chk("calibrate_item_reliability composite preserved", abs(it_a.mean(1) - comp).m
 chk("calibrate_item_reliability items 1..7 int",
     it_a.min() >= 1 and it_a.max() <= 7 and it_a.dtype.kind == "i")
 chk("sum_preserving_round hits target sum", C.sum_preserving_round([4.3,5.1,3.8], 13).sum() == 13)
+# seed-isolation: two constructs over INDEPENDENT composites with distinct rng
+# must NOT share position-aligned item noise (guards the seed-collision bug)
+g = np.random.default_rng(5)
+c1 = np.clip(np.round(g.normal(4.5, 1.0, 400)), 1, 7).astype(float)
+c2 = np.clip(np.round(g.normal(4.0, 1.0, 400)), 1, 7).astype(float)
+ia, _ = C.calibrate_item_reliability(c1, 5, 0.78, rng=np.random.default_rng(11))
+ib, _ = C.calibrate_item_reliability(c2, 5, 0.78, rng=np.random.default_rng(22))
+xdiag = np.mean([np.corrcoef(ia[:, j], ib[:, j])[0, 1] for j in range(5)])
+chk("calibrate_item_reliability no cross-construct seed collision", abs(xdiag) < 0.1)
 summary()

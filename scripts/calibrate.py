@@ -179,6 +179,11 @@ def calibrate_item_reliability(composite, k_items, target_alpha,
     Returns (items (n,k) int, achieved_alpha float). Composite == items.mean(1).
     """
     rng = rng or np.random.default_rng()
+    # Derive the internal noise seed FROM the passed rng so that separate
+    # constructs (each given its own rng / seed) get INDEPENDENT noise streams.
+    # A fixed base here would make every construct share identical residuals ->
+    # spurious position-aligned cross-construct item correlations.
+    seed0 = int(rng.integers(1, 2 ** 31 - 1))
     C = np.asarray(composite, float)
     n = len(C)
     k = k_items
@@ -203,7 +208,7 @@ def calibrate_item_reliability(composite, k_items, target_alpha,
     lo_s, hi_s, best = 0.01, 3.0, None
     for it in range(n_search):
         mid = (lo_s + hi_s) / 2
-        X = build(mid, seed=1000 + it)
+        X = build(mid, seed=seed0 + it)
         a = raw_cronbach_alpha(X)
         best = (X, a)
         if abs(a - target_alpha) < 0.008:
