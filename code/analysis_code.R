@@ -181,7 +181,7 @@ run_full("M3", c("OCBS_Follower_c","CWBS_Follower_c"), TRUE)
 cat("\n################  MCFA competing models (two-level, item-level)  ################\n")
 mcfa_rows <- list()
 EMP <- paste0("EMP",1:12)
-THR <- c("THR1","THR2","THR3","THR4","R_THR5","THR6","THR7","THR8","THR9","R_THR10")
+THR <- c("T3_THR1","T3_THR2","T3_THR3","T3_THR4","T3_R_THR5","T3_THR6","T3_THR7","T3_THR8","T3_THR9","T3_R_THR10")  # MCFA outcome = T3 thriving (was wrongly T1 control)
 items <- c(paste0("AUT",1:6), EMP, paste0("BEN",1:5), paste0("MAL",1:5), THR)
 dm <- d[, c("CLID", items)]
 EMP_str <- paste(EMP, collapse="+")
@@ -354,7 +354,7 @@ raw_alpha <- function(items) {
 alpha_specs <- list(
   Aut=paste0("AUT",1:6), Emp=paste0("EMP",1:12), Narc=paste0("NARC",1:6),
   PD=paste0("PD",1:5), BE=paste0("BEN",1:5), ME=paste0("MAL",1:5),
-  T1Thriving=paste0("THR",1:10),
+  T1Thriving=c("THR1","THR2","THR3","THR4","R_THR5","THR6","THR7","THR8","THR9","R_THR10"),  # reverse-scored (R_THR5/R_THR10)
   T3Thriving=c("T3_THR1","T3_THR2","T3_THR3","T3_THR4","T3_R_THR5",
                "T3_THR6","T3_THR7","T3_THR8","T3_THR9","T3_R_THR10"),
   OCBS_L=paste0("OCBS_L",1:6), CWBS_L=paste0("CWBS",1:5),
@@ -388,7 +388,7 @@ cfa_specs <- list(
   list("Aut",paste0("AUT",1:6),"AUT"), list("Emp",paste0("EMP",1:12),"EMP"),
   list("Narc",paste0("NARC",1:6),"NARC"), list("PD",paste0("PD",1:5),"PD"),
   list("BE",paste0("BEN",1:5),"BE"), list("ME",paste0("MAL",1:5),"MAL"),
-  list("T1Thriving",paste0("THR",1:10),"THR1F"),
+  list("T1Thriving",c("THR1","THR2","THR3","THR4","R_THR5","THR6","THR7","THR8","THR9","R_THR10"),"THR1F"),
   list("T3Thriving",c("T3_THR1","T3_THR2","T3_THR3","T3_THR4","T3_R_THR5","T3_THR6","T3_THR7","T3_THR8","T3_THR9","T3_R_THR10"),"THR3F"),
   list("OCBS_L",paste0("OCBS_L",1:6),"OCBSL"), list("CWBS_L",paste0("CWBS",1:5),"CWBSL"),
   list("OCBS_F",paste0("OCBS_Self",1:6),"OCBSF"), list("CWBS_F",paste0("CWBS_Self",1:5),"CWBSF"))
@@ -403,7 +403,7 @@ write.csv(do.call(rbind, cfa_rows), file.path(OUTD,"r_single_cfa.csv"), row.name
 # common method factor on all items. CMV % = method-factor variance share.
 cmv_items <- c(paste0("AUT",1:6), paste0("EMP",1:12), paste0("NARC",1:6),
                paste0("PD",1:5), paste0("BEN",1:5), paste0("MAL",1:5),
-               "THR1","THR2","THR3","THR4","R_THR5","THR6","THR7","THR8","THR9","R_THR10")
+               "T3_THR1","T3_THR2","T3_THR3","T3_THR4","T3_R_THR5","T3_THR6","T3_THR7","T3_THR8","T3_THR9","T3_R_THR10")
 cmv_items <- cmv_items[cmv_items %in% names(d)]
 base_mod <- '
   AUT  =~ AUT1+AUT2+AUT3+AUT4+AUT5+AUT6
@@ -412,7 +412,7 @@ base_mod <- '
   PD   =~ PD1+PD2+PD3+PD4+PD5
   BEN  =~ BEN1+BEN2+BEN3+BEN4+BEN5
   MAL  =~ MAL1+MAL2+MAL3+MAL4+MAL5
-  THR  =~ THR1+THR2+THR3+THR4+R_THR5+THR6+THR7+THR8+THR9+R_THR10 '
+  THR  =~ T3_THR1+T3_THR2+T3_THR3+T3_THR4+T3_R_THR5+T3_THR6+T3_THR7+T3_THR8+T3_THR9+T3_R_THR10 '
 meth_add <- paste0("\n  METH =~ ", paste(cmv_items, collapse="+"),
                    "\n  METH ~~ 0*AUT\n  METH ~~ 0*EMP\n  METH ~~ 0*NARC\n  METH ~~ 0*PD",
                    "\n  METH ~~ 0*BEN\n  METH ~~ 0*MAL\n  METH ~~ 0*THR")
