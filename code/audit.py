@@ -280,10 +280,10 @@ def layer4():
         _fail("layer4", f"OCBS_Self count = {n_ocbs_self}, expected 6")
     if n_cwbs_self != 5:
         _fail("layer4", f"CWBS_Self count = {n_cwbs_self}, expected 5")
-    n_ocbs_l = sum(1 for c in t3l.columns
-                   if c.startswith("OCBS_L") and c[len("OCBS_L"):].isdigit())
+    # WJX wide: per-follower blocks OCBS_1_1..OCBS_1_6 / CWBS_1_1..CWBS_1_5 (slot 1)
+    n_ocbs_l = sum(1 for c in t3l.columns if c.startswith("OCBS_1_"))
     n_cwbs = sum(1 for c in t3l.columns
-                 if c.startswith("CWBS") and c[len("CWBS"):].isdigit())
+                 if c.startswith("CWBS_1_") and "AttCheck" not in c)
     if n_ocbs_l != 6:
         _fail("layer4", f"OCBS_L count = {n_ocbs_l}, expected 6")
     if n_cwbs != 5:
