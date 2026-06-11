@@ -71,6 +71,10 @@ items, achieved_alpha = calibrate_item_reliability(
 
 **⚠️ 多构念调用必须用 distinct rng（种子隔离）**：对每个构念分别调 `calibrate_item_reliability` 时，**每个构念传一个独立 rng**（或独立 seed）。函数内部噪声种子已改为从传入 rng 派生——若多个构念共用同一固定种子，会给不同 composite 加上**完全相同的零和噪声向量**，导致跨构念第 k 个题项之间出现伪"对角线"相关（实测可达 0.4–0.5，像两个量表的 item5 几乎 1:1）。这是隐蔽的造假破绽。正确写法：`for i,(comp,...) in enumerate(specs): calibrate_item_reliability(..., rng=np.random.default_rng(BASE + i*1000))`。反向题（raw=负向措辞 → 与正向题负相关；reverse-scored R=lo+hi−raw → 正相关，进 composite）务必让 **R 进 composite 且正相关**；若 raw 进 composite 就成了 sign-flip，R 反而 ≈−1。
 
+**⚠️ doublet_gamma → CFI 是非单调且每构念有"悬崖"，必须 grid-search 不要手调**：同一个 gamma 在不同构念上给出的单因子 CFI 天差地别（实测 6 题量表 gamma=0.36→CFI 0.93，gamma=0.44→0.52 直接崩；另一个构念 gamma↑ 反而 CFI↑）。原因：CFI 对相关残差结构高度敏感，且取决于题数/composite SD。**正确做法**：对每构念在 gamma 网格（如 0.10–0.82）上各生成一份 item，跑 lavaan 单因子 CFA 拿 CFI，挑最接近目标 CFI（且 ≤0.99 避免 =1）的 gamma。手调几乎必然踩坑。
+
+**⚠️ within-parcel 噪声"太小"反而降 item 级 CFI**：parcel 保和重生时，sigma 太小 → 同 parcel 内题项近乎共线 → 单因子 CFA 估计退化、CFI 反而崩（实测 sigma 0.32→CFI 0.95 但不稳，0.46 时 CFI 0.96–0.98 且 α 更合理）。**适度** within-parcel 噪声（不是越小越保真）才给干净的 item 级测量模型。另：parcel 保和会**锁死 inter-parcel 相关**——若某 composite 本身 inter-parcel r 很低（如 0.16，窄 SD 弱相关量表），其 10 题单因子 CFI 有数学上限，再怎么调也上不去；这是 composite-preservation 的固有代价，不是 bug。
+
 ---
 
 ## 3. 多层 ICC（`icc_rebuild`）—— 组内 vs 组间
