@@ -106,21 +106,22 @@ def main() -> int:
           f"got {t1['LeaderID'].nunique()}")
     check("T2 leaders == 85", t2["LeaderID"].nunique() == 85,
           f"got {t2['LeaderID'].nunique()}")
-    # round-5: T3 leader survey is now DYAD-level (one row per follower the
-    # leader evaluated) — a leader rates several followers. 340 rows / 79 leaders.
-    check("T3 leader cleaned rows == 340 (dyad-level)", len(t3l) == 340, f"got {len(t3l)}")
-    check("T3 leader cleaned leaders == 79", t3l["LeaderID"].nunique() == 79,
+    # round-5: T3 leader survey is WJX WIDE format — ONE LEADER PER ROW.
+    # Each leader rates up to 5 followers (FollowerID_k + OCBS_k + CWBS_k blocks).
+    check("T3 leader cleaned rows == 79 (WJX wide, one per leader)", len(t3l) == 79, f"got {len(t3l)}")
+    check("T3 leader LeaderID unique == 79", t3l["LeaderID"].nunique() == 79,
           f"got {t3l['LeaderID'].nunique()}")
-    check("T3 leader followers unique == 340", t3l["FollowerID"].nunique() == 340,
-          f"got {t3l['FollowerID'].nunique()}")
-    check("T3 leader has NumFollowersEvaluated col", "NumFollowersEvaluated" in t3l.columns)
-    if "NumFollowersEvaluated" in t3l.columns:
-        per = t3l.groupby("LeaderID")["FollowerID"].count()
-        nfe = t3l.groupby("LeaderID")["NumFollowersEvaluated"].first()
-        check("NumFollowersEvaluated == actual dyad count", bool((per.values == nfe.values).all()),
-              "count mismatch")
-        check("SpanOfControl >= NumFollowersEvaluated",
-              bool((t3l["SpanOfControl"] >= t3l["NumFollowersEvaluated"]).all()))
+    check("T3 leader has 评价下属人数 col", "评价下属人数" in t3l.columns)
+    if "评价下属人数" in t3l.columns:
+        _fid = [c for c in t3l.columns if c.startswith("FollowerID_")]
+        _actual = t3l[_fid].notna().sum(axis=1)
+        check("评价下属人数 == filled FollowerID slots", bool((t3l["评价下属人数"] == _actual).all()))
+        check("评价下属人数 in {3,4,5}", set(int(x) for x in t3l["评价下属人数"].unique()) <= {3, 4, 5})
+        check("SpanOfControl >= 评价下属人数", bool((t3l["SpanOfControl"] >= t3l["评价下属人数"]).all()))
+    check("T3 leader has per-follower OCBS/CWBS blocks (slot 1)",
+          all(f"OCBS_1_{i}" in t3l.columns for i in range(1, 7)) and
+          all(f"CWBS_1_{i}" in t3l.columns for i in range(1, 6)) and
+          "CWBS_1_6_AttCheck" in t3l.columns)
     check("T3 follower leaders == 79", t3f["LeaderID"].nunique() == 79,
           f"got {t3f['LeaderID'].nunique()}")
     check("final leaders == 79", final["LeaderID"].nunique() == 79,
@@ -168,7 +169,8 @@ def main() -> int:
     check("T1 has EMP9_AttCheck",  "EMP9_AttCheck" in t1.columns)
     check("T2 has MAL6_AttCheck",  "MAL6_AttCheck" in t2.columns)
     check("T3f has OCBS7_AttCheck","OCBS7_AttCheck" in t3f.columns)
-    check("T3l has CWBS6_AttCheck","CWBS6_AttCheck" in t3l.columns)
+    check("T3l has per-follower AttCheck slots",
+          all(f"CWBS_{k}_6_AttCheck" in t3l.columns for k in range(1, 6)))
     # In RAW data we should see some failures (3-5%):
     if "EMP9_AttCheck" in t1r.columns:
         fails = (t1r["EMP9_AttCheck"] != 6).sum()
@@ -176,12 +178,15 @@ def main() -> int:
     # Cleaned MUST have ALL AC == 6
     for label, df, col in [("T1", t1, "EMP9_AttCheck"),
                             ("T2", t2, "MAL6_AttCheck"),
-                            ("T3f", t3f, "OCBS7_AttCheck"),
-                            ("T3l", t3l, "CWBS6_AttCheck")]:
+                            ("T3f", t3f, "OCBS7_AttCheck")]:
         if col in df.columns:
             non6 = (df[col] != 6).sum()
             check(f"{label} cleaned: every row has AC = 6", non6 == 0,
                   f"non-6 count={non6}")
+    # T3 leader WIDE: AttCheck per follower slot; only filled (non-NaN) must == 6
+    _ac = [f"CWBS_{k}_6_AttCheck" for k in range(1, 6) if f"CWBS_{k}_6_AttCheck" in t3l.columns]
+    _bad = sum(int((t3l[c].dropna() != 6).sum()) for c in _ac)
+    check("T3l cleaned: every filled AC = 6", _bad == 0, f"non-6 count={_bad}")
 
     # ---------- 5. CLID ----------
     section("5. CLID")
@@ -243,9 +248,9 @@ def main() -> int:
     if "FollowerID" in t2r.columns:
         n = t2r["FollowerID"].duplicated().sum()
         check("T2 raw 1 ≤ dup ≤ 6", 1 <= n <= 6, f"{n}")
-    if "FollowerID" in t3lr.columns:
-        n = t3lr["FollowerID"].duplicated().sum()
-        check("T3 leader raw 0 < follower-dup ≤ 1", 0 < n <= 1, f"{n}")
+    if "LeaderID" in t3lr.columns:
+        n = t3lr["LeaderID"].duplicated().sum()
+        check("T3 leader raw 0 < dup ≤ 2", 0 < n <= 2, f"{n}")
     if "FollowerID" in t1.columns and "FollowerID" in t2r.columns:
         miss = set(t2r["FollowerID"]) - set(t1["FollowerID"])
         check("T2 raw ≥ 3 unmatched", len(miss) >= 3, f"{len(miss)}")
@@ -259,9 +264,12 @@ def main() -> int:
           f"{int(t1r.isna().sum().sum())}")
     check("T2 raw zero missing", int(t2r.isna().sum().sum()) == 0,
           f"{int(t2r.isna().sum().sum())}")
-    check("T3 leader raw missing in [1, 5]",
-          1 <= int(t3lr.isna().sum().sum()) <= 5,
-          f"{int(t3lr.isna().sum().sum())}")
+    # WJX wide: follower-slot cols are structurally blank for leaders rating <5.
+    # Only core columns (IDs / 评价下属人数 / demographics) must be complete.
+    _core = [c for c in t3lr.columns if not (c.startswith("FollowerID_") or
+             c.startswith("OCBS_") or c.startswith("CWBS_"))]
+    _cm = int(t3lr[_core].isna().sum().sum())
+    check("T3 leader raw core cols complete (≤ 2)", _cm <= 2, f"core missing={_cm}")
 
     # ---------- 11. composite scores ----------
     section("11. Composites equal item averages")
@@ -457,7 +465,7 @@ def main() -> int:
     section("24. No duplicate IDs in cleaned")
     for label, df, key in [("T1", t1, "FollowerID"), ("T2", t2, "FollowerID"),
                             ("T3 follower", t3f, "FollowerID"),
-                            ("T3 leader", t3l, "FollowerID"),
+                            ("T3 leader", t3l, "LeaderID"),
                             ("final", final, "FollowerID")]:
         if key in df.columns:
             n = df[key].duplicated().sum()
