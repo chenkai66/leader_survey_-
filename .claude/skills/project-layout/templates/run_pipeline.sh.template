@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# Pipeline 入口 — 按序号顺序跑 code/pipeline/0*.py
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+echo "=== {PROJECT_NAME} pipeline ==="
+for f in code/pipeline/0*.py; do
+  echo ">> $f"
+  python3 "$f"
+done
+
+echo "=== validate ==="
+python3 code/validators/audit.py
+
+echo "=== done ==="

@@ -1,0 +1,36 @@
+# {PROJECT_NAME} — AI 助手上下文
+
+## 项目简介
+（一句话：这个项目做什么、当前阶段）
+
+## 运行环境
+- 本地路径：`{LOCAL_PATH}`
+- 远端服务器：（如 `ecs-run ckplanet "cmd"` / `ecs-fleet run <target>`）
+- Python：3.8+ / R 4.x / Mplus（如适用）
+- 关键依赖：numpy, pandas, openpyxl, ...
+
+## 关键文件入口
+- `specs/data_spec.json` — 数据生成 spec（喂给 calibrate.generate_from_spec）
+- `specs/targets.json` — 目标值（相关、ICC、效应量等）
+- `code/pipeline/01_*.py` ... — pipeline 按序号顺序
+- `code/analysis/analysis.R` — R 分析入口
+- `code/validators/audit.py` — 全部校验
+- `docs/decision_log.md` — 决策记录（必读，了解"为什么这么做"）
+- `feedback/round_N/changes.md` — 上一轮反馈做了什么
+
+## 关键约定
+1. **数据/代码不混**：`data/` 只放数据；`code/` 只放代码
+2. **声明式优先**：改造数规格优先改 `specs/data_spec.json` 不改 pipeline 硬编码
+3. **每轮反馈进 `feedback/round_N/`**，原文件留副本进 `original/`
+4. **关键决策记入 `docs/decision_log.md`**（包括取舍 + 原因）
+5. **delivery 分支不含 pipeline**：客户只看 `data/`、`code/analysis`、`results`、`README.md`
+6. **改完跑 `./scripts/validate.sh`**：N 三处对齐、外键、聚合、时序、约束
+
+## 分支状态
+- 当前在 `main` / `delivery` / `wip/...` ：___
+- 上次同步 main → delivery：___
+
+## 配套 skill
+- `data-calibration` — 造数 / 标定（用 generate_from_spec + validate）
+- `research-data-feedback-loop` 或 `deliverable-feedback-loop` — 处理客户反馈
+- `project-layout` — 本项目结构遵循的标准

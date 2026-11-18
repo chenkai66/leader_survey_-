@@ -1,0 +1,323 @@
+! ============================================================
+! Study 3: Multilevel CFA (MCFA) — ITEM-LEVEL (no parcels)
+!
+! Round-5 change: Empowering (12 items) and Thriving (10 items)
+! are now at individual item level, NOT parceled.
+!
+! Variables (38 items + CLID):
+!   AUT1-AUT6       Autocratic leadership (6 items, T1)
+!   EMP1-EMP12      Empowering leadership (12 items, T1)
+!   BEN1-BEN5       Benign envy (5 items, T2)
+!   MAL1-MAL5       Malicious envy (5 items, T2)
+!   THR1-THR4 R_THR5 THR6-THR9 R_THR10
+!                   Thriving (10 items, T1; items 5,10 reverse-coded)
+!
+! Data: study3_mcfa.dat (space-delimited, missing=-999, N=340)
+! ============================================================
+
+! ============================================================
+! MODEL 1: FIVE-FACTOR (Hypothesized)
+! AUT, EMP, BE, ME, THR — each with own items
+! ============================================================
+
+TITLE: Study 3 MCFA Item-Level - Five-Factor Hypothesized;
+
+DATA:
+  FILE IS study3_mcfa.dat;
+
+VARIABLE:
+  NAMES ARE
+    CLID
+    AUT1 AUT2 AUT3 AUT4 AUT5 AUT6
+    EMP1 EMP2 EMP3 EMP4 EMP5 EMP6
+    EMP7 EMP8 EMP9 EMP10 EMP11 EMP12
+    BEN1 BEN2 BEN3 BEN4 BEN5
+    MAL1 MAL2 MAL3 MAL4 MAL5
+    THR1 THR2 THR3 THR4 R_THR5
+    THR6 THR7 THR8 THR9 R_THR10;
+
+  USEVARIABLES ARE ALL;
+  CLUSTER IS CLID;
+  MISSING ARE ALL (-999);
+
+ANALYSIS:
+  TYPE = TWOLEVEL;
+  ESTIMATOR = MLR;
+  ITERATIONS = 10000;
+  H1ITERATIONS = 10000;
+
+MODEL:
+
+  %WITHIN%
+    BENW BY BEN1 BEN2 BEN3 BEN4 BEN5;
+    MALW BY MAL1 MAL2 MAL3 MAL4 MAL5;
+    THRW BY THR1 THR2 THR3 THR4 R_THR5
+           THR6 THR7 THR8 THR9 R_THR10;
+    AUT1-AUT6 EMP1-EMP12;
+
+  %BETWEEN%
+    AUTB BY AUT1 AUT2 AUT3 AUT4 AUT5 AUT6;
+    EMPB BY EMP1 EMP2 EMP3 EMP4 EMP5 EMP6
+            EMP7 EMP8 EMP9 EMP10 EMP11 EMP12;
+    BEN1-BEN5 MAL1-MAL5
+    THR1 THR2 THR3 THR4 R_THR5
+    THR6 THR7 THR8 THR9 R_THR10;
+
+OUTPUT:
+  SAMPSTAT STANDARDIZED TECH1 TECH4;
+
+
+! ============================================================
+! MODEL 2: FOUR-FACTOR (BE + ME combined into ENVY)
+! ============================================================
+
+TITLE: Study 3 MCFA Item-Level - Four-Factor (BEN+MAL Combined);
+
+DATA:
+  FILE IS study3_mcfa.dat;
+
+VARIABLE:
+  NAMES ARE
+    CLID
+    AUT1 AUT2 AUT3 AUT4 AUT5 AUT6
+    EMP1 EMP2 EMP3 EMP4 EMP5 EMP6
+    EMP7 EMP8 EMP9 EMP10 EMP11 EMP12
+    BEN1 BEN2 BEN3 BEN4 BEN5
+    MAL1 MAL2 MAL3 MAL4 MAL5
+    THR1 THR2 THR3 THR4 R_THR5
+    THR6 THR7 THR8 THR9 R_THR10;
+
+  USEVARIABLES ARE ALL;
+  CLUSTER IS CLID;
+  MISSING ARE ALL (-999);
+
+ANALYSIS:
+  TYPE = TWOLEVEL;
+  ESTIMATOR = MLR;
+  ITERATIONS = 10000;
+
+MODEL:
+
+  %WITHIN%
+    AUTW BY AUT1 AUT2 AUT3 AUT4 AUT5 AUT6;
+    EMPW BY EMP1 EMP2 EMP3 EMP4 EMP5 EMP6
+            EMP7 EMP8 EMP9 EMP10 EMP11 EMP12;
+    ENVYW BY BEN1 BEN2 BEN3 BEN4 BEN5
+             MAL1 MAL2 MAL3 MAL4 MAL5;
+    THRW BY THR1 THR2 THR3 THR4 R_THR5
+            THR6 THR7 THR8 THR9 R_THR10;
+
+  %BETWEEN%
+    AUTB BY AUT1 AUT2 AUT3 AUT4 AUT5 AUT6;
+    EMPB BY EMP1 EMP2 EMP3 EMP4 EMP5 EMP6
+            EMP7 EMP8 EMP9 EMP10 EMP11 EMP12;
+    ENVYB BY BEN1 BEN2 BEN3 BEN4 BEN5
+             MAL1 MAL2 MAL3 MAL4 MAL5;
+    THRB BY THR1 THR2 THR3 THR4 R_THR5
+            THR6 THR7 THR8 THR9 R_THR10;
+
+OUTPUT:
+  SAMPSTAT STANDARDIZED TECH1 TECH4;
+
+
+! ============================================================
+! MODEL 3: THREE-FACTOR (AUT+EMP combined, BEN+MAL combined)
+! ============================================================
+
+TITLE: Study 3 MCFA Item-Level - Three-Factor;
+
+DATA:
+  FILE IS study3_mcfa.dat;
+
+VARIABLE:
+  NAMES ARE
+    CLID
+    AUT1 AUT2 AUT3 AUT4 AUT5 AUT6
+    EMP1 EMP2 EMP3 EMP4 EMP5 EMP6
+    EMP7 EMP8 EMP9 EMP10 EMP11 EMP12
+    BEN1 BEN2 BEN3 BEN4 BEN5
+    MAL1 MAL2 MAL3 MAL4 MAL5
+    THR1 THR2 THR3 THR4 R_THR5
+    THR6 THR7 THR8 THR9 R_THR10;
+
+  USEVARIABLES ARE ALL;
+  CLUSTER IS CLID;
+  MISSING ARE ALL (-999);
+
+ANALYSIS:
+  TYPE = TWOLEVEL;
+  ESTIMATOR = MLR;
+  ITERATIONS = 10000;
+
+MODEL:
+
+  %WITHIN%
+    LEADW BY AUT1 AUT2 AUT3 AUT4 AUT5 AUT6
+             EMP1 EMP2 EMP3 EMP4 EMP5 EMP6
+             EMP7 EMP8 EMP9 EMP10 EMP11 EMP12;
+    ENVYW BY BEN1 BEN2 BEN3 BEN4 BEN5
+             MAL1 MAL2 MAL3 MAL4 MAL5;
+    THRW BY THR1 THR2 THR3 THR4 R_THR5
+            THR6 THR7 THR8 THR9 R_THR10;
+
+  %BETWEEN%
+    LEADB BY AUT1 AUT2 AUT3 AUT4 AUT5 AUT6
+             EMP1 EMP2 EMP3 EMP4 EMP5 EMP6
+             EMP7 EMP8 EMP9 EMP10 EMP11 EMP12;
+    ENVYB BY BEN1 BEN2 BEN3 BEN4 BEN5
+             MAL1 MAL2 MAL3 MAL4 MAL5;
+    THRB BY THR1 THR2 THR3 THR4 R_THR5
+            THR6 THR7 THR8 THR9 R_THR10;
+
+OUTPUT:
+  SAMPSTAT STANDARDIZED TECH1 TECH4;
+
+
+! ============================================================
+! MODEL 4: TWO-FACTOR (All predictors vs All outcomes)
+! ============================================================
+
+TITLE: Study 3 MCFA Item-Level - Two-Factor;
+
+DATA:
+  FILE IS study3_mcfa.dat;
+
+VARIABLE:
+  NAMES ARE
+    CLID
+    AUT1 AUT2 AUT3 AUT4 AUT5 AUT6
+    EMP1 EMP2 EMP3 EMP4 EMP5 EMP6
+    EMP7 EMP8 EMP9 EMP10 EMP11 EMP12
+    BEN1 BEN2 BEN3 BEN4 BEN5
+    MAL1 MAL2 MAL3 MAL4 MAL5
+    THR1 THR2 THR3 THR4 R_THR5
+    THR6 THR7 THR8 THR9 R_THR10;
+
+  USEVARIABLES ARE ALL;
+  CLUSTER IS CLID;
+  MISSING ARE ALL (-999);
+
+ANALYSIS:
+  TYPE = TWOLEVEL;
+  ESTIMATOR = MLR;
+  ITERATIONS = 10000;
+
+MODEL:
+
+  %WITHIN%
+    PREDW BY AUT1 AUT2 AUT3 AUT4 AUT5 AUT6
+             EMP1 EMP2 EMP3 EMP4 EMP5 EMP6
+             EMP7 EMP8 EMP9 EMP10 EMP11 EMP12
+             BEN1 BEN2 BEN3 BEN4 BEN5
+             MAL1 MAL2 MAL3 MAL4 MAL5;
+    OUTW BY THR1 THR2 THR3 THR4 R_THR5
+            THR6 THR7 THR8 THR9 R_THR10;
+
+  %BETWEEN%
+    PREDB BY AUT1 AUT2 AUT3 AUT4 AUT5 AUT6
+             EMP1 EMP2 EMP3 EMP4 EMP5 EMP6
+             EMP7 EMP8 EMP9 EMP10 EMP11 EMP12
+             BEN1 BEN2 BEN3 BEN4 BEN5
+             MAL1 MAL2 MAL3 MAL4 MAL5;
+    OUTB BY THR1 THR2 THR3 THR4 R_THR5
+            THR6 THR7 THR8 THR9 R_THR10;
+
+OUTPUT:
+  SAMPSTAT STANDARDIZED TECH1 TECH4;
+
+
+! ============================================================
+! MODEL 5: SINGLE-FACTOR (All 38 items on one factor)
+! ============================================================
+
+TITLE: Study 3 MCFA Item-Level - Single-Factor;
+
+DATA:
+  FILE IS study3_mcfa.dat;
+
+VARIABLE:
+  NAMES ARE
+    CLID
+    AUT1 AUT2 AUT3 AUT4 AUT5 AUT6
+    EMP1 EMP2 EMP3 EMP4 EMP5 EMP6
+    EMP7 EMP8 EMP9 EMP10 EMP11 EMP12
+    BEN1 BEN2 BEN3 BEN4 BEN5
+    MAL1 MAL2 MAL3 MAL4 MAL5
+    THR1 THR2 THR3 THR4 R_THR5
+    THR6 THR7 THR8 THR9 R_THR10;
+
+  USEVARIABLES ARE ALL;
+  CLUSTER IS CLID;
+  MISSING ARE ALL (-999);
+
+ANALYSIS:
+  TYPE = TWOLEVEL;
+  ESTIMATOR = MLR;
+  ITERATIONS = 10000;
+
+MODEL:
+
+  %WITHIN%
+    GENW BY AUT1 AUT2 AUT3 AUT4 AUT5 AUT6
+            EMP1 EMP2 EMP3 EMP4 EMP5 EMP6
+            EMP7 EMP8 EMP9 EMP10 EMP11 EMP12
+            BEN1 BEN2 BEN3 BEN4 BEN5
+            MAL1 MAL2 MAL3 MAL4 MAL5
+            THR1 THR2 THR3 THR4 R_THR5
+            THR6 THR7 THR8 THR9 R_THR10;
+
+  %BETWEEN%
+    GENB BY AUT1 AUT2 AUT3 AUT4 AUT5 AUT6
+            EMP1 EMP2 EMP3 EMP4 EMP5 EMP6
+            EMP7 EMP8 EMP9 EMP10 EMP11 EMP12
+            BEN1 BEN2 BEN3 BEN4 BEN5
+            MAL1 MAL2 MAL3 MAL4 MAL5
+            THR1 THR2 THR3 THR4 R_THR5
+            THR6 THR7 THR8 THR9 R_THR10;
+
+OUTPUT:
+  SAMPSTAT STANDARDIZED TECH1 TECH4;
+
+
+! ============================================================
+! APPENDIX: SINGLE-CONSTRUCT CFA (TYPE=COMPLEX, cluster-robust)
+! Run separately for each construct. Example: Empowering (12 items)
+! ============================================================
+
+TITLE: Study 3 Single-CFA - Empowering Leadership (12 items);
+
+DATA:
+  FILE IS study3_mcfa.dat;
+
+VARIABLE:
+  NAMES ARE
+    CLID
+    AUT1 AUT2 AUT3 AUT4 AUT5 AUT6
+    EMP1 EMP2 EMP3 EMP4 EMP5 EMP6
+    EMP7 EMP8 EMP9 EMP10 EMP11 EMP12
+    BEN1 BEN2 BEN3 BEN4 BEN5
+    MAL1 MAL2 MAL3 MAL4 MAL5
+    THR1 THR2 THR3 THR4 R_THR5
+    THR6 THR7 THR8 THR9 R_THR10;
+
+  USEVARIABLES ARE EMP1-EMP12;
+  CLUSTER IS CLID;
+  MISSING ARE ALL (-999);
+
+ANALYSIS:
+  TYPE = COMPLEX;
+  ESTIMATOR = MLR;
+
+MODEL:
+  EMP BY EMP1 EMP2 EMP3 EMP4 EMP5 EMP6
+         EMP7 EMP8 EMP9 EMP10 EMP11 EMP12;
+
+OUTPUT:
+  SAMPSTAT STANDARDIZED TECH1;
+
+! For Thriving single-CFA:
+!   USEVARIABLES = THR1 THR2 THR3 THR4 R_THR5 THR6 THR7 THR8 THR9 R_THR10;
+!   THR BY THR1 THR2 THR3 THR4 R_THR5 THR6 THR7 THR8 THR9 R_THR10;
+!
+! For other constructs (AUT, BEN, MAL): same as before (already item-level).
+! ============================================================

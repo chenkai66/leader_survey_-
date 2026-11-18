@@ -1,0 +1,107 @@
+! ============================================================
+! Study 3: Two-Level Path Model (Simultaneous Estimation)
+! Customer round-4 verification spec.
+!
+! All 5 endogenous variables (BE, ME, T3 Thriving, OCBS_Leader,
+! CWBS_Leader) estimated jointly in a single two-level path
+! model with random intercepts. M->Y residual covariances and
+! mediator residual covariance estimated.
+!
+! Run from /root/leader_survey_v2/repo/data after exporting
+! data with appropriate columns to study3_path.dat.
+! ============================================================
+
+TITLE: Study 3 - Simultaneous two-level path model;
+
+DATA:
+  FILE IS study3_path.dat;
+
+VARIABLE:
+  NAMES ARE
+    CLID FAGE GMALE TEN INTF
+    AUT EMP NARC PD T1THR
+    BE ME T3THR OCBSL CWBSL OCBSF CWBSF;
+
+  USEVARIABLES ARE
+    FAGE GMALE TEN INTF
+    AUT EMP NARC PD T1THR
+    BE ME T3THR OCBSL CWBSL;
+
+  CLUSTER IS CLID;
+  MISSING ARE ALL (-999);
+  CENTERING = GRANDMEAN (FAGE TEN INTF AUT EMP NARC PD T1THR);
+
+ANALYSIS:
+  TYPE = TWOLEVEL;
+  ESTIMATOR = MLR;
+  ITERATIONS = 10000;
+  H1ITERATIONS = 10000;
+
+MODEL:
+
+  %WITHIN%
+
+    ! Mediator equations
+    BE ON AUT EMP NARC PD FAGE GMALE TEN INTF;
+    ME ON AUT EMP NARC PD FAGE GMALE TEN INTF;
+
+    ! Outcome equations (joint with mediators)
+    T3THR ON BE ME AUT EMP NARC PD T1THR FAGE GMALE TEN INTF;
+    OCBSL ON BE ME AUT EMP NARC PD FAGE GMALE TEN INTF;
+    CWBSL ON BE ME AUT EMP NARC PD FAGE GMALE TEN INTF;
+
+    ! Mediator residual covariance
+    BE WITH ME;
+    ! Outcome residual covariances
+    T3THR WITH OCBSL;
+    T3THR WITH CWBSL;
+    OCBSL WITH CWBSL;
+
+  %BETWEEN%
+
+    ! Random intercepts only at level 2 (leader level)
+    BE ME T3THR OCBSL CWBSL;
+
+OUTPUT:
+  SAMPSTAT STANDARDIZED CINTERVAL TECH1 TECH4;
+
+! ============================================================
+! VARIANT A — TWOLEVEL RANDOM (random M->Y slopes)
+! Use this if Mplus output showed "Random Slopes" or if the
+! difference from above is what produced the M->Y reversal.
+! ============================================================
+!
+! MODEL:
+!   %WITHIN%
+!     sBE_THR | T3THR ON BE;
+!     sME_THR | T3THR ON ME;
+!     sBE_OCB | OCBSL ON BE;
+!     sME_OCB | OCBSL ON ME;
+!     sBE_CWB | CWBSL ON BE;
+!     sME_CWB | CWBSL ON ME;
+!     BE ON AUT EMP NARC PD ...;
+!     ME ON AUT EMP NARC PD ...;
+!     T3THR ON AUT EMP NARC PD T1THR ...;
+!     OCBSL ON AUT EMP NARC PD ...;
+!     CWBSL ON AUT EMP NARC PD ...;
+!   %BETWEEN%
+!     sBE_THR sME_THR sBE_OCB sME_OCB sBE_CWB sME_CWB;
+!
+! ANALYSIS:  TYPE = TWOLEVEL RANDOM;
+! ============================================================
+
+! ============================================================
+! VARIANT B — moderated mediation (8 first-stage interactions)
+! ============================================================
+!
+! Add to %WITHIN%:
+!   AUTNARC | AUT XWITH NARC;
+!   EMPNARC | EMP XWITH NARC;
+!   AUTPD   | AUT XWITH PD;
+!   EMPPD   | EMP XWITH PD;
+!   BE ON AUT EMP NARC PD AUTNARC EMPNARC AUTPD EMPPD ...;
+!   ME ON AUT EMP NARC PD AUTNARC EMPNARC AUTPD EMPPD ...;
+!
+! ANALYSIS:  TYPE = TWOLEVEL RANDOM;
+!            ALGORITHM = INTEGRATION;
+! ============================================================

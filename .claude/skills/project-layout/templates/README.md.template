@@ -1,0 +1,42 @@
+# {PROJECT_NAME}
+
+Brief one-paragraph project description.
+
+## Status
+- Phase: ___
+- Last reviewed round: ___
+- Last deliverable date: ___
+
+## Deliverables
+- `results/tables/` — final filled tables
+- `results/raw_output/` — raw analysis output (R / Mplus)
+- `data/final/` — canonical analysis dataset
+
+## How to run
+```bash
+# 1. Generate data from spec
+./scripts/run_pipeline.sh
+
+# 2. Validate
+./scripts/validate.sh
+
+# 3. (optional) Deploy / sync to server
+./scripts/deploy.sh
+```
+
+## Project structure
+See `docs/methodology.md` for the why. Quick map:
+- `specs/` — declarative target specs (drive generation + validation)
+- `code/pipeline/` — data generation pipeline (numbered)
+- `code/analysis/` — statistical analyses
+- `code/validators/` — constraint + audit
+- `feedback/round_N/` — per-round client feedback + responses
+- `docs/decision_log.md` — why each decision was made
+
+## Branches
+- `main` — full internal state
+- `delivery` — client-facing only (no internal pipeline / feedback history)
+- `wip/<feature>` — work in progress
+- `audit/round-N` — frozen snapshot per audit round (optional)
+
+See `~/.claude/skills/project-layout/SKILL.md` for full convention.
